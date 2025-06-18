@@ -31,7 +31,8 @@ export default function MapComponent() {
   const windLayerRef = useRef<WindDirectionLayer | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [windData, setWindData] = useState<WindData | null>(null)
-  const [selectedDate, setSelectedDate] = useState("2025-06-17")
+  const today = new Date().toISOString().split("T")[0] // "yyyy-mm-dd"
+  const [selectedDate, setSelectedDate] = useState(today)
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return
@@ -61,12 +62,24 @@ export default function MapComponent() {
     }
   }, [])
 
+  const formatTimestamp = (isoString: string) => {
+    // 백엔드에서 받은 "20250617T06:00:00Z" 를 JS Date로 바꿔서 한국 시간으로 표시
+    try {
+      const date = new Date(isoString)
+      return date.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })
+    } catch {
+      return isoString
+    }
+  }
+
+
   const loadWindData = async () => {
     if (!mapInstanceRef.current) return
 
     setIsLoading(true)
     try {
-      const response = await fetch(`http://localhost:8000/api/gfs/wind-direction?date=${selectedDate}`)
+      console.log(selectedDate, "!!")
+      const response = await fetch(`http://127.0.0.1:8000/api/gfs/wind-direction?date=${selectedDate}`)
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)

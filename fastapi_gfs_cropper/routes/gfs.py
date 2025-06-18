@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from utils.grib_processor import extract_variable
 from utils.s102_converter import crop_and_convert
 from db.mongo import collection
-from models.schema import GridData
+from models.schema import GridData, WindRequest
 from datetime import datetime, timedelta
 import os
 import requests
@@ -11,10 +11,9 @@ import requests
 router = APIRouter()
 
 @router.post("/wind-auto")
-def fetch_and_store_gfs_auto():
-    # ✅ 날짜 및 시간 설정
-    today = datetime.utcnow().strftime("%Y%m%d")
-    hour = "06"  # 또는 "00", "12", "18" 중 하나
+def fetch_and_store_gfs_auto(request: WindRequest):
+    today = request.date
+    hour = request.hour
 
     filename = f"gfswave.t{hour}z.global.0p25.f000.grib2"
     url = f"https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/v16.3/gfs.{today}/{hour}/wave/gridded/{filename}"
@@ -24,20 +23,20 @@ def fetch_and_store_gfs_auto():
     grib_path = os.path.join(save_dir, filename)
 
     # ✅ 다운로드
-    # try:
-    #     response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, stream=True)
-    #     if response.status_code != 200:
-    #         return {"error": f"Download failed: {response.status_code} - {response.text[:100]}"}
+    try:
+        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, stream=True)
+        if response.status_code != 200:
+            return {"error": f"Download failed: {response.status_code} - {response.text[:100]}"}
 
-    #     with open(grib_path, "wb") as f:
-    #         for chunk in response.iter_content(chunk_size=8192):
-    #             f.write(chunk)
+        with open(grib_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
 
-    #     # ✅ 다운로드가 정상적으로 끝난 후 로그 출력
-    #     print(f"✅ GRIB file downloaded: {grib_path}")
+        # ✅ 다운로드가 정상적으로 끝난 후 로그 출력
+        print(f"✅ GRIB file downloaded: {grib_path}")
 
-    # except Exception as e:
-    #     return {"error": f"Download error: {str(e)}"}
+    except Exception as e:
+        return {"error": f"Download error: {str(e)}"}
 
     # ✅ 파일 크기 확인
     if not os.path.exists(grib_path) or os.path.getsize(grib_path) < 10000:
@@ -63,11 +62,17 @@ def fetch_and_store_gfs_auto():
     except Exception as e:
         return {"error": f"Cropping failed: {str(e)}"}
 
+    # 1. "20250617" → datetime 객체로 변환
+    parsed_date = datetime.strptime(request.date, "%Y%m%d")
+
+    # 2. 원하는 포맷의 ISO 8601 문자열로 조합
+    timestamp = f"{parsed_date.strftime('%Y-%m-%d')}T{request.hour}:00:00Z"
+
 
     # ✅ MongoDB 저장
     try:
         grid_doc = GridData(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=timestamp,
             variable="windDirection",
             bbox=bbox,
             resolution=resolution,
@@ -95,7 +100,11 @@ def get_wind_direction_data(date: Optional[str] = Query(None, description="날�
         try:
             dt_start = datetime.strptime(date, "%Y-%m-%d")
             dt_end = dt_start.replace(hour=23, minute=59, second=59)
-            query["timestamp"] = {"$gte": dt_start.isoformat(), "$lte": dt_end.isoformat()}
+
+            dt_start_str = dt_start.strftime("%Y-%m-%dT00:00:00Z")
+            dt_end_str = dt_end.strftime("%Y-%m-%dT23:59:59Z")
+
+            query["timestamp"] = {"$gte": dt_start_str, "$lte": dt_end_str}
         except ValueError:
             return {"error": "날짜 형식은 YYYY-MM-DD로 입력하세요."}
 

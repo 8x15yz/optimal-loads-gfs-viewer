@@ -42,8 +42,8 @@ export class WindDirectionLayer extends L.Layer {
     this.draw(map)
 
     // 지도 이벤트 리스너
-    map.on("zoom", () => this.draw(map))
-    map.on("move", () => this.draw(map))
+    map.on("zoomend", () => this.draw(map))
+    map.on("moveend", () => this.draw(map))
 
     return this
   }
@@ -61,6 +61,10 @@ export class WindDirectionLayer extends L.Layer {
 
   private draw(map: L.Map) {
     if (!this.ctx || !this.canvas) return
+
+    // ✅ canvas 위치 보정
+    const topLeft = map.containerPointToLayerPoint([0, 0])
+    L.DomUtil.setPosition(this.canvas, topLeft)
 
     const size = map.getSize()
     this.canvas.width = size.x
@@ -84,6 +88,7 @@ export class WindDirectionLayer extends L.Layer {
       }
     })
   }
+
 
   private drawWindDirection(x: number, y: number, windDirection: number) {
     if (!this.ctx) return
