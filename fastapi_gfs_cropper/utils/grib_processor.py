@@ -3,7 +3,7 @@ import numpy as np
 import tempfile
 import requests
 import os
-
+from pathlib import Path
 
 def download_grib_file(url: str, filename="temp.grib2") -> str:
     headers = {
@@ -26,20 +26,18 @@ import numpy as np
 import os
 import tempfile
 
-
 def extract_variable(grib_path, var_name="WVDIR"):
-    exe_path = os.path.join(os.getcwd(), "wgrib2.exe")
-    if not os.path.exists(exe_path):
-        raise FileNotFoundError("wgrib2.exe not found.")
-
+    # exe_path = "wgrib2" ## ✅배포할 때
+    exe_path =  "delete_/wgrib2.exe" ## ✅테스트할 때
+    
     with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp_file:
-        output_path = tmp_file.name
+        output_path = tmp_file.name 
 
     try:
         result = subprocess.run(
             [
                 exe_path, grib_path,
-                "-match", var_name,
+                "-match", f":{var_name}:",
                 "-no_header",
                 "-text", output_path
             ],
@@ -47,6 +45,7 @@ def extract_variable(grib_path, var_name="WVDIR"):
             text=True,
             check=True
         )
+        
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"wgrib2 failed:\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}")
 
@@ -70,5 +69,3 @@ def extract_variable(grib_path, var_name="WVDIR"):
     lons = np.linspace(0, 360 - 360/nlon, nlon)
 
     return data, lats, lons
-
-

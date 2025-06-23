@@ -89,11 +89,15 @@ def fetch_and_store_gfs_auto(request: WindRequest):
         "source_url": url
     }
 
+
 from fastapi import APIRouter, Query
 from typing import List, Optional
-
 @router.get("/wind-direction", response_model=List[GridData])
-def get_wind_direction_data(date: Optional[str] = Query(None, description="날짜 (YYYY-MM-DD 형식)")):
+def get_wind_direction_data(date: Optional[str] = Query(None, description="date (YYYY-MM-DD format)")):
+    
+    """
+    Retrieves wind direction data from MongoDB.
+    """
     query = {"variable": "windDirection"}
 
     if date:
