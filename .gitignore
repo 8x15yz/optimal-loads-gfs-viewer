@@ -1,3 +1,9 @@
+# files
+*.nc
+*.grib2
+*.grib
+
+
 # Node modules
 node_modules/
 
