@@ -3,6 +3,13 @@
 
 ---
 
+> 🧭 **(2025-11) Demo v0.2 is now launching 🚀**  
+> 데모 버전 0.2가 런칭되었습니다.  
+> 본 버전은 CMEMS 파랑(`VHM0`, `VMDR`, `VTPK`) 및 GFS 바람(`eastward_wind`, `northward_wind`)  
+> 데이터를 통합한 **FastAPI + S3 + MongoDB 기반 서비스**를 포함합니다.  
+
+---
+
 ## 🧭 1. Overview / 개요  
 
 **EN**  
