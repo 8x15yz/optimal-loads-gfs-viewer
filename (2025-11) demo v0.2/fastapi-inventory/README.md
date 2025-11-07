@@ -1,6 +1,15 @@
 # 🌊 Optimal-LOADS Ocean Gridded Data Demo  
 **최적물류 해양 격자 데이터 데모 시스템**
 
+> 🧭 **(2025-11) Optimal-LOADS Demo v0.2 is now launching 🚀**  
+> CMEMS 파랑(`VHM0`, `VMDR`, `VTPK`) + GFS 바람(`u/v`, `wind speed`, `wind direction`)  
+> 자동 처리 기능이 포함된 버전입니다.
+
+[![Status](https://img.shields.io/badge/status-active-success?style=flat-square)]()
+[![Version](https://img.shields.io/badge/version-v0.2-blue?style=flat-square)]()
+[![Date](https://img.shields.io/badge/release-2025--11-lightgrey?style=flat-square)]()
+[![License](https://img.shields.io/badge/license-research-green?style=flat-square)]()
+
 ---
 
 ## 🧭 1. Overview / 개요  
@@ -25,11 +34,11 @@ JSON 인코딩된 격자 배열을 API로 제공합니다.
 
 ## 🌐 2. Data Sources / 데이터 소스  
 
-| Category / 구분 | Source / 소스 | Variables / 변수 | Interval / 주기 | Format / 형식 |
-|-----------------|----------------|------------------|-----------------|----------------|
-| Atmosphere / 대기 | NOAA GFS | `wind speed`, `u/v components` | 3h | GRIB2 |
-| Ocean / 해양 | Copernicus Marine (CMEMS) | `VHM0`, `VMDR`, `VTPK` | 3h | NetCDF |
-| Bathymetry / 수심 | GEBCO / IHO S-102 | `depth`, `uncertainty` | static | HDF5 |
+| Category / 구분 | Source / 소스 | Variables / 변수 | Interval / 주기 | Format / 형식 | Notes |
+|-----------------|----------------|------------------|-----------------|----------------|--------|
+| Atmosphere / 대기 | NOAA GFS | `eastward_wind (u)`, `northward_wind (v)`, `wind_speed`, `wind_direction` | 3h | GRIB2 | `wind_speed = sqrt(u² + v²)`, `wind_direction = atan2(u, v)` |
+| Ocean / 해양 | Copernicus Marine (CMEMS) | `VHM0`, `VMDR`, `VTPK` | 3h | NetCDF | Wave height, direction, period |
+| Bathymetry / 수심 | GEBCO / IHO S-102 | – | – | – | 🕓 Planned for future release |
 
 > Reference / 참조: *IHO S-102 Bathymetric Surface Product Specification (Edition 2.0.0)*
 
@@ -37,7 +46,6 @@ JSON 인코딩된 격자 배열을 API로 제공합니다.
 
 ## ⚙️ 3. Data Processing Pipeline / 데이터 처리 파이프라인  
 
-**EN**
 1. **Download** – Retrieve timeseries datasets using `copernicusmarine.subset()` or `wget`.  
    Supports dateline-crossing (±180°).  
 2. **Preprocess** – Read with `xarray`, normalize variable names, units, coordinates.  
@@ -46,49 +54,45 @@ JSON 인코딩된 격자 배열을 API로 제공합니다.
 5. **Encoding** – Convert to `uint16` with `scale=100`, `nodata=65535`.  
    Index order: *row-major-bottom-up* (South → North).  
 
-**KO**
-1. **데이터 다운로드** – `copernicusmarine.subset()` 또는 `wget`을 이용해 시계열 데이터 획득.  
-   Dateline(±180°) 구간 자동 분할 처리 지원.  
-2. **전처리 및 검증** – `xarray`로 파일을 읽고 변수명·단위·좌표를 정규화.  
-3. **메타데이터 저장** – MongoDB 컬렉션(`assets_metadata`)에 저장.  
-4. **S3 업로드** – `boto3.upload_file()` 사용, `ACL=private`.  
-5. **API 인코딩** – `uint16 + scale=100 + nodata=65535` 변환,  
-   인덱스 순서는 남→북(`row-major-bottom-up`).
-
 ---
 
 ## 🧩 4. API Service / API 서비스  
-
-### 🔹 Endpoints / 주요 엔드포인트  
 
 | Path | Description / 설명 |
 |------|-------------------|
 | `/inventory` | View dataset metadata as HTML / 저장된 메타데이터 HTML 조회 |
 | `/api/griddata` | Returns JSON-encoded grid values / S3에서 읽어 격자 데이터 반환 |
 
-### 🔹 Example Request / 예시 요청
+### Example Request / 예시 요청
 ```bash
-GET /api/griddata?variable=VHM0&forecast_datetime=2024-03-31T00:00:00Z&source=cmems&bbox=128,34,130,36
+GET /api/griddata?variable=wind_dir&forecast_datetime=2024-08-05T00:00:00Z&source=gfs&bbox=128,34,130,36
 ```
 
-### 🔹 Example Response / 예시 응답
+### Example Response / 예시 응답
 ```json
 {
-  "timestamp": "2024-03-31T00:00:00Z",
-  "variable": "VHM0",
-  "bbox": [128.0, 34.0, 130.0, 36.0],
-  "encoding": {
-    "type": "uint16",
-    "scale": 100,
-    "nodata": 65535
+  "timestamp": "2024-08-05T00:00:00Z",
+  "variable": "wind_dir",
+  "unit": "degree",
+  "name_en": "10 m wind direction (from)",
+  "standard_name": "wind_from_direction",
+  "bbox": [128, 34, 130, 36],
+  "resolution": [0.125, 0.125],
+  "shape": [16, 16],
+  "indexOrder": "row-major-bottom-up",
+  "valueEncoding": {
+    "type": "float32",
+    "scale": 1,
+    "offset": 0,
+    "nodata": null
   },
-  "data": [[45, 52, 60, ...], ...]
+  "data": [247.972061157227, 248.148880004883, ...]
 }
 ```
 
 ---
 
-## 🧮 5. Encoding & Coordinate Conventions / 인코딩 및 좌표 체계  
+## 🧮 5. Encoding & Index Order / 인코딩 및 인덱스 순서  
 
 | Property / 항목 | Description / 설명 |
 |------------------|--------------------|
@@ -97,11 +101,31 @@ GET /api/griddata?variable=VHM0&forecast_datetime=2024-03-31T00:00:00Z&source=cm
 | Lon/Lat Range | lon: −180 ~ 180°, lat: −90 ~ 90° |
 | CRS | EPSG:4326 (WGS84) |
 
+### 📘 Index Order Explained (3×3 Example)
+
+S-100 계열 격자 데이터와 동일하게, **남쪽에서 북쪽으로** 값이 저장됩니다.  
+즉, 첫 번째 행(`row[0]`)이 남단(최소 위도), 마지막 행(`row[-1]`)이 북단(최대 위도)을 의미합니다.
+
+```
+North ↑
+[7, 8, 9]
+[4, 5, 6]
+[1, 2, 3] ← South
+```
+
+이 데이터는 직렬화될 때 다음과 같이 표현됩니다:
+```json
+"data": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+"indexOrder": "row-major-bottom-up"
+```
+
+즉 `(0,0)`은 남서(SW) 모서리이며, 열(column)과 행(row)이 증가할수록 북동(NE) 방향으로 확장됩니다.
+
 ---
 
 ## 🚀 6. Deployment / 배포  
 
-### 🔹 Docker Build & Run / 도커 빌드 및 실행
+### Docker Build & Run / 도커 빌드 및 실행
 ```bash
 # Build image / 이미지 빌드
 sudo docker build --no-cache -t fastapi-inventory:latest .
@@ -110,7 +134,7 @@ sudo docker build --no-cache -t fastapi-inventory:latest .
 sudo docker run -d --name fastapi-inventory   --restart=always   --env-file .env   -p 80:8000   fastapi-inventory:latest
 ```
 
-### 🔹 .env Example / 환경변수 예시
+### .env Example / 환경변수 예시
 ```
 APP_TITLE=Optimal-LOADS Inventory
 MONGO_URI=mongodb+srv://...
@@ -127,8 +151,8 @@ S3_BUCKET=optimal-loads
 | Dataset | Variables / 변수 | Description / 설명 |
 |----------|------------------|--------------------|
 | **Waves (cmems/027)** | `VHM0`, `VMDR`, `VTPK` | Significant wave height, mean direction, peak period / 유의파고, 평균 파향, 피크주기 |
-| **Wind (cmems/012)** | `eastward_wind`, `northward_wind` | 10 m wind components / 10m U/V 풍속 |
-| **Bathymetry (S-102)** | `depth`, `uncertainty` | Static bathymetric grid (HDF5-based) / 수심 및 불확실도 (정적 HDF5 격자) |
+| **Wind (gfs/012)** | `eastward_wind`, `northward_wind`, `wind_speed`, `wind_direction` | 10 m wind components and derived values / 10m 바람 성분 및 계산 변수 |
+| **Bathymetry (S-102)** | – | 🕓 Planned for integration (수심 격자 제공 예정) |
 
 ---
 
@@ -143,15 +167,10 @@ S3_BUCKET=optimal-loads
 
 ## 🔭 9. Future Roadmap / 향후 계획  
 
-**EN**
-- Add `depth` parameter support (3D spatiotemporal grids)  
-- Integrate S-102 bathymetry with real-time forecasts  
-- Connect to **OpenBridge** viewer for UKC and S-100 interoperability  
-
-**KO**
-- `depth` 파라미터를 통한 3D 시공간 격자 지원  
-- S-102 수심 격자와 실시간 해양예보 통합  
-- **OpenBridge** 기반 뷰어 연동 및 UKC 시뮬레이션 확장  
+- Add `depth` parameter for 3D spatiotemporal grids  
+- Integrate S-102 bathymetry layer (planned)  
+- Improve encoding performance for large CMEMS datasets  
+- Expand metadata structure for uncertainty and QC flags  
 
 ---
 
@@ -159,7 +178,7 @@ S3_BUCKET=optimal-loads
 
 **BlueMap – Optimal-LOADS Project**  
 Lead Developer: *Jay Kim (김현주)*  
-📧 Contact: [info@bluemap.kr](mailto:info@bluemap.kr)
+📧 Contact: [hjk@bluemap.dev](mailto:hjk@bluemap.dev)
 
 ---
 
