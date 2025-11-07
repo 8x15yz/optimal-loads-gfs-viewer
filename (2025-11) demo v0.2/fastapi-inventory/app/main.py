@@ -21,24 +21,24 @@ app = FastAPI(
     title=APP_TITLE,
     version="0.1.0",
     description="""
-해양 격자 데이터(예: CMEMS 파랑)를 S3에서 읽어 JSON으로 제공합니다.
+It reads ocean gridded data (e.g., CMEMS wave data) from S3 and provides it as JSON.
 
-- 값 인코딩: uint16 + scale=100, nodata=65535
-- 인덱스: row-major-bottom-up (남→북)
+- Value encoding: uint16 with scale=100, nodata=65535
+- Indexing: row-major, bottom-up (south → north)
 """,
     contact={"name": "BlueMap", "email": "hjk@bluemap.dev"},
     license_info={"name": "MIT"},
     openapi_tags=[
-        {"name": "grid", "description": "격자 데이터 API"},
+        {"name": "grid", "description": "grid data API"},
     ],
 )
 
 app.mount("/guide", StaticFiles(directory="app/templates/static/guide"), name="guide")
-@app.get("/ko", response_class=HTMLResponse)
+@app.get("/ko", response_class=HTMLResponse, include_in_schema=False)
 async def root():
     return FileResponse("app/templates/static/guide/index_ko.html")
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def root_en():
     return FileResponse("app/templates/static/guide/index_en.html")
 
@@ -65,7 +65,7 @@ PageParam  = Annotated[int,  Query(ge=1)]
 SizeParam  = Annotated[int,  Query(ge=1, le=500)]
 
 
-@app.get("/inventory", response_class=HTMLResponse)
+@app.get("/inventory", response_class=HTMLResponse, include_in_schema=False)
 async def inventory(
     request: Request,
     source: str | None = None,
