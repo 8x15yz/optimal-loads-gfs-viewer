@@ -1,0 +1,3 @@
+python3 027_pipeline_ec2.py 2024-03-31T00:00:00Z 2024-03-31T06:00:00Z
+python3 024_pipeline_ec2.py 2023-11-06T00:00:00Z 2023-11-06T12:00:00Z --compress 3
+python3 012_pipeline_ec2.py 2024-08-05T00:00:00Z 2024-08-05T07:00:00Z
