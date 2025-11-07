@@ -1,0 +1,1308 @@
+{
+  "timestamp": "2024-08-05T00:00:00Z",
+  "variable": "wind_dir",
+  "unit": "degree",
+  "name_en": "10 m wind direction (from)",
+  "standard_name": "wind_from_direction",
+  "bbox": [
+    128.0,
+    34.0,
+    130.0,
+    36.0
+  ],
+  "resolution": [
+    0.125,
+    0.125
+  ],
+  "shape": [
+    16,
+    16
+  ],
+  "indexOrder": "row-major-bottom-up",
+  "valueEncoding": {
+    "type": "object",
+    "description": "Each data point contains eastward (U), northward (V), and computed value"
+  },
+  "data": [
+    {
+      "eastward": -5.66,
+      "northward": -2.29,
+      "computed": 247.9720572860051
+    },
+    {
+      "eastward": -5.96,
+      "northward": -2.39,
+      "computed": 248.14888337211679
+    },
+    {
+      "eastward": -6.2700000000000005,
+      "northward": -2.43,
+      "computed": 248.8156711549539
+    },
+    {
+      "eastward": -6.63,
+      "northward": -2.45,
+      "computed": 249.71909384878344
+    },
+    {
+      "eastward": -6.6000000000000005,
+      "northward": -2.5100000000000002,
+      "computed": 249.17803893296534
+    },
+    {
+      "eastward": -6.38,
+      "northward": -2.4,
+      "computed": 249.38492755592196
+    },
+    {
+      "eastward": -6.63,
+      "northward": -2.41,
+      "computed": 250.02383253335412
+    },
+    {
+      "eastward": -6.87,
+      "northward": -2.54,
+      "computed": 249.7094654407127
+    },
+    {
+      "eastward": -5.96,
+      "northward": -2.43,
+      "computed": 247.818387517071
+    },
+    {
+      "eastward": -6.3100000000000005,
+      "northward": -2.58,
+      "computed": 247.76158405301814
+    },
+    {
+      "eastward": -6.32,
+      "northward": -3.2,
+      "computed": 243.1455786594814
+    },
+    {
+      "eastward": -6.58,
+      "northward": -3.48,
+      "computed": 242.12673893252182
+    },
+    {
+      "eastward": -6.32,
+      "northward": -3.18,
+      "computed": 243.29007990404568
+    },
+    {
+      "eastward": -6.36,
+      "northward": -3.1,
+      "computed": 244.01440597655676
+    },
+    {
+      "eastward": -6.44,
+      "northward": -3.24,
+      "computed": 243.29277596456504
+    },
+    {
+      "eastward": -6.3100000000000005,
+      "northward": -3.37,
+      "computed": 241.89453301215326
+    },
+    {
+      "eastward": -5.28,
+      "northward": -2.32,
+      "computed": 246.2796044276954
+    },
+    {
+      "eastward": -5.5200000000000005,
+      "northward": -2.09,
+      "computed": 249.262172231091
+    },
+    {
+      "eastward": -5.78,
+      "northward": -2.13,
+      "computed": 249.7705469843382
+    },
+    {
+      "eastward": -6.34,
+      "northward": -1.93,
+      "computed": 253.0688908912011
+    },
+    {
+      "eastward": -6.51,
+      "northward": -2.14,
+      "computed": 251.8030110528239
+    },
+    {
+      "eastward": -6.21,
+      "northward": -2.27,
+      "computed": 249.92064791238292
+    },
+    {
+      "eastward": -6.53,
+      "northward": -2.45,
+      "computed": 249.43433978142755
+    },
+    {
+      "eastward": -6.58,
+      "northward": -2.81,
+      "computed": 246.87501386072566
+    },
+    {
+      "eastward": -5.26,
+      "northward": -2.6,
+      "computed": 243.69697037822175
+    },
+    {
+      "eastward": -4.96,
+      "northward": -2.29,
+      "computed": 245.21753447857273
+    },
+    {
+      "eastward": -4.8500000000000005,
+      "northward": -2.38,
+      "computed": 243.86181345447037
+    },
+    {
+      "eastward": -5.5,
+      "northward": -3.0100000000000002,
+      "computed": 241.3093146259443
+    },
+    {
+      "eastward": -6.05,
+      "northward": -2.95,
+      "computed": 244.0059841960368
+    },
+    {
+      "eastward": -6.17,
+      "northward": -2.95,
+      "computed": 244.44660695243195
+    },
+    {
+      "eastward": -6.41,
+      "northward": -3.09,
+      "computed": 244.26317706925772
+    },
+    {
+      "eastward": -6.38,
+      "northward": -3.2,
+      "computed": 243.36314963805762
+    },
+    {
+      "eastward": -5.2700000000000005,
+      "northward": -3.0300000000000002,
+      "computed": 240.1031408644939
+    },
+    {
+      "eastward": -5.36,
+      "northward": -2.54,
+      "computed": 244.64463467889985
+    },
+    {
+      "eastward": -5.76,
+      "northward": -2.2800000000000002,
+      "computed": 248.4046895510323
+    },
+    {
+      "eastward": -6.11,
+      "northward": -2.1,
+      "computed": 251.03221298464643
+    },
+    {
+      "eastward": -6.05,
+      "northward": -2.41,
+      "computed": 248.28027819641386
+    },
+    {
+      "eastward": -5.88,
+      "northward": -2.3000000000000003,
+      "computed": 248.63672616969734
+    },
+    {
+      "eastward": -6.19,
+      "northward": -2.45,
+      "computed": 248.40635672534188
+    },
+    {
+      "eastward": -6.48,
+      "northward": -2.71,
+      "computed": 247.30483673213396
+    },
+    {
+      "eastward": -5.15,
+      "northward": -2.5,
+      "computed": 244.10635300577198
+    },
+    {
+      "eastward": -4.88,
+      "northward": -2.08,
+      "computed": 246.91486632719173
+    },
+    {
+      "eastward": -4.62,
+      "northward": -2.06,
+      "computed": 245.9685077113166
+    },
+    {
+      "eastward": -5.05,
+      "northward": -2.47,
+      "computed": 243.93633107203135
+    },
+    {
+      "eastward": -5.62,
+      "northward": -2.17,
+      "computed": 248.88737835443672
+    },
+    {
+      "eastward": -6.0600000000000005,
+      "northward": -2.59,
+      "computed": 246.85848834723927
+    },
+    {
+      "eastward": -6.28,
+      "northward": -2.98,
+      "computed": 244.61461797445506
+    },
+    {
+      "eastward": -6.17,
+      "northward": -3.12,
+      "computed": 243.17552597956464
+    },
+    {
+      "eastward": -5.21,
+      "northward": -3.41,
+      "computed": 236.79482949873133
+    },
+    {
+      "eastward": -5.3500000000000005,
+      "northward": -3.06,
+      "computed": 240.23205741248864
+    },
+    {
+      "eastward": -5.46,
+      "northward": -2.8000000000000003,
+      "computed": 242.85031830221683
+    },
+    {
+      "eastward": -5.54,
+      "northward": -2.88,
+      "computed": 242.5320814781069
+    },
+    {
+      "eastward": -5.61,
+      "northward": -3.0300000000000002,
+      "computed": 241.62620950042995
+    },
+    {
+      "eastward": -5.71,
+      "northward": -2.77,
+      "computed": 244.12133476796097
+    },
+    {
+      "eastward": -5.98,
+      "northward": -2.65,
+      "computed": 246.0997696871322
+    },
+    {
+      "eastward": -6.2,
+      "northward": -2.69,
+      "computed": 246.54537798113483
+    },
+    {
+      "eastward": -6.34,
+      "northward": -2.04,
+      "computed": 252.16356081662246
+    },
+    {
+      "eastward": -4.57,
+      "northward": -2.19,
+      "computed": 244.39568825846123
+    },
+    {
+      "eastward": -4.39,
+      "northward": -2.08,
+      "computed": 244.64821397489166
+    },
+    {
+      "eastward": -4.72,
+      "northward": -2.32,
+      "computed": 243.82471001824007
+    },
+    {
+      "eastward": -5.21,
+      "northward": -2.61,
+      "computed": 243.39097662931948
+    },
+    {
+      "eastward": -5.8500000000000005,
+      "northward": -2.72,
+      "computed": 245.06358560491165
+    },
+    {
+      "eastward": -6.01,
+      "northward": -3.0100000000000002,
+      "computed": 243.3968278840939
+    },
+    {
+      "eastward": -5.8500000000000005,
+      "northward": -3.0500000000000003,
+      "computed": 242.46392689184287
+    },
+    {
+      "eastward": -4.5200000000000005,
+      "northward": -2.31,
+      "computed": 242.9301532543662
+    },
+    {
+      "eastward": -4.51,
+      "northward": -2.69,
+      "computed": 239.18593817503458
+    },
+    {
+      "eastward": -4.9,
+      "northward": -2.57,
+      "computed": 242.32344825305498
+    },
+    {
+      "eastward": -5.11,
+      "northward": -2.63,
+      "computed": 242.76615686995336
+    },
+    {
+      "eastward": -5.16,
+      "northward": -3.1,
+      "computed": 239.00359630364596
+    },
+    {
+      "eastward": -5.4,
+      "northward": -3.24,
+      "computed": 239.03624346792648
+    },
+    {
+      "eastward": -6.03,
+      "northward": -3.14,
+      "computed": 242.49266898940502
+    },
+    {
+      "eastward": -6.34,
+      "northward": -2.94,
+      "computed": 245.12178898156355
+    },
+    {
+      "eastward": -6.23,
+      "northward": -2.66,
+      "computed": 246.87915133757528
+    },
+    {
+      "eastward": -4.41,
+      "northward": -2.84,
+      "computed": 237.21883210468079
+    },
+    {
+      "eastward": -4.01,
+      "northward": -2.29,
+      "computed": 240.27050838292217
+    },
+    {
+      "eastward": -4.4,
+      "northward": -2.44,
+      "computed": 240.9896397373126
+    },
+    {
+      "eastward": -4.87,
+      "northward": -2.69,
+      "computed": 241.0854341893158
+    },
+    {
+      "eastward": -5.64,
+      "northward": -3.04,
+      "computed": 241.67501769018875
+    },
+    {
+      "eastward": -5.72,
+      "northward": -3.31,
+      "computed": 239.94326412390154
+    },
+    {
+      "eastward": -5.53,
+      "northward": -3.17,
+      "computed": 240.17707429586915
+    },
+    {
+      "eastward": -2.82,
+      "northward": -1.25,
+      "computed": 246.09409011780755
+    },
+    {
+      "eastward": -2.5300000000000002,
+      "northward": -1.3800000000000001,
+      "computed": 241.3895403340348
+    },
+    {
+      "eastward": -2.77,
+      "northward": -1.35,
+      "computed": 244.01703395811245
+    },
+    {
+      "eastward": -3.2800000000000002,
+      "northward": -1.21,
+      "computed": 249.75085926804803
+    },
+    {
+      "eastward": -3.65,
+      "northward": -1.96,
+      "computed": 241.7648107341602
+    },
+    {
+      "eastward": -4.03,
+      "northward": -2.9,
+      "computed": 234.26109693077592
+    },
+    {
+      "eastward": -5.44,
+      "northward": -3.5500000000000003,
+      "computed": 236.87259710505032
+    },
+    {
+      "eastward": -6.5200000000000005,
+      "northward": -3.23,
+      "computed": 243.64624145886998
+    },
+    {
+      "eastward": -6.94,
+      "northward": -2.94,
+      "computed": 247.04097232521934
+    },
+    {
+      "eastward": -5.34,
+      "northward": -3.64,
+      "computed": 235.7197822254009
+    },
+    {
+      "eastward": -4.5600000000000005,
+      "northward": -2.85,
+      "computed": 237.9946167919165
+    },
+    {
+      "eastward": -4.59,
+      "northward": -2.7600000000000002,
+      "computed": 238.98120431145264
+    },
+    {
+      "eastward": -4.89,
+      "northward": -3.04,
+      "computed": 238.13173824103922
+    },
+    {
+      "eastward": -5.6000000000000005,
+      "northward": -3.0,
+      "computed": 241.82140989004085
+    },
+    {
+      "eastward": -5.45,
+      "northward": -3.5100000000000002,
+      "computed": 237.2169785757923
+    },
+    {
+      "eastward": -5.09,
+      "northward": -3.41,
+      "computed": 236.18024555309256
+    },
+    {
+      "eastward": -2.05,
+      "northward": -0.48,
+      "computed": 256.82180889298445
+    },
+    {
+      "eastward": -2.07,
+      "northward": -0.68,
+      "computed": 251.81452324138763
+    },
+    {
+      "eastward": -2.1,
+      "northward": -0.9400000000000001,
+      "computed": 245.88580146069305
+    },
+    {
+      "eastward": -2.49,
+      "northward": -0.93,
+      "computed": 249.51964268819077
+    },
+    {
+      "eastward": -2.87,
+      "northward": -1.0,
+      "computed": 250.79002547023885
+    },
+    {
+      "eastward": -3.21,
+      "northward": -1.92,
+      "computed": 239.1150546692714
+    },
+    {
+      "eastward": -3.8200000000000003,
+      "northward": -2.77,
+      "computed": 234.05297277843772
+    },
+    {
+      "eastward": -5.96,
+      "northward": -2.6,
+      "computed": 246.4311672762332
+    },
+    {
+      "eastward": -6.8500000000000005,
+      "northward": -2.56,
+      "computed": 249.50814656799392
+    },
+    {
+      "eastward": -6.67,
+      "northward": -2.77,
+      "computed": 247.44726182651283
+    },
+    {
+      "eastward": -6.07,
+      "northward": -2.57,
+      "computed": 247.05250492053418
+    },
+    {
+      "eastward": -5.97,
+      "northward": -2.21,
+      "computed": 249.68624105985666
+    },
+    {
+      "eastward": -5.7700000000000005,
+      "northward": -2.5100000000000002,
+      "computed": 246.49054228067496
+    },
+    {
+      "eastward": -5.18,
+      "northward": -3.23,
+      "computed": 238.0543102374271
+    },
+    {
+      "eastward": -4.89,
+      "northward": -3.5300000000000002,
+      "computed": 234.17518308004801
+    },
+    {
+      "eastward": -4.54,
+      "northward": -3.43,
+      "computed": 232.92871204288824
+    },
+    {
+      "eastward": -1.6500000000000001,
+      "northward": 0.07,
+      "computed": 272.42927332349996
+    },
+    {
+      "eastward": -1.86,
+      "northward": -0.05,
+      "computed": 268.4601617113764
+    },
+    {
+      "eastward": -2.18,
+      "northward": -0.62,
+      "computed": 254.12405349477743
+    },
+    {
+      "eastward": -2.5100000000000002,
+      "northward": -1.01,
+      "computed": 248.08061721534378
+    },
+    {
+      "eastward": -2.86,
+      "northward": -0.74,
+      "computed": 255.49335840247568
+    },
+    {
+      "eastward": -3.3000000000000003,
+      "northward": -0.9,
+      "computed": 254.74488129694222
+    },
+    {
+      "eastward": -3.91,
+      "northward": -1.74,
+      "computed": 246.01032441796602
+    },
+    {
+      "eastward": -7.12,
+      "northward": 0.85,
+      "computed": 276.80786599104886
+    },
+    {
+      "eastward": -6.28,
+      "northward": -2.95,
+      "computed": 244.83843311531723
+    },
+    {
+      "eastward": -5.76,
+      "northward": -3.47,
+      "computed": 238.93395577843353
+    },
+    {
+      "eastward": -5.22,
+      "northward": -3.42,
+      "computed": 236.76828893202065
+    },
+    {
+      "eastward": -5.24,
+      "northward": -3.02,
+      "computed": 240.04360940312566
+    },
+    {
+      "eastward": -5.1000000000000005,
+      "northward": -2.75,
+      "computed": 241.6657575168754
+    },
+    {
+      "eastward": -4.5200000000000005,
+      "northward": -3.12,
+      "computed": 235.38402068762016
+    },
+    {
+      "eastward": -4.2700000000000005,
+      "northward": -3.23,
+      "computed": 232.89467089076257
+    },
+    {
+      "eastward": -4.07,
+      "northward": -3.31,
+      "computed": 230.87965208213348
+    },
+    {
+      "eastward": -1.1300000000000001,
+      "northward": -0.18,
+      "computed": 260.94927832281627
+    },
+    {
+      "eastward": -1.25,
+      "northward": 0.17,
+      "computed": 277.7447105464229
+    },
+    {
+      "eastward": -1.42,
+      "northward": 0.32,
+      "computed": 282.6995844895973
+    },
+    {
+      "eastward": -1.71,
+      "northward": 0.04,
+      "computed": 271.34000778089967
+    },
+    {
+      "eastward": -1.97,
+      "northward": -0.09,
+      "computed": 267.3842451245781
+    },
+    {
+      "eastward": -2.19,
+      "northward": -0.12,
+      "computed": 266.8636416316674
+    },
+    {
+      "eastward": -2.7800000000000002,
+      "northward": -0.61,
+      "computed": 257.62403890105634
+    },
+    {
+      "eastward": -3.5700000000000003,
+      "northward": -1.36,
+      "computed": 249.14554196042167
+    },
+    {
+      "eastward": -4.18,
+      "northward": -2.69,
+      "computed": 237.23707118949116
+    },
+    {
+      "eastward": -4.69,
+      "northward": -4.1,
+      "computed": 228.84003184528098
+    },
+    {
+      "eastward": -3.98,
+      "northward": -4.38,
+      "computed": 222.26066427808144
+    },
+    {
+      "eastward": -4.24,
+      "northward": -3.94,
+      "computed": 227.10037084881768
+    },
+    {
+      "eastward": -4.34,
+      "northward": -3.16,
+      "computed": 233.9412402693571
+    },
+    {
+      "eastward": -4.2700000000000005,
+      "northward": -2.82,
+      "computed": 236.55836790139924
+    },
+    {
+      "eastward": -3.9,
+      "northward": -3.0300000000000002,
+      "computed": 232.1555415348859
+    },
+    {
+      "eastward": -3.61,
+      "northward": -3.2,
+      "computed": 228.44536683425522
+    },
+    {
+      "eastward": -1.22,
+      "northward": 0.05,
+      "computed": 272.3468742924873
+    },
+    {
+      "eastward": -1.37,
+      "northward": 0.07,
+      "computed": 272.92497794915636
+    },
+    {
+      "eastward": -1.25,
+      "northward": 0.33,
+      "computed": 284.7886776141652
+    },
+    {
+      "eastward": -1.25,
+      "northward": 0.35000000000000003,
+      "computed": 285.6422464572087
+    },
+    {
+      "eastward": -1.35,
+      "northward": 0.24,
+      "computed": 280.0805979875423
+    },
+    {
+      "eastward": -1.42,
+      "northward": 0.01,
+      "computed": 270.4034847350588
+    },
+    {
+      "eastward": -1.55,
+      "northward": -0.37,
+      "computed": 256.5741907502853
+    },
+    {
+      "eastward": -2.15,
+      "northward": -0.73,
+      "computed": 251.24585793600346
+    },
+    {
+      "eastward": -2.8000000000000003,
+      "northward": -1.2,
+      "computed": 246.80140948635182
+    },
+    {
+      "eastward": -3.16,
+      "northward": -2.7800000000000002,
+      "computed": 228.66039854787542
+    },
+    {
+      "eastward": -3.3000000000000003,
+      "northward": -3.95,
+      "computed": 219.87683446287187
+    },
+    {
+      "eastward": -3.35,
+      "northward": -3.3000000000000003,
+      "computed": 225.43078721700863
+    },
+    {
+      "eastward": -3.72,
+      "northward": -3.54,
+      "computed": 226.42026554639907
+    },
+    {
+      "eastward": -3.71,
+      "northward": -3.12,
+      "computed": 229.93715957185606
+    },
+    {
+      "eastward": -3.77,
+      "northward": -2.97,
+      "computed": 231.7690164522444
+    },
+    {
+      "eastward": -3.4,
+      "northward": -3.08,
+      "computed": 227.8271245781613
+    },
+    {
+      "eastward": -0.86,
+      "northward": 0.6900000000000001,
+      "computed": 308.74096369487773
+    },
+    {
+      "eastward": -1.04,
+      "northward": 0.45,
+      "computed": 293.3977639159261
+    },
+    {
+      "eastward": -1.1,
+      "northward": 0.4,
+      "computed": 289.98310652189997
+    },
+    {
+      "eastward": -1.17,
+      "northward": 0.37,
+      "computed": 287.5490022290678
+    },
+    {
+      "eastward": -1.1500000000000001,
+      "northward": 0.23,
+      "computed": 281.30993247402023
+    },
+    {
+      "eastward": -1.08,
+      "northward": 0.02,
+      "computed": 271.0609116902642
+    },
+    {
+      "eastward": -1.03,
+      "northward": -0.12,
+      "computed": 263.3547217897256
+    },
+    {
+      "eastward": -1.16,
+      "northward": -0.23,
+      "computed": 258.78508531534646
+    },
+    {
+      "eastward": -1.82,
+      "northward": -0.67,
+      "computed": 249.7897307848428
+    },
+    {
+      "eastward": -2.35,
+      "northward": -1.6,
+      "computed": 235.75096699318806
+    },
+    {
+      "eastward": -2.72,
+      "northward": -2.87,
+      "computed": 223.4629150189271
+    },
+    {
+      "eastward": -2.85,
+      "northward": -3.72,
+      "computed": 217.45677370960112
+    },
+    {
+      "eastward": -2.89,
+      "northward": -3.67,
+      "computed": 218.21922752693143
+    },
+    {
+      "eastward": -3.15,
+      "northward": -3.56,
+      "computed": 221.5034128772727
+    },
+    {
+      "eastward": -3.56,
+      "northward": -3.0700000000000003,
+      "computed": 229.2268449720158
+    },
+    {
+      "eastward": -3.49,
+      "northward": -2.93,
+      "computed": 229.98514488945798
+    },
+    {
+      "eastward": -0.81,
+      "northward": 0.76,
+      "computed": 313.1759101676239
+    },
+    {
+      "eastward": -0.8,
+      "northward": 0.65,
+      "computed": 309.0938588862295
+    },
+    {
+      "eastward": -0.75,
+      "northward": 0.66,
+      "computed": 311.3477772196937
+    },
+    {
+      "eastward": -0.8,
+      "northward": 0.55,
+      "computed": 304.5085229876684
+    },
+    {
+      "eastward": -0.8200000000000001,
+      "northward": 0.35000000000000003,
+      "computed": 293.1142079833268
+    },
+    {
+      "eastward": -0.54,
+      "northward": 0.11,
+      "computed": 281.513831184487
+    },
+    {
+      "eastward": -0.31,
+      "northward": -0.07,
+      "computed": 257.2756443145776
+    },
+    {
+      "eastward": -0.73,
+      "northward": -0.17,
+      "computed": 256.8907918018457
+    },
+    {
+      "eastward": -1.36,
+      "northward": -0.47000000000000003,
+      "computed": 250.93545256866773
+    },
+    {
+      "eastward": -1.8,
+      "northward": -0.8300000000000001,
+      "computed": 245.24504821803976
+    },
+    {
+      "eastward": -2.18,
+      "northward": -1.82,
+      "computed": 230.14276455788425
+    },
+    {
+      "eastward": -2.47,
+      "northward": -3.2800000000000002,
+      "computed": 216.98153078176674
+    },
+    {
+      "eastward": -1.45,
+      "northward": -1.75,
+      "computed": 219.64417495714483
+    },
+    {
+      "eastward": -2.08,
+      "northward": -3.06,
+      "computed": 214.20545793810476
+    },
+    {
+      "eastward": -3.0300000000000002,
+      "northward": -3.18,
+      "computed": 223.6163130326315
+    },
+    {
+      "eastward": -3.5,
+      "northward": -2.81,
+      "computed": 231.2405123414077
+    },
+    {
+      "eastward": -0.74,
+      "northward": 0.73,
+      "computed": 314.6102388046819
+    },
+    {
+      "eastward": -0.73,
+      "northward": 0.74,
+      "computed": 315.3897611953181
+    },
+    {
+      "eastward": -0.37,
+      "northward": 0.72,
+      "computed": 332.8018720514909
+    },
+    {
+      "eastward": -0.05,
+      "northward": 0.55,
+      "computed": 354.8055710922652
+    },
+    {
+      "eastward": -0.3,
+      "northward": 0.29,
+      "computed": 314.0289780689208
+    },
+    {
+      "eastward": -0.3,
+      "northward": 0.0,
+      "computed": 270.0
+    },
+    {
+      "eastward": -0.09,
+      "northward": -0.27,
+      "computed": 198.43494882292202
+    },
+    {
+      "eastward": -0.5,
+      "northward": -0.38,
+      "computed": 232.76516601842533
+    },
+    {
+      "eastward": -1.12,
+      "northward": -0.31,
+      "computed": 254.52867183447987
+    },
+    {
+      "eastward": -1.52,
+      "northward": -0.4,
+      "computed": 255.25643716352928
+    },
+    {
+      "eastward": -1.85,
+      "northward": -1.03,
+      "computed": 240.89283098033738
+    },
+    {
+      "eastward": -2.02,
+      "northward": -2.57,
+      "computed": 218.16707122292735
+    },
+    {
+      "eastward": -1.84,
+      "northward": -3.97,
+      "computed": 204.866594249366
+    },
+    {
+      "eastward": -1.76,
+      "northward": -1.6500000000000001,
+      "computed": 226.8476102659946
+    },
+    {
+      "eastward": -2.46,
+      "northward": -2.88,
+      "computed": 220.50284838533224
+    },
+    {
+      "eastward": -3.08,
+      "northward": -2.97,
+      "computed": 226.04162667600997
+    },
+    {
+      "eastward": -0.45,
+      "northward": 1.03,
+      "computed": 336.3998101320822
+    },
+    {
+      "eastward": -0.5700000000000001,
+      "northward": 0.96,
+      "computed": 329.30027744918556
+    },
+    {
+      "eastward": -0.31,
+      "northward": 0.77,
+      "computed": 338.07041224982464
+    },
+    {
+      "eastward": 0.12,
+      "northward": 0.43,
+      "computed": 15.592810939266343
+    },
+    {
+      "eastward": -0.17,
+      "northward": 0.06,
+      "computed": 289.4400348281762
+    },
+    {
+      "eastward": -0.52,
+      "northward": -0.2,
+      "computed": 248.96248897457818
+    },
+    {
+      "eastward": -0.52,
+      "northward": -0.41000000000000003,
+      "computed": 231.74557964748283
+    },
+    {
+      "eastward": -0.58,
+      "northward": -0.49,
+      "computed": 229.80795396303049
+    },
+    {
+      "eastward": -0.97,
+      "northward": -0.28,
+      "computed": 253.8986976008416
+    },
+    {
+      "eastward": -1.29,
+      "northward": -0.25,
+      "computed": 259.03212781733833
+    },
+    {
+      "eastward": -1.59,
+      "northward": -0.63,
+      "computed": 248.38522105721376
+    },
+    {
+      "eastward": -1.74,
+      "northward": -1.69,
+      "computed": 225.8351562922209
+    },
+    {
+      "eastward": -1.42,
+      "northward": -3.38,
+      "computed": 202.7881693135538
+    },
+    {
+      "eastward": -3.74,
+      "northward": -2.19,
+      "computed": 239.64840301778457
+    },
+    {
+      "eastward": -2.49,
+      "northward": -3.15,
+      "computed": 218.32553095288245
+    },
+    {
+      "eastward": -2.54,
+      "northward": -2.96,
+      "computed": 220.63316103744347
+    },
+    {
+      "eastward": -0.33,
+      "northward": 1.37,
+      "computed": 346.45682335755527
+    },
+    {
+      "eastward": -0.46,
+      "northward": 1.1500000000000001,
+      "computed": 338.1985905136482
+    },
+    {
+      "eastward": -0.6,
+      "northward": 1.0,
+      "computed": 329.0362434679265
+    },
+    {
+      "eastward": -0.58,
+      "northward": 0.59,
+      "computed": 315.4896955931292
+    },
+    {
+      "eastward": -0.62,
+      "northward": 0.16,
+      "computed": 284.47029410006587
+    },
+    {
+      "eastward": -0.87,
+      "northward": -0.07,
+      "computed": 265.39990433373674
+    },
+    {
+      "eastward": -1.05,
+      "northward": -0.28,
+      "computed": 255.06858282186246
+    },
+    {
+      "eastward": -1.1,
+      "northward": -0.4,
+      "computed": 250.01689347810003
+    },
+    {
+      "eastward": -1.1500000000000001,
+      "northward": -0.44,
+      "computed": 249.06271472572536
+    },
+    {
+      "eastward": -1.16,
+      "northward": -0.4,
+      "computed": 250.97439396243132
+    },
+    {
+      "eastward": -1.32,
+      "northward": -0.68,
+      "computed": 242.74467162505695
+    },
+    {
+      "eastward": -1.6400000000000001,
+      "northward": -1.21,
+      "computed": 233.5799127753801
+    },
+    {
+      "eastward": -1.3,
+      "northward": -2.29,
+      "computed": 209.58295300593875
+    },
+    {
+      "eastward": -2.57,
+      "northward": -2.66,
+      "computed": 224.01412787045518
+    },
+    {
+      "eastward": -1.7,
+      "northward": -3.37,
+      "computed": 206.76870830343103
+    },
+    {
+      "eastward": -1.86,
+      "northward": -2.68,
+      "computed": 214.76180233348703
+    },
+    {
+      "eastward": -0.67,
+      "northward": 1.32,
+      "computed": 333.08875497246106
+    },
+    {
+      "eastward": -0.8200000000000001,
+      "northward": 1.04,
+      "computed": 321.7455796474828
+    },
+    {
+      "eastward": -0.84,
+      "northward": 1.07,
+      "computed": 321.8664298024977
+    },
+    {
+      "eastward": -0.84,
+      "northward": 1.02,
+      "computed": 320.5275401516562
+    },
+    {
+      "eastward": -0.9500000000000001,
+      "northward": 0.76,
+      "computed": 308.6598082540901
+    },
+    {
+      "eastward": -1.12,
+      "northward": 0.44,
+      "computed": 291.4477363271053
+    },
+    {
+      "eastward": -1.33,
+      "northward": 0.07,
+      "computed": 273.01278750418334
+    },
+    {
+      "eastward": -1.52,
+      "northward": -0.22,
+      "computed": 261.7643806757905
+    },
+    {
+      "eastward": -1.71,
+      "northward": -0.47000000000000003,
+      "computed": 254.63153667820387
+    },
+    {
+      "eastward": -1.67,
+      "northward": -0.66,
+      "computed": 248.43559342048044
+    },
+    {
+      "eastward": -1.46,
+      "northward": -0.84,
+      "computed": 240.08635400846512
+    },
+    {
+      "eastward": -1.41,
+      "northward": -1.29,
+      "computed": 227.5448043798131
+    },
+    {
+      "eastward": -1.36,
+      "northward": -1.79,
+      "computed": 217.22671728244876
+    },
+    {
+      "eastward": -2.11,
+      "northward": -1.98,
+      "computed": 226.82052433379562
+    },
+    {
+      "eastward": -0.85,
+      "northward": -3.15,
+      "computed": 195.10109816138544
+    },
+    {
+      "eastward": -1.7,
+      "northward": -2.77,
+      "computed": 211.5382068401892
+    }
+  ]
+}
