@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
 from typing import Optional
@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from app.db import get_collection
 from app.api import router as api_router
 import os
+from fastapi.staticfiles import StaticFiles
 
 
 load_dotenv()
@@ -32,6 +33,15 @@ app = FastAPI(
     ],
 )
 
+app.mount("/guide", StaticFiles(directory="app/templates/static/guide"), name="guide")
+@app.get("/ko", response_class=HTMLResponse)
+async def root():
+    return FileResponse("app/templates/static/guide/index_ko.html")
+
+@app.get("/", response_class=HTMLResponse)
+async def root_en():
+    return FileResponse("app/templates/static/guide/index_en.html")
+
 app.include_router(api_router)
 
 # ---- CORS ----
@@ -53,6 +63,7 @@ YearParam  = Annotated[Optional[int], BeforeValidator(empty_to_none), Query()]
 MonthParam = Annotated[Optional[int], BeforeValidator(empty_to_none), Query()]
 PageParam  = Annotated[int,  Query(ge=1)]
 SizeParam  = Annotated[int,  Query(ge=1, le=500)]
+
 
 @app.get("/inventory", response_class=HTMLResponse)
 async def inventory(

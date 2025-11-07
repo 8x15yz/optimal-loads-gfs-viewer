@@ -16,9 +16,19 @@
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
     .pagination a { margin: 0 6px; text-decoration: none; }
     .muted { color:#6b7280; font-size:0.9rem; }
+    .toolbar{display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:10px 0 6px;}
+    .btn{display:inline-block;font-size:13px;padding:6px 10px;border-radius:8px;text-decoration:none;
+        border:1px solid var(--border,#e2e8f0);background:#fff;color:var(--text,#0f172a)}
+    .btn-outline{border-color:var(--brand,#0284c7);color:var(--brand,#0284c7);background:#fff}
+    .btn-outline:hover{background:#e0f4ff}
+    .btn-primary{border-color:var(--brand,#0284c7);background:var(--brand,#0284c7);color:#fff}
+    .btn-primary:hover{filter:brightness(0.97)}
   </style>
 </head>
 <body>
+  <div class="toolbar" style="display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:10px 0 6px;">
+    <a class="btn-outline btn" href="/" aria-label="Switch to English">Manual</a>
+  </div>
   <div class="wrap">
     {% block content %}{% endblock %}
   </div>
