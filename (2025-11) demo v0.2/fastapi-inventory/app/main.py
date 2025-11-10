@@ -23,7 +23,6 @@ app = FastAPI(
     description="""
 It reads ocean gridded data (e.g., CMEMS wave data) from S3 and provides it as JSON.
 
-- Value encoding: uint16 with scale=100, nodata=65535
 - Indexing: row-major, bottom-up (south → north)
 """,
     contact={"name": "BlueMap", "email": "hjk@bluemap.dev"},
