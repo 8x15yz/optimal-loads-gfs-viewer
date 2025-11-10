@@ -39,6 +39,28 @@ async def get_griddata(
     # ---- 변수 정규화 (별칭 허용) ----
     norm_var = _norm_var(variable)
 
+    # ✅ 공통 선검증: bbox 미지정이면 전역 허용범위로 간주하여 검사
+    effective_bbox = bbox or [
+        BBOX_LIMITS["min_lon"], BBOX_LIMITS["min_lat"],
+        BBOX_LIMITS["max_lon"], BBOX_LIMITS["max_lat"],
+    ]
+
+    # 형식/전역범위 검사
+    _validate_bbox_limits_raw(effective_bbox)
+
+    # 0.083° 가정으로 셀 수 추정 → 한도 초과 시 거절
+    est = _estimate_cells_assuming_resolution(effective_bbox)
+    if est > MAX_CELLS:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "error": "Requested bbox is too large for this resolution.",
+                "requested_bbox": effective_bbox,
+                "estimated_cells": est,
+                "limit": MAX_CELLS,
+                "hint": "Reduce bbox size. Example: bbox=128&bbox=34&bbox=130&bbox=36"
+            }
+        )
     # ========== [A] computed (wind_speed / wind_dir) ==========
     if norm_var in ("wind_speed", "wind_dir"):
         coll = await get_collection()
@@ -123,6 +145,7 @@ async def get_griddata(
 
     # ========== [B] original (기존 로직) ==========
     coll = await get_collection()
+    print("Looking for document:", {"variable": norm_var, "valid_time_utc": forecast_datetime, "source": source})
     doc = await coll.find_one({
         "variable": norm_var,  # <- 정규화된 이름 사용
         "valid_time_utc": forecast_datetime,
@@ -279,10 +302,22 @@ def _prepare_array_for_response(da: xr.DataArray, lat_inc: bool):
 
 # --- 추가: 변수 정규화 & 계산 유틸 ---
 def _norm_var(v: str) -> str:
-    v = v.strip().lower()
-    if v in ("wind", "wind_speed", "spd", "ws"): return "wind_speed"
-    if v in ("wdir", "wind_dir", "dir", "wd"):  return "wind_dir"
-    return v
+    raw = v.strip()
+    low = raw.lower()
+
+    # computed alias만 매핑
+    if low in ("wind", "wind_speed", "spd", "ws"):
+        return "wind_speed"
+    if low in ("wdir", "wind_dir", "dir", "wd"):
+        return "wind_dir"
+
+    # CMEMS/WAVE 변수들의 정규 표기 유지
+    if low in ("vhm0", "vmdr", "vtpk"):
+        return low.upper()
+
+    # ocean current 등은 원형 유지 (데이터에 맞춤)
+    return raw
+
 
 
 
@@ -370,26 +405,53 @@ def _prepare_array_for_response(da: xr.DataArray, lat_inc: bool):
     h, w = arr2.shape
     return arr2, dlon, dlat, w, h
 
-# --- 추가: 변수 정규화 & 계산 유틸 ---
-def _norm_var(v: str) -> str:
-    v = v.strip().lower()
-    if v in ("wind", "wind_speed", "spd", "ws"): return "wind_speed"
-    if v in ("wdir", "wind_dir", "dir", "wd"):  return "wind_dir"
-    return v
+# ---- bbox limits & cell budget ----
+BBOX_LIMITS = {
+    "min_lon": -118.8389887,
+    "min_lat":  -52.3232408,
+    "max_lon":  194.4699022,
+    "max_lat":   69.7861536,
+}
+MAX_CELLS = 5_250_000
 
-def _calc_wind_speed_dir(u: np.ndarray, v: np.ndarray, *, convention="from"):
-    # speed
-    spd = np.hypot(u, v)  # sqrt(u^2 + v^2)
-    # direction
-    if convention == "from":
-        # meteorological FROM direction: 0°=N, clockwise
-        deg = (np.degrees(np.arctan2(-u, -v)) + 360.0) % 360.0
-        std_name = "wind_from_direction"
+# 보수적(가장 촘촘함) 해상도 가정: 0.083°
+ASSUMED_DLON = 0.083
+ASSUMED_DLAT = 0.083
+
+def _validate_bbox_limits_raw(bbox: Optional[List[float]]):
+    if not bbox:
+        return
+    if len(bbox) != 4:
+        raise HTTPException(status_code=422, detail="bbox must be [minLon, minLat, maxLon, maxLat]")
+    min_lon, min_lat, max_lon, max_lat = map(float, bbox)
+    lim = BBOX_LIMITS
+    if (min_lon < lim["min_lon"] or max_lon > lim["max_lon"] or
+        min_lat < lim["min_lat"] or max_lat > lim["max_lat"]):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Requested bbox exceeds allowed range.",
+                "allowed_bbox": [lim["min_lon"], lim["min_lat"], lim["max_lon"], lim["max_lat"]],
+                "hint": "Reduce bbox (minLon,minLat,maxLon,maxLat). Example: bbox=115&bbox=25&bbox=142&bbox=43"
+            }
+        )
+
+def _estimate_cells_assuming_resolution(bbox: List[float], dlon=ASSUMED_DLON, dlat=ASSUMED_DLAT) -> int:
+    """DS를 열지 않고 0.083° 고정 해상도 기준으로 픽셀 수 추정.
+       dateline crossing(0~360 도메인)도 지원.
+    """
+    min_lon, min_lat, max_lon, max_lat = map(float, bbox)
+    # 경도 0~360 정규화 후 스팬 계산
+    def to0360(x: float) -> float:
+        return x + 360.0 if x < 0 else x
+    a, b = to0360(min_lon), to0360(max_lon)
+    if a > b:
+        lon_span = (360.0 - a) + b  # dateline crossing
     else:
-        # TO direction (슬라이드 수식): (90 - atan2(v,u)) mod 360
-        deg = (90.0 - np.degrees(np.arctan2(v, u))) % 360.0
-        std_name = "wind_to_direction"
-    return spd, deg, std_name
+        lon_span = b - a
+    lat_span = abs(max_lat - min_lat)
 
-async def _find_doc(coll, source, variable, ts):
-    return await coll.find_one({"source": source, "variable": variable, "valid_time_utc": ts})
+    # 경계 포함 가정(+1)
+    width  = int(np.floor(lon_span / dlon)) + 1
+    height = int(np.floor(lat_span / dlat)) + 1
+    return max(0, width) * max(0, height)
