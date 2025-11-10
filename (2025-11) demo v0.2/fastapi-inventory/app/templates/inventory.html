@@ -98,12 +98,12 @@
 
 <div class="pagination" style="margin-top:12px;">
   {% if page > 1 %}
-    <a href="{{ request.url.include_query_params(page=1) }}">« 처음</a>
-    <a href="{{ request.url.include_query_params(page=page-1) }}">‹ 이전</a>
+    <a href="{{ request.url.include_query_params(page=1) }}">« First</a>
+    <a href="{{ request.url.include_query_params(page=page-1) }}">‹ Previous</a>
   {% endif %}
   {% if page < pages %}
-    <a href="{{ request.url.include_query_params(page=page+1) }}">다음 ›</a>
-    <a href="{{ request.url.include_query_params(page=pages) }}">마지막 »</a>
+    <a href="{{ request.url.include_query_params(page=page+1) }}">Next ›</a>
+    <a href="{{ request.url.include_query_params(page=pages) }}">Last »</a>
   {% endif %}
 </div>
 {% endblock %}
