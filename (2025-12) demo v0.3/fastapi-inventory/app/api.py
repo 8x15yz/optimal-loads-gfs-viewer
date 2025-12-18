@@ -383,9 +383,10 @@ def _ensure_lon_range(lon_vals: np.ndarray, x: float) -> float:
 
 def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]]):
     ds = _normalize_lonlat(ds)
-    if var not in ds:
-        raise KeyError(f"Variable '{var}' not found in dataset.")
+
+    # ✅ alias 먼저 해결
     var2 = resolve_var(ds, var)
+
     da = ds[var2]
 
     # 단일 time 축 제거
@@ -415,6 +416,7 @@ def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]]):
         lat_inc = bool(lat_vals[1] > lat_vals[0]) if lat_vals.size > 1 else True
 
     return da, lat_inc, lon_inc
+
 
 def _ensure_lat_lon_names(da: xr.DataArray) -> xr.DataArray:
     rename_map = {}
