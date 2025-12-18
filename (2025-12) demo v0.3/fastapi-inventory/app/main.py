@@ -82,6 +82,33 @@ def _human_size(n: Optional[int]) -> Optional[str]:
         size /= 1024.0
     return str(n)
 
+def describe_path(path: str) -> str | None:
+    parts = path.strip("/").split("/")
+
+    # .../oper/10v
+    if len(parts) >= 2 and parts[-2] == "oper" and parts[-1] == "10v":
+        return (
+            "ECMWF IFS operational forecast · "
+            "10 metre V wind component. "
+            "Each file represents a forecast step for this model run."
+        )
+
+    if len(parts) >= 2 and parts[-2] == "oper" and parts[-1] == "10u":
+        return (
+            "ECMWF IFS operational forecast · "
+            "10 metre U wind component. "
+            "Each file represents a forecast step for this model run."
+        )
+
+    if len(parts) >= 2 and parts[-2] == "wave":
+        return (
+            "ECMWF IFS wave model output. "
+            "Each subdirectory corresponds to a wave-related variable."
+        )
+
+    return None
+
+
 # =========================================================
 # ✅ NEW: /inventory (Index of …)
 # =========================================================
@@ -177,14 +204,18 @@ async def inventory_index(
                 "last_modified": last_modified,
                 "size_human": _human_size(int(g.get("size_bytes", 0))),
             })
+    description = describe_path(current_path)
 
-    return templates.TemplateResponse("inventory.html", {
-        "request": request,
-        "title": APP_TITLE,
-        "current_path": current_path,
-        "parent_path": parent_path,
-        "entries": entries,
-    })
+    return templates.TemplateResponse(
+        "inventory.html",
+        {
+            "request": request,
+            "current_path": current_path,
+            "parent_path": parent_path,
+            "entries": entries,
+            "description": description,
+        },
+    )
 
 # =========================================================
 # (선택) 파일 클릭 핸들러 - 일단 placeholder

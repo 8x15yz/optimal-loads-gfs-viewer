@@ -16,6 +16,12 @@
 
 <h1 class="mono">Index of {{ current_path }}</h1>
 
+{% if description %}
+  <div class="mono muted" style="margin:6px 0 12px;">
+    {{ description }}
+  </div>
+{% endif %}
+
 <table class="mono">
   <thead>
     <tr>
