@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% set API_BASE = request.base_url|string %}
+
 <h1 style="margin:0 0 6px;">BLUEMAP Marine Weather Data Inventory</h1>
 <div class="muted" style="margin:0 0 14px;">
   Total: <b>{{ total }}</b> items · Page <b>{{ page }}</b> / <b>{{ pages }}</b>
@@ -53,7 +55,7 @@
       </select>
     </label>
 
-    <label style="min-width:220px;">Search
+    <label style="min-width:240px;">Search
       <input type="text" name="q" value="{{ filters.q or '' }}" placeholder="name / s3.key / natural_key" />
     </label>
 
@@ -73,7 +75,7 @@
 <div class="card" style="padding:12px; margin-bottom:14px;">
   <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
     <div class="muted">
-      Tip: 각 항목을 클릭(▶)하면 <b>단위</b>, <b>해상도</b>, <b>명칭</b>, <b>run/step</b>, <b>S3 key</b> 등 상세 정보를 펼쳐서 볼 수 있어.
+      Tip: 각 항목의 ▶ 를 클릭하면 <b>단위</b>, <b>해상도</b>, <b>명칭</b>, <b>run/step</b>, <b>S3 key</b>, <b>API 호출 예시</b>를 펼쳐서 볼 수 있어.
     </div>
     <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
       <button type="button" onclick="expandAll(true)" style="padding:6px 10px; border:1px solid #ddd; border-radius:8px; background:#fff;">Expand all</button>
@@ -83,7 +85,7 @@
 </div>
 
 <div class="card" style="overflow:auto;">
-  <table style="min-width:1100px;">
+  <table style="min-width:1250px;">
     <thead>
       <tr>
         <th style="width:34px;"></th>
@@ -106,7 +108,9 @@
           <td style="vertical-align:top;">
             <details class="row-details">
               <summary title="Show details" style="cursor:pointer; user-select:none;">▶</summary>
-              <div style="padding:10px 2px 6px; min-width:520px;">
+
+              <div style="padding:10px 2px 6px; min-width:560px;">
+                <!-- chips -->
                 <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
                   <span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">{{ r.source or '' }}</span>
                   <span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">{{ r.dataset_code or '' }}</span>
@@ -114,11 +118,37 @@
                   {% if r.type %}<span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">type={{ r.type }}</span>{% endif %}
                   {% if r.stream %}<span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">stream={{ r.stream }}</span>{% endif %}
                   {% if r.format %}<span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">{{ r.format }}</span>{% endif %}
+                  {% if r.content_type %}<span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">{{ r.content_type }}</span>{% endif %}
                 </div>
 
-                <div style="display:grid; grid-template-columns: 140px 1fr; gap:6px 12px; font-size:13px;">
+                <!-- key/value grid -->
+                <div style="display:grid; grid-template-columns: 160px 1fr; gap:6px 12px; font-size:13px;">
                   <div class="muted">name</div>
                   <div class="mono">{{ r.name or '' }}</div>
+
+                  <div class="muted">name_en</div>
+                  <div>{{ r.name_en or '' }}</div>
+
+                  <div class="muted">unit</div>
+                  <div>{{ r.unit or '' }}</div>
+
+                  <div class="muted">resolution</div>
+                  <div>
+                    {% if r.resolution %}
+                      {{ "%.3f"|format(r.resolution.lon_deg) }} × {{ "%.3f"|format(r.resolution.lat_deg) }}°
+                    {% else %}
+                      -
+                    {% endif %}
+                  </div>
+
+                  <div class="muted">run_time_utc</div>
+                  <div class="mono">{{ r.run_time_utc or '' }}</div>
+
+                  <div class="muted">step_hours</div>
+                  <div class="mono">{{ r.step_hours if r.step_hours is not none else '' }}</div>
+
+                  <div class="muted">valid_time_utc</div>
+                  <div class="mono">{{ r.valid_time_utc or '' }}</div>
 
                   <div class="muted">natural_key</div>
                   <div class="mono">{{ r.natural_key or '' }}</div>
@@ -126,14 +156,11 @@
                   <div class="muted">valid_key</div>
                   <div class="mono">{{ r.valid_key or '' }}</div>
 
-                  <div class="muted">S3</div>
+                  <div class="muted">S3 key</div>
                   <div class="mono">{{ r.s3.key if r.s3 and r.s3.key else '' }}</div>
 
-                  <div class="muted">content_type</div>
-                  <div>{{ r.content_type or '' }}</div>
-
                   <div class="muted">created_at</div>
-                  <div>{{ r.created_at or '' }}</div>
+                  <div class="mono">{{ r.created_at or '' }}</div>
                 </div>
 
                 {% if r.source_parameters %}
@@ -142,6 +169,54 @@
                     <pre class="mono" style="white-space:pre-wrap; margin:0; padding:10px; border:1px solid #eee; border-radius:10px; background:#fafafa;">{{ r.source_parameters | tojson(indent=2) }}</pre>
                   </div>
                 {% endif %}
+
+                {# ---- API example (run+step 기반) ---- #}
+                {% if r.run_time_utc and r.step_hours is not none %}
+                  {% set qs =
+                    "source=" ~ (r.source or "") ~
+                    "&dataset_code=" ~ (r.dataset_code or "") ~
+                    "&model=" ~ (r.model or "") ~
+                    "&type=" ~ (r.type or "") ~
+                    "&stream=" ~ (r.stream or "") ~
+                    "&variable=" ~ (r.variable or "") ~
+                    "&run_time_utc=" ~ (r.run_time_utc or "") ~
+                    "&step_hours=" ~ (r.step_hours if r.step_hours is not none else "")
+                  %}
+                  {% set bbox_qs = "bbox=128&bbox=34&bbox=130&bbox=36" %}
+                  {% set api_url = API_BASE ~ "api/griddata?" ~ qs ~ "&" ~ bbox_qs %}
+                  {% set curl_cmd = "curl -G '" ~ (API_BASE ~ "api/griddata") ~ "' --data-urlencode '" ~ qs|replace("&","' --data-urlencode '") ~ "' --data-urlencode 'bbox=128' --data-urlencode 'bbox=34' --data-urlencode 'bbox=130' --data-urlencode 'bbox=36'" %}
+
+                  <div style="margin-top:12px; padding-top:10px; border-top:1px solid #eee;">
+                    <div class="muted" style="margin-bottom:6px;">API example</div>
+
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                      <code class="mono" style="display:block; padding:10px; border:1px solid #eee; border-radius:10px; background:#fafafa; overflow:auto; max-width:100%;">
+                        GET {{ api_url }}
+                      </code>
+                      <button type="button"
+                              style="padding:6px 10px; border:1px solid #ddd; border-radius:8px; background:#fff;"
+                              onclick="copyText(`{{ api_url }}`)">
+                        Copy URL
+                      </button>
+                    </div>
+
+                    <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                      <code class="mono" style="display:block; padding:10px; border:1px solid #eee; border-radius:10px; background:#fafafa; overflow:auto; max-width:100%;">
+                        {{ curl_cmd }}
+                      </code>
+                      <button type="button"
+                              style="padding:6px 10px; border:1px solid #ddd; border-radius:8px; background:#fff;"
+                              onclick="copyText(`{{ curl_cmd }}`)">
+                        Copy cURL
+                      </button>
+                    </div>
+
+                    <div class="muted" style="margin-top:6px;">
+                      bbox는 예시값이야. 필요한 영역으로 바꿔서 호출하면 돼.
+                    </div>
+                  </div>
+                {% endif %}
+
               </div>
             </details>
           </td>
@@ -158,9 +233,9 @@
               -
             {% endif %}
           </td>
-          <td>{{ r.run_time_utc or '' }}</td>
-          <td>{{ r.step_hours if r.step_hours is not none else '' }}</td>
-          <td>{{ r.valid_time_utc or '' }}</td>
+          <td class="mono">{{ r.run_time_utc or '' }}</td>
+          <td class="mono">{{ r.step_hours if r.step_hours is not none else '' }}</td>
+          <td class="mono">{{ r.valid_time_utc or '' }}</td>
           <td>
             {% if r.size_bytes %}{{ ("%.1f"|format(r.size_bytes/1024/1024)) }}{% endif %}
           </td>
@@ -184,6 +259,13 @@
 <script>
   function expandAll(open) {
     document.querySelectorAll("details.row-details").forEach(d => d.open = open);
+  }
+  function copyText(text) {
+    if (!navigator.clipboard) {
+      window.prompt("Copy this:", text);
+      return;
+    }
+    navigator.clipboard.writeText(text);
   }
 </script>
 
