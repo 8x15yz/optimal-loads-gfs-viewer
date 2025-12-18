@@ -46,7 +46,7 @@ REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 S3_PREFIX_ROOT = f"ecmwf/{PRODUCT_CODE}/{MODEL}/{TYPE_CODE}"
 
 # 로컬 파일 업로드 후 지울지
-DELETE_LOCAL_AFTER_UPLOAD = False
+DELETE_LOCAL_AFTER_UPLOAD = True
 
 # --------------------- Mongo 설정 ---------------------
 MONGO_URI = os.getenv("MONGO_URI", "")
