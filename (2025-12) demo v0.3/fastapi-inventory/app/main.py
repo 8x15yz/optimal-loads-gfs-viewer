@@ -178,7 +178,7 @@ async def inventory_index(
                 "size_human": _human_size(int(g.get("size_bytes", 0))),
             })
 
-    return templates.TemplateResponse("inventory_index.html", {
+    return templates.TemplateResponse("inventory.html", {
         "request": request,
         "title": APP_TITLE,
         "current_path": current_path,
