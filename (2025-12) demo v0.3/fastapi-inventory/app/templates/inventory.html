@@ -1,9 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 style="margin:0 0 12px;">BLUEMAP Marine Weather Data Inventory</h1>
 
-<div class="card" style="margin-bottom:16px;">
-  <form class="row" method="get" action="/inventory">
+<h1 style="margin:0 0 6px;">BLUEMAP Marine Weather Data Inventory</h1>
+<div class="muted" style="margin:0 0 14px;">
+  Total: <b>{{ total }}</b> items · Page <b>{{ page }}</b> / <b>{{ pages }}</b>
+</div>
+
+<div class="card" style="margin-bottom:14px;">
+  <form class="row" method="get" action="/inventory" style="align-items:end; gap:10px;">
     <label>source
       <select name="source">
         <option value="">(all)</option>
@@ -12,6 +16,7 @@
         {% endfor %}
       </select>
     </label>
+
     <label>dataset
       <select name="dataset_code">
         <option value="">(all)</option>
@@ -20,6 +25,7 @@
         {% endfor %}
       </select>
     </label>
+
     <label>variable
       <select name="variable">
         <option value="">(all)</option>
@@ -28,6 +34,7 @@
         {% endfor %}
       </select>
     </label>
+
     <label>year
       <select name="year">
         <option value="">(all)</option>
@@ -36,6 +43,7 @@
         {% endfor %}
       </select>
     </label>
+
     <label>month
       <select name="month">
         <option value="">(all)</option>
@@ -44,9 +52,11 @@
         {% endfor %}
       </select>
     </label>
-    <label>Search
-      <input type="text" name="q" value="{{ filters.q or '' }}" placeholder="name / s3.key" />
+
+    <label style="min-width:220px;">Search
+      <input type="text" name="q" value="{{ filters.q or '' }}" placeholder="name / s3.key / natural_key" />
     </label>
+
     <label>page_size
       <select name="page_size">
         {% for v in [25,50,100,200,500] %}
@@ -54,39 +64,103 @@
         {% endfor %}
       </select>
     </label>
-    <button type="submit">Submit</button>
+
+    <button type="submit">Apply</button>
+    <a class="btn" href="/inventory" style="text-decoration:none; padding:6px 10px; border:1px solid #ddd; border-radius:8px;">Reset</a>
   </form>
 </div>
 
-<div class="muted" style="margin-bottom:8px;">
-  Total: {{ total }} items | Page {{ page }} / {{ pages }}
-
+<div class="card" style="padding:12px; margin-bottom:14px;">
+  <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+    <div class="muted">
+      Tip: 각 항목을 클릭(▶)하면 <b>단위</b>, <b>해상도</b>, <b>명칭</b>, <b>run/step</b>, <b>S3 key</b> 등 상세 정보를 펼쳐서 볼 수 있어.
+    </div>
+    <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
+      <button type="button" onclick="expandAll(true)" style="padding:6px 10px; border:1px solid #ddd; border-radius:8px; background:#fff;">Expand all</button>
+      <button type="button" onclick="expandAll(false)" style="padding:6px 10px; border:1px solid #ddd; border-radius:8px; background:#fff;">Collapse all</button>
+    </div>
+  </div>
 </div>
 
 <div class="card" style="overflow:auto;">
-  <table>
+  <table style="min-width:1100px;">
     <thead>
       <tr>
+        <th style="width:34px;"></th>
         <th>source</th>
         <th>dataset</th>
         <th>variable</th>
+        <th>name_en</th>
+        <th>unit</th>
+        <th>resolution</th>
+        <th>run_time(UTC)</th>
+        <th>step(h)</th>
         <th>valid_time(UTC)</th>
-        <th>year</th>
-        <th>month</th>
-        <th>name</th>
         <th>size(MB)</th>
       </tr>
     </thead>
+
     <tbody>
       {% for r in records %}
         <tr>
+          <td style="vertical-align:top;">
+            <details class="row-details">
+              <summary title="Show details" style="cursor:pointer; user-select:none;">▶</summary>
+              <div style="padding:10px 2px 6px; min-width:520px;">
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+                  <span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">{{ r.source or '' }}</span>
+                  <span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">{{ r.dataset_code or '' }}</span>
+                  {% if r.model %}<span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">model={{ r.model }}</span>{% endif %}
+                  {% if r.type %}<span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">type={{ r.type }}</span>{% endif %}
+                  {% if r.stream %}<span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">stream={{ r.stream }}</span>{% endif %}
+                  {% if r.format %}<span style="padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px;">{{ r.format }}</span>{% endif %}
+                </div>
+
+                <div style="display:grid; grid-template-columns: 140px 1fr; gap:6px 12px; font-size:13px;">
+                  <div class="muted">name</div>
+                  <div class="mono">{{ r.name or '' }}</div>
+
+                  <div class="muted">natural_key</div>
+                  <div class="mono">{{ r.natural_key or '' }}</div>
+
+                  <div class="muted">valid_key</div>
+                  <div class="mono">{{ r.valid_key or '' }}</div>
+
+                  <div class="muted">S3</div>
+                  <div class="mono">{{ r.s3.key if r.s3 and r.s3.key else '' }}</div>
+
+                  <div class="muted">content_type</div>
+                  <div>{{ r.content_type or '' }}</div>
+
+                  <div class="muted">created_at</div>
+                  <div>{{ r.created_at or '' }}</div>
+                </div>
+
+                {% if r.source_parameters %}
+                  <div style="margin-top:10px;">
+                    <div class="muted" style="margin-bottom:6px;">source_parameters</div>
+                    <pre class="mono" style="white-space:pre-wrap; margin:0; padding:10px; border:1px solid #eee; border-radius:10px; background:#fafafa;">{{ r.source_parameters | tojson(indent=2) }}</pre>
+                  </div>
+                {% endif %}
+              </div>
+            </details>
+          </td>
+
           <td>{{ r.source or '' }}</td>
           <td>{{ r.dataset_code or '' }}</td>
-          <td>{{ r.variable or '' }}</td>
+          <td><b>{{ r.variable or '' }}</b></td>
+          <td>{{ r.name_en or '' }}</td>
+          <td>{{ r.unit or '' }}</td>
+          <td>
+            {% if r.resolution %}
+              {{ "%.3f"|format(r.resolution.lon_deg) }} × {{ "%.3f"|format(r.resolution.lat_deg) }}°
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>{{ r.run_time_utc or '' }}</td>
+          <td>{{ r.step_hours if r.step_hours is not none else '' }}</td>
           <td>{{ r.valid_time_utc or '' }}</td>
-          <td>{{ r.year or '' }}</td>
-          <td>{{ "%02d"|format(r.month) if r.month is not none else '' }}</td>
-          <td class="mono">{{ r.name or '' }}</td>
           <td>
             {% if r.size_bytes %}{{ ("%.1f"|format(r.size_bytes/1024/1024)) }}{% endif %}
           </td>
@@ -106,4 +180,11 @@
     <a href="{{ request.url.include_query_params(page=pages) }}">Last »</a>
   {% endif %}
 </div>
+
+<script>
+  function expandAll(open) {
+    document.querySelectorAll("details.row-details").forEach(d => d.open = open);
+  }
+</script>
+
 {% endblock %}
