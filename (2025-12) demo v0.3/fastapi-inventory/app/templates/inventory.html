@@ -67,6 +67,33 @@
       </select>
     </label>
 
+    <label>day
+      <select name="day">
+        <option value="">(all)</option>
+        {% for v in choices.day %}
+          <option value="{{v}}" {{ 'selected' if filters.day==v else '' }}>{{v}}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>run_time_utc
+      <select name="run_time_utc">
+        <option value="">(all)</option>
+        {% for v in choices.run_time_utc %}
+          <option value="{{v}}" {{ 'selected' if filters.run_time_utc==v else '' }}>{{v}}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>step_hours
+      <select name="step_hours">
+        <option value="">(all)</option>
+        {% for v in choices.step_hours %}
+          <option value="{{v}}" {{ 'selected' if filters.step_hours==v else '' }}>{{v}}</option>
+        {% endfor %}
+      </select>
+    </label>
+
     <label style="min-width:240px;">Search
       <input type="text" name="q" value="{{ filters.q or '' }}" placeholder="name / s3.key / natural_key" />
     </label>
