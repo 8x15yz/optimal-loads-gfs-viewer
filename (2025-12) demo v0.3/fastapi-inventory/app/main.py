@@ -1,14 +1,20 @@
-from fastapi import FastAPI, Request, Query, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
-from starlette.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-from app.db import get_collection
-from app.api import router as api_router
+from __future__ import annotations
+
 import os
-from fastapi.staticfiles import StaticFiles
+import re
+import json
 from datetime import datetime
 from typing import Optional, Any, Dict, List
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, Request, Query, HTTPException
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.cors import CORSMiddleware
+
+from app.db import get_collection
+from app.api import router as api_router
 
 load_dotenv()
 
@@ -30,16 +36,18 @@ It reads ocean gridded data (e.g., CMEMS wave data) from S3 and provides it as J
     ],
 )
 
+# ---- Static Guide ----
 app.mount("/guide", StaticFiles(directory="app/templates/static/guide"), name="guide")
 
 @app.get("/ko", response_class=HTMLResponse, include_in_schema=False)
-async def root():
+async def root_ko():
     return FileResponse("app/templates/static/guide/index_ko.html")
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def root_en():
     return FileResponse("app/templates/static/guide/index_en.html")
 
+# ---- API Router ----
 app.include_router(api_router)
 
 # ---- CORS ----
@@ -50,7 +58,7 @@ app.add_middleware(
 )
 
 # =========================================================
-# NOAA Index 스타일 helper
+# Helpers
 # =========================================================
 
 def _norm_path(p: str) -> str:
@@ -82,8 +90,31 @@ def _human_size(n: Optional[int]) -> Optional[str]:
         size /= 1024.0
     return str(n)
 
-def describe_path(path: str) -> str | None:
+RUN_LEVEL_RE = re.compile(r"^/.+/\d{4}/\d{2}/\d{2}/\d{2}Z$")
+
+def is_run_level(path: str) -> bool:
+    # 예: /ecmwf/original/ifs/fc/2025/12/17/18Z
+    return bool(RUN_LEVEL_RE.match(_norm_path(path)))
+
+def stream_for_var(var: str) -> str:
+    """
+    UI에서 oper/wave를 숨겼을 때, var 클릭 시 실제 stream으로 라우팅.
+    - 10u/10v -> oper
+    - 그 외(파도 등) -> wave
+    필요하면 여기 규칙만 늘리면 됨.
+    """
+    return "oper" if var in ("10u", "10v") else "wave"
+
+def describe_path(path: str) -> Optional[str]:
+    path = _norm_path(path)
     parts = path.strip("/").split("/")
+
+    # run-level 안내 (oper/wave 숨김)
+    if is_run_level(path):
+        return (
+            "Model run directory. Stream folders (oper/wave) are hidden in this view; "
+            "variables are shown directly."
+        )
 
     # .../oper/10v
     if len(parts) >= 2 and parts[-2] == "oper" and parts[-1] == "10v":
@@ -93,6 +124,7 @@ def describe_path(path: str) -> str | None:
             "Each file represents a forecast step for this model run."
         )
 
+    # .../oper/10u
     if len(parts) >= 2 and parts[-2] == "oper" and parts[-1] == "10u":
         return (
             "ECMWF IFS operational forecast · "
@@ -100,6 +132,7 @@ def describe_path(path: str) -> str | None:
             "Each file represents a forecast step for this model run."
         )
 
+    # .../wave/*
     if len(parts) >= 2 and parts[-2] == "wave":
         return (
             "ECMWF IFS wave model output. "
@@ -108,81 +141,113 @@ def describe_path(path: str) -> str | None:
 
     return None
 
-
 # =========================================================
-# ✅ NEW: /inventory (Index of …)
+# /inventory  (NOAA Index style)
 # =========================================================
 
 @app.get("/inventory", response_class=HTMLResponse, include_in_schema=False)
 async def inventory_index(
     request: Request,
-    path: str = Query("/", description="directory-like path. e.g. /pub/data/nccf/com/gfs/prod/gfs.20251209"),
+    path: str = Query("/", description="directory-like path. e.g. /ecmwf/original/ifs/fc/2025/12/17/18Z"),
 ):
-    """
-    NOAA 'Index of ...' 스타일 디렉토리 브라우저.
-    Mongo에 저장된 s3.key를 기준으로 path 하위의 '바로 한 단계 자식'만 폴더/파일로 묶어 보여준다.
-    """
     coll = await get_collection()
 
     current_path = _norm_path(path)
     parent_path = _parent_path(current_path)
 
-    # ✅ 네 스키마가 s3: { key: "..."} 구조니까 "s3.key" 사용
-    KEY_FIELD = "s3.key"
+    KEY_FIELD = "s3.key"  # Mongo: s3: { key: ... }
 
-    # path -> S3 key prefix (앞 "/" 제거 + trailing "/" 보장)
+    # path -> s3 prefix (leading "/" 제거, trailing "/" 추가)
     prefix = current_path.strip("/")
     prefix = f"{prefix}/" if prefix else ""
 
-    pipeline = [
-        {"$match": {KEY_FIELD: {"$regex": f"^{prefix}"}}},
-        {"$project": {
-            "key": f"${KEY_FIELD}",
-            "size_bytes": "$size_bytes",
-            "created_at": "$created_at",
-        }},
-        {"$addFields": {
-            "remainder": {
-                "$substrBytes": [
-                    "$key",
-                    len(prefix),
-                    {"$subtract": [{"$strLenBytes": "$key"}, len(prefix)]}
-                ]
-            }
-        }},
-        {"$addFields": {
-            "parts": {"$split": ["$remainder", "/"]},
-            "first": {"$arrayElemAt": [{"$split": ["$remainder", "/"]}, 0]},
-        }},
-        {"$addFields": {
-            "has_more": {"$gt": [{"$size": "$parts"}, 1]}
-        }},
-        {"$group": {
-            "_id": "$first",
-            "is_dir": {"$max": {"$cond": ["$has_more", 1, 0]}},
-            "last_modified": {"$max": "$created_at"},
-            "size_bytes": {
-                "$sum": {
-                    "$cond": ["$has_more", 0, {"$ifNull": ["$size_bytes", 0]}]
+    run_level = is_run_level(current_path)
+
+    if run_level:
+        # ✅ flatten: .../18Z/oper/10v/...  → 10v/ 를 바로 보여줌 (UI)
+        pipeline = [
+            {"$match": {KEY_FIELD: {"$regex": f"^{prefix}"}}},
+            {"$project": {"key": f"${KEY_FIELD}", "created_at": 1}},
+            {"$addFields": {
+                "rest": {
+                    "$substrBytes": [
+                        "$key",
+                        len(prefix),
+                        {"$subtract": [{"$strLenBytes": "$key"}, len(prefix)]}
+                    ]
                 }
-            }
-        }},
-        {"$sort": {"_id": 1}}
-    ]
+            }},
+            {"$addFields": {
+                "parts": {"$split": ["$rest", "/"]},
+                "stream": {"$arrayElemAt": ["$parts", 0]},
+                "var": {"$arrayElemAt": ["$parts", 1]},
+            }},
+            {"$match": {"stream": {"$in": ["oper", "wave"]}, "var": {"$ne": None}}},
+            {"$group": {
+                "_id": "$var",
+                "last_modified": {"$max": "$created_at"},
+            }},
+            {"$sort": {"_id": 1}},
+        ]
+    else:
+        # ✅ 일반: 바로 아래 1단계(oper/, wave/, 2025/, 12/ 등) 보여줌
+        pipeline = [
+            {"$match": {KEY_FIELD: {"$regex": f"^{prefix}"}}},
+            {"$project": {"key": f"${KEY_FIELD}", "size_bytes": 1, "created_at": 1}},
+            {"$addFields": {
+                "rest": {
+                    "$substrBytes": [
+                        "$key",
+                        len(prefix),
+                        {"$subtract": [{"$strLenBytes": "$key"}, len(prefix)]}
+                    ]
+                }
+            }},
+            {"$addFields": {
+                "parts": {"$split": ["$rest", "/"]},
+                "name": {"$arrayElemAt": [{"$split": ["$rest", "/"]}, 0]},
+                "is_dir": {"$gt": [{"$size": {"$split": ["$rest", "/"]}}, 1]},
+            }},
+            {"$group": {
+                "_id": "$name",
+                "is_dir": {"$max": {"$cond": ["$is_dir", 1, 0]}},
+                "last_modified": {"$max": "$created_at"},
+                "size_bytes": {
+                    "$sum": {"$cond": ["$is_dir", 0, {"$ifNull": ["$size_bytes", 0]}]}
+                }
+            }},
+            {"$sort": {"is_dir": -1, "_id": 1}},
+        ]
 
     groups = await coll.aggregate(pipeline).to_list(length=5000)
 
     entries: List[Dict[str, Any]] = []
+
     for g in groups:
         name = g.get("_id")
         if not name:
             continue
 
-        is_dir = bool(g.get("is_dir", 0))
         lm = g.get("last_modified")
         last_modified = lm.strftime("%d-%b-%Y %H:%M") if isinstance(lm, datetime) else None
 
-        # UI에서 쓰는 child path (앞에는 "/" 유지)
+        if run_level:
+            # ✅ UI에서는 var만 보이지만, 실제로는 /18Z/{oper|wave}/{var} 로 들어가야 함
+            stream = stream_for_var(name)
+            child_path = f"{current_path.rstrip('/')}/{stream}/{name}".replace("//", "/")
+
+            entries.append({
+                "name": name,
+                "is_dir": True,
+                "path": child_path,
+                "key": None,
+                "last_modified": last_modified,
+                "size_human": None,
+            })
+            continue
+
+        # 일반 모드
+        is_dir = bool(g.get("is_dir", 0))
         child_path = (current_path.rstrip("/") + "/" + name).replace("//", "/")
 
         if is_dir:
@@ -195,7 +260,7 @@ async def inventory_index(
                 "size_human": None,
             })
         else:
-            full_key = prefix + name  # S3 key (앞 "/" 없음)
+            full_key = prefix + name
             entries.append({
                 "name": name,
                 "is_dir": False,
@@ -204,6 +269,7 @@ async def inventory_index(
                 "last_modified": last_modified,
                 "size_human": _human_size(int(g.get("size_bytes", 0))),
             })
+
     description = describe_path(current_path)
 
     return templates.TemplateResponse(
@@ -218,24 +284,21 @@ async def inventory_index(
     )
 
 # =========================================================
-# (선택) 파일 클릭 핸들러 - 일단 placeholder
+# /inventory/file  (metadata table)
 # =========================================================
 
-from fastapi import HTTPException, Query
-from fastapi.responses import HTMLResponse
-import json
-from datetime import datetime
-
 @app.get("/inventory/file", response_class=HTMLResponse, include_in_schema=False)
-async def inventory_file(request: Request, key: str = Query(..., description="S3 key")):
+async def inventory_file(
+    request: Request,
+    key: str = Query(..., description="S3 key"),
+):
     coll = await get_collection()
 
-    # ✅ key로 단건 조회
+    # 단건 조회
     doc = await coll.find_one({"s3.key": key}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail=f"Not found: {key}")
 
-    # ✅ 표로 보여주기 좋은 주요 필드(원하는대로 추가/삭제 가능)
     preferred_order = [
         ("s3.key", None),
         ("source", None),
@@ -263,7 +326,7 @@ async def inventory_file(request: Request, key: str = Query(..., description="S3
         ("s3", None),
     ]
 
-    def get_by_path(d, path: str):
+    def get_by_path(d: dict, path: str):
         cur = d
         for part in path.split("."):
             if not isinstance(cur, dict) or part not in cur:
@@ -271,7 +334,7 @@ async def inventory_file(request: Request, key: str = Query(..., description="S3
             cur = cur[part]
         return cur
 
-    def fmt(v):
+    def fmt(v: Any) -> str:
         if v is None:
             return ""
         if isinstance(v, datetime):
@@ -280,22 +343,28 @@ async def inventory_file(request: Request, key: str = Query(..., description="S3
             return json.dumps(v, ensure_ascii=False, indent=2)
         return str(v)
 
-    rows = []
-    used = set()
+    rows: List[Dict[str, Any]] = []
+    used_top_keys = set()
 
     for field, _ in preferred_order:
         val = get_by_path(doc, field) if "." in field else doc.get(field)
         if val is not None:
-            rows.append({"k": field, "v": fmt(val), "is_json": isinstance(val, (dict, list))})
-            used.add(field.split(".")[0])
+            rows.append({
+                "k": field,
+                "v": fmt(val),
+                "is_json": isinstance(val, (dict, list)),
+            })
+            used_top_keys.add(field.split(".")[0])
 
-    # ✅ 나머지 필드도 아래쪽에 “Other fields”로 보여주고 싶으면
-    # (원치 않으면 이 블록 삭제해도 됨)
-    other = []
+    other: List[Dict[str, Any]] = []
     for k, v in doc.items():
-        if k in used:
+        if k in used_top_keys:
             continue
-        other.append({"k": k, "v": fmt(v), "is_json": isinstance(v, (dict, list))})
+        other.append({
+            "k": k,
+            "v": fmt(v),
+            "is_json": isinstance(v, (dict, list)),
+        })
 
     return templates.TemplateResponse(
         "inventory_file.html",
