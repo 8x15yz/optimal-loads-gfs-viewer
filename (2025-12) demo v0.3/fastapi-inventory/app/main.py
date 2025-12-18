@@ -1,16 +1,14 @@
-from fastapi import FastAPI, Request, Query
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, Request, Query, HTTPException
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
-from typing import Optional
-from typing_extensions import Annotated
-from pydantic import BeforeValidator
 from dotenv import load_dotenv
 from app.db import get_collection
 from app.api import router as api_router
 import os
 from fastapi.staticfiles import StaticFiles
-
+from datetime import datetime
+from typing import Optional, Any, Dict, List
 
 load_dotenv()
 
@@ -33,6 +31,7 @@ It reads ocean gridded data (e.g., CMEMS wave data) from S3 and provides it as J
 )
 
 app.mount("/guide", StaticFiles(directory="app/templates/static/guide"), name="guide")
+
 @app.get("/ko", response_class=HTMLResponse, include_in_schema=False)
 async def root():
     return FileResponse("app/templates/static/guide/index_ko.html")
@@ -50,114 +49,151 @@ app.add_middleware(
     allow_methods=["*"], allow_headers=["*"],
 )
 
+# =========================================================
+# NOAA Index 스타일 helper
+# =========================================================
 
-# ---- 기본 페이지 (inventory) ----
-def empty_to_none(v):
-    # "", "   " → None (Query '' → int 변환 에러 방지)
-    if isinstance(v, str) and v.strip() == "":
+def _norm_path(p: str) -> str:
+    p = (p or "/").strip()
+    if not p.startswith("/"):
+        p = "/" + p
+    if p != "/" and p.endswith("/"):
+        p = p[:-1]
+    return p
+
+def _parent_path(p: str) -> Optional[str]:
+    p = _norm_path(p)
+    if p == "/":
         return None
-    return v
+    parts = p.strip("/").split("/")
+    if len(parts) <= 1:
+        return "/"
+    return "/" + "/".join(parts[:-1])
 
-YearParam  = Annotated[Optional[int], BeforeValidator(empty_to_none), Query()]
-MonthParam = Annotated[Optional[int], BeforeValidator(empty_to_none), Query()]
-PageParam  = Annotated[int,  Query(ge=1)]
-SizeParam  = Annotated[int,  Query(ge=1, le=500)]
+def _human_size(n: Optional[int]) -> Optional[str]:
+    if n is None:
+        return None
+    size = float(n)
+    for unit in ["B", "K", "M", "G", "T"]:
+        if size < 1024 or unit == "T":
+            if unit == "B":
+                return f"{int(size)}"
+            return f"{size:.1f}{unit}"
+        size /= 1024.0
+    return str(n)
 
+# =========================================================
+# ✅ NEW: /inventory (Index of …)
+# =========================================================
 
 @app.get("/inventory", response_class=HTMLResponse, include_in_schema=False)
-async def inventory(
+async def inventory_index(
     request: Request,
-    source: str | None = None,
-    dataset_code: str | None = None,
-    variable: str | None = None,
-    year: YearParam = None,
-    month: MonthParam = None,
-    q: str | None = None,
-    page: PageParam = 1,
-    page_size: SizeParam = 50,
+    path: str = Query("/", description="directory-like path. e.g. /pub/data/nccf/com/gfs/prod/gfs.20251209"),
 ):
+    """
+    NOAA 'Index of ...' 스타일 디렉토리 브라우저.
+    Mongo에 저장된 s3.key를 기준으로 path 하위의 '바로 한 단계 자식'만 폴더/파일로 묶어 보여준다.
+    """
     coll = await get_collection()
 
-    cond: dict = {}
-    if source:        cond["source"] = source
-    if dataset_code:  cond["dataset_code"] = dataset_code
-    if variable:      cond["variable"] = variable
-    if year is not None:  cond["year"] = year
-    if month is not None: cond["month"] = month
+    current_path = _norm_path(path)
+    parent_path = _parent_path(current_path)
 
-    if q and q.strip():
-        cond["$or"] = [
-            {"name":        {"$regex": q, "$options": "i"}},
-            {"s3.key":      {"$regex": q, "$options": "i"}},
-            {"natural_key": {"$regex": q, "$options": "i"}},
-            {"valid_key":   {"$regex": q, "$options": "i"}},
-        ]
+    # ✅ 네 스키마가 s3: { key: "..."} 구조니까 "s3.key" 사용
+    KEY_FIELD = "s3.key"
 
-    total = await coll.count_documents(cond)
-    pages = max(1, (total + page_size - 1) // page_size)
-    page = min(page, pages)
-    skip = (page - 1) * page_size
+    # path -> S3 key prefix (앞 "/" 제거 + trailing "/" 보장)
+    prefix = current_path.strip("/")
+    prefix = f"{prefix}/" if prefix else ""
 
-    projection = {
-        "_id": 0,
+    pipeline = [
+        {"$match": {KEY_FIELD: {"$regex": f"^{prefix}"}}},
+        {"$project": {
+            "key": f"${KEY_FIELD}",
+            "size_bytes": "$size_bytes",
+            "created_at": "$created_at",
+        }},
+        {"$addFields": {
+            "remainder": {
+                "$substrBytes": [
+                    "$key",
+                    len(prefix),
+                    {"$subtract": [{"$strLenBytes": "$key"}, len(prefix)]}
+                ]
+            }
+        }},
+        {"$addFields": {
+            "parts": {"$split": ["$remainder", "/"]},
+            "first": {"$arrayElemAt": [{"$split": ["$remainder", "/"]}, 0]},
+        }},
+        {"$addFields": {
+            "has_more": {"$gt": [{"$size": "$parts"}, 1]}
+        }},
+        {"$group": {
+            "_id": "$first",
+            "is_dir": {"$max": {"$cond": ["$has_more", 1, 0]}},
+            "last_modified": {"$max": "$created_at"},
+            "size_bytes": {
+                "$sum": {
+                    "$cond": ["$has_more", 0, {"$ifNull": ["$size_bytes", 0]}]
+                }
+            }
+        }},
+        {"$sort": {"_id": 1}}
+    ]
 
-        # 기존
-        "source": 1, "dataset_code": 1, "variable": 1,
-        "year": 1, "month": 1, "valid_time_utc": 1,
-        "name": 1, "size_bytes": 1,
+    groups = await coll.aggregate(pipeline).to_list(length=5000)
 
-        # ✅ 추가: 화면 + 상세에서 필요
-        "name_en": 1,
-        "unit": 1,
-        "resolution": 1,
+    entries: List[Dict[str, Any]] = []
+    for g in groups:
+        name = g.get("_id")
+        if not name:
+            continue
 
-        "model": 1,
-        "type": 1,
-        "stream": 1,
+        is_dir = bool(g.get("is_dir", 0))
+        lm = g.get("last_modified")
+        last_modified = lm.strftime("%d-%b-%Y %H:%M") if isinstance(lm, datetime) else None
 
-        "run_time_utc": 1,
-        "step_hours": 1,
+        # UI에서 쓰는 child path (앞에는 "/" 유지)
+        child_path = (current_path.rstrip("/") + "/" + name).replace("//", "/")
 
-        "natural_key": 1,
-        "valid_key": 1,
+        if is_dir:
+            entries.append({
+                "name": name,
+                "is_dir": True,
+                "path": child_path,
+                "key": None,
+                "last_modified": last_modified,
+                "size_human": None,
+            })
+        else:
+            full_key = prefix + name  # S3 key (앞 "/" 없음)
+            entries.append({
+                "name": name,
+                "is_dir": False,
+                "path": None,
+                "key": full_key,
+                "last_modified": last_modified,
+                "size_human": _human_size(int(g.get("size_bytes", 0))),
+            })
 
-        "s3": 1,
-        "format": 1,
-        "content_type": 1,
-        "created_at": 1,
-        "source_parameters": 1,
-    }
-
-    cursor = (
-        coll.find(cond, projection)
-        .sort([("valid_time_utc", -1)])
-        .skip(skip).limit(page_size)
-    )
-    records = [doc async for doc in cursor]
-
-    distinct_source   = await coll.distinct("source")
-    distinct_dataset  = await coll.distinct("dataset_code")
-    distinct_variable = await coll.distinct("variable")
-    distinct_year     = sorted([int(y) for y in await coll.distinct("year") if isinstance(y, int)])
-    distinct_month    = sorted([int(m) for m in await coll.distinct("month") if isinstance(m, int)])
-
-    return templates.TemplateResponse("inventory.html", {
+    return templates.TemplateResponse("inventory_index.html", {
         "request": request,
         "title": APP_TITLE,
-        "records": records,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": pages,
-        "filters": {
-            "source": source, "dataset_code": dataset_code, "variable": variable,
-            "year": year, "month": month, "q": q
-        },
-        "choices": {
-            "source": sorted(filter(None, distinct_source)),
-            "dataset_code": sorted(filter(None, distinct_dataset)),
-            "variable": sorted(filter(None, distinct_variable)),
-            "year": distinct_year,
-            "month": distinct_month,
-        }
+        "current_path": current_path,
+        "parent_path": parent_path,
+        "entries": entries,
     })
+
+# =========================================================
+# (선택) 파일 클릭 핸들러 - 일단 placeholder
+# =========================================================
+
+@app.get("/inventory/file", include_in_schema=False)
+async def inventory_file(key: str = Query(..., description="S3 key")):
+    # TODO:
+    # 1) presigned URL로 리다이렉트
+    # 2) 또는 파일 메타 + griddata 예시를 보여주는 페이지로 렌더링
+    raise HTTPException(status_code=501, detail=f"Not implemented yet. key={key}")
+

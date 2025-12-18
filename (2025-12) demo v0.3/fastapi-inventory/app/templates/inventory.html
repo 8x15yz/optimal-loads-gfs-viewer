@@ -1,213 +1,56 @@
+{# templates/inventory_index.html #}
 {% extends "base.html" %}
 {% block content %}
-{% set API_BASE = request.base_url|string %}
 
 <style>
+  body { background:#fff; }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-  .muted { opacity: .75; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { padding: 10px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
-  thead th { position: sticky; top: 0; background: #fff; z-index: 1; }
-  .btn-lite { padding: 6px 10px; border:1px solid #ddd; border-radius: 8px; background:#fff; cursor:pointer; }
-  .detail-row { display: none; }
-  .detail-card { padding: 12px; border:1px solid #eee; border-radius: 12px; background:#fafafa; }
-  .codebox { display:block; padding:10px; border:1px solid #eee; border-radius:10px; background:#fff; overflow:auto; max-width:100%; }
-  .toggle { cursor:pointer; user-select:none; font-size: 14px; }
+  h1 { font-weight: 700; margin: 18px 0 10px; }
+  table { border-collapse: collapse; width: 720px; }
+  th, td { padding: 4px 10px; text-align: left; }
+  thead th { border-bottom: 1px solid #aaa; }
+  tbody td { border-bottom: 1px solid #eee; }
+  a { color: #00f; text-decoration: underline; }
+  .muted { color:#666; }
 </style>
 
-<h1 style="margin:0 0 6px;">BLUEMAP Marine Weather Data Inventory</h1>
-<div class="muted" style="margin:0 0 14px;">
-  Total: <b>{{ total }}</b> items · Page <b>{{ page }}</b> / <b>{{ pages }}</b>
-</div>
+<h1 class="mono">Index of {{ current_path }}</h1>
 
-<div class="card" style="margin-bottom:14px;">
-  <form class="row" method="get" action="/inventory" style="align-items:end; gap:10px;">
-    <label>source
-      <select name="source">
-        <option value="">(all)</option>
-        {% for v in choices.source %}
-          <option value="{{v}}" {{ 'selected' if filters.source==v else '' }}>{{v}}</option>
-        {% endfor %}
-      </select>
-    </label>
+<table class="mono">
+  <thead>
+    <tr>
+      <th style="width:360px;">Name</th>
+      <th style="width:190px;">Last modified</th>
+      <th style="width:90px;">Size</th>
+    </tr>
+  </thead>
 
-    <label>dataset
-      <select name="dataset_code">
-        <option value="">(all)</option>
-        {% for v in choices.dataset_code %}
-          <option value="{{v}}" {{ 'selected' if filters.dataset_code==v else '' }}>{{v}}</option>
-        {% endfor %}
-      </select>
-    </label>
+  <tbody>
+    {# Parent Directory #}
+    {% if parent_path %}
+    <tr>
+      <td><a href="/inventory?path={{ parent_path|urlencode }}">Parent Directory</a></td>
+      <td class="muted">-</td>
+      <td class="muted">-</td>
+    </tr>
+    {% endif %}
 
-    <label>variable
-      <select name="variable">
-        <option value="">(all)</option>
-        {% for v in choices.variable %}
-          <option value="{{v}}" {{ 'selected' if filters.variable==v else '' }}>{{v}}</option>
-        {% endfor %}
-      </select>
-    </label>
-
-    <label>year
-      <select name="year">
-        <option value="">(all)</option>
-        {% for v in choices.year %}
-          <option value="{{v}}" {{ 'selected' if filters.year==v else '' }}>{{v}}</option>
-        {% endfor %}
-      </select>
-    </label>
-
-    <label>month
-      <select name="month">
-        <option value="">(all)</option>
-        {% for v in choices.month %}
-          <option value="{{v}}" {{ 'selected' if filters.month==v else '' }}>{{v}}</option>
-        {% endfor %}
-      </select>
-    </label>
-
-    <label style="min-width:240px;">Search
-      <input type="text" name="q" value="{{ filters.q or '' }}" placeholder="name / s3.key / natural_key" />
-    </label>
-
-    <label>page_size
-      <select name="page_size">
-        {% for v in [25,50,100,200,500] %}
-          <option value="{{v}}" {{ 'selected' if page_size==v else '' }}>{{v}}</option>
-        {% endfor %}
-      </select>
-    </label>
-
-    <button type="submit">Apply</button>
-    <a class="btn-lite" href="/inventory" style="text-decoration:none;">Reset</a>
-  </form>
-</div>
-
-<div class="card" style="padding:12px; margin-bottom:14px;">
-  <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-    <div class="muted">
-      Tip: ▶ 를 누르면 해당 항목에 대한 <b>API 호출 예시</b>만 펼쳐서 볼 수 있어.
-    </div>
-    <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
-      <button type="button" class="btn-lite" onclick="expandAll(true)">Expand all</button>
-      <button type="button" class="btn-lite" onclick="expandAll(false)">Collapse all</button>
-    </div>
-  </div>
-</div>
-
-<div class="card" style="overflow:auto;">
-  <table style="min-width:1250px;">
-    <thead>
+    {# Entries #}
+    {% for e in entries %}
       <tr>
-        <th style="width:42px;"></th>
-        <th>source</th>
-        <th>dataset</th>
-        <th>variable</th>
-        <th>name_en</th>
-        <th>unit</th>
-        <th>resolution</th>
-        <th>run_time(UTC)</th>
-        <th>step(h)</th>
-        <th>valid_time(UTC)</th>
-        <th>size(MB)</th>
+        <td>
+          {% if e.is_dir %}
+            <a href="/inventory?path={{ e.path|urlencode }}">{{ e.name }}/</a>
+          {% else %}
+            {# 파일을 클릭하면 griddata 호출/다운로드/상세 등으로 연결 가능 #}
+            <a href="/inventory/file?key={{ e.key|urlencode }}">{{ e.name }}</a>
+          {% endif %}
+        </td>
+        <td>{{ e.last_modified or "-" }}</td>
+        <td>{{ e.size_human or "-" }}</td>
       </tr>
-    </thead>
-
-    <tbody>
-      {% for r in records %}
-        {% set rid = "r" ~ loop.index %}
-
-        <tr>
-          <td><span class="toggle" onclick="toggleRow('{{ rid }}')" title="Show API example">▶</span></td>
-          <td>{{ r.get("source","") }}</td>
-          <td>{{ r.get("dataset_code","") }}</td>
-          <td><b>{{ r.get("variable","") }}</b></td>
-          <td>{{ r.get("name_en","") }}</td>
-          <td>{{ r.get("unit","") }}</td>
-          <td>
-            {% if r.get("resolution") %}
-              {{ "%.3f"|format(r["resolution"]["lon_deg"]) }} × {{ "%.3f"|format(r["resolution"]["lat_deg"]) }}°
-            {% else %}
-              -
-            {% endif %}
-          </td>
-          <td class="mono">{{ r.get("run_time_utc","") }}</td>
-          <td class="mono">{{ r["step_hours"] if r.get("step_hours") is not none else "" }}</td>
-          <td class="mono">{{ r.get("valid_time_utc","") }}</td>
-          <td>{% if r.get("size_bytes") %}{{ ("%.1f"|format(r["size_bytes"]/1024/1024)) }}{% endif %}</td>
-        </tr>
-
-        <tr id="{{ rid }}" class="detail-row">
-          <td colspan="11">
-            <div class="detail-card">
-              {% if r.get("run_time_utc") and r.get("step_hours") is not none %}
-                {% set qs =
-                  "source=" ~ r.get("source","") ~
-                  "&dataset_code=" ~ r.get("dataset_code","") ~
-                  "&model=" ~ r.get("model","") ~
-                  "&type=" ~ r.get("type","") ~
-                  "&stream=" ~ r.get("stream","") ~
-                  "&variable=" ~ r.get("variable","") ~
-                  "&run_time_utc=" ~ r.get("run_time_utc","") ~
-                  "&step_hours=" ~ r["step_hours"]
-                %}
-                {% set bbox_qs = "bbox=128&bbox=34&bbox=130&bbox=36" %}
-                {% set api_url = API_BASE ~ "api/griddata?" ~ qs ~ "&" ~ bbox_qs %}
-
-                <div class="muted" style="margin-bottom:6px;">API example</div>
-
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                  <code class="codebox mono">GET {{ api_url }}</code>
-                  <button type="button" class="btn-lite" onclick="copyText(`{{ api_url }}`)">Copy URL</button>
-                </div>
-
-                <div class="muted" style="margin-top:6px;">
-                  bbox는 예시값(128,34,130,36)이야. 필요한 영역으로 바꿔서 호출하면 돼.
-                </div>
-              {% else %}
-                <div class="muted">이 항목은 run_time_utc / step_hours 정보가 없어 API 예시를 만들 수 없어.</div>
-              {% endif %}
-            </div>
-          </td>
-        </tr>
-
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-<div class="pagination" style="margin-top:12px;">
-  {% if page > 1 %}
-    <a href="{{ request.url.include_query_params(page=1) }}">« First</a>
-    <a href="{{ request.url.include_query_params(page=page-1) }}">‹ Previous</a>
-  {% endif %}
-  {% if page < pages %}
-    <a href="{{ request.url.include_query_params(page=page+1) }}">Next ›</a>
-    <a href="{{ request.url.include_query_params(page=pages) }}">Last »</a>
-  {% endif %}
-</div>
-
-<script>
-  function toggleRow(id) {
-    const tr = document.getElementById(id);
-    if (!tr) return;
-    tr.style.display = (tr.style.display === "table-row") ? "none" : "table-row";
-  }
-
-  function expandAll(open) {
-    document.querySelectorAll("tr.detail-row").forEach(tr => {
-      tr.style.display = open ? "table-row" : "none";
-    });
-  }
-
-  function copyText(text) {
-    if (!navigator.clipboard) {
-      window.prompt("Copy this:", text);
-      return;
-    }
-    navigator.clipboard.writeText(text);
-  }
-</script>
+    {% endfor %}
+  </tbody>
+</table>
 
 {% endblock %}

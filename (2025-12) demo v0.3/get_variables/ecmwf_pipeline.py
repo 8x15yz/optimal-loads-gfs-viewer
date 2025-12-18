@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 from ecmwf.opendata import Client
 import boto3
@@ -20,7 +22,7 @@ PRODUCT_CODE = "original"
 TYPE_CODE = "fc"  # forecast (ECMWF request value)
 
 # ✅ 메타데이터에는 사람이 읽기 쉬운 값으로
-ASSET_TYPE = "forecast"  # ✅ CHANGED (메타데이터용)
+ASSET_TYPE = "forecast"  # (raw/forecast 데이터용)
 
 # ✅ 변수별로 stream 지정
 PARAMS = {
@@ -29,6 +31,23 @@ PARAMS = {
     "mwp":  {"unit": "s",   "name_en": "Mean wave period", "stream": "wave"},
     "10u":  {"unit": "m/s", "name_en": "10 metre U wind component", "stream": "oper"},
     "10v":  {"unit": "m/s", "name_en": "10 metre V wind component", "stream": "oper"},
+}
+
+# ✅ 파생 변수(바람) 메타데이터 "미리" 생성용(파일 없이도 메타 생성)
+DERIVED_VARS = {
+    "wind_speed_10m": {
+        "unit": "m/s",
+        "name_en": "10 metre wind speed",
+        "depends_on": ["10u", "10v"],
+        "method": "sqrt(u^2 + v^2)",
+    },
+    "wind_dir_10m": {
+        "unit": "degree",
+        "name_en": "10 metre wind direction (meteorological)",
+        "depends_on": ["10u", "10v"],
+        "method": "wind_dir_deg = (atan2(-u, -v) * 180/pi + 360) % 360",
+        "convention": "meteorological_from",
+    },
 }
 
 DEFAULT_MAX_STEP = 360
@@ -59,11 +78,10 @@ if MONGO_URI:
     mongo = MongoClient(MONGO_URI)
     col = mongo[MONGO_DB][MONGO_COL]
     try:
-        # ✅ natural_key는 run/step까지 포함한 "진짜 유니크" 키로
         col.create_index([("natural_key", ASCENDING)], unique=True)
         col.create_index([("valid_time_utc", ASCENDING)])
         col.create_index([("run_time_utc", ASCENDING)])
-        col.create_index([("valid_key", ASCENDING)])  # ✅ CHANGED (valid_time 단위 조회용)
+        col.create_index([("valid_key", ASCENDING)])
     except Exception:
         pass
 else:
@@ -138,7 +156,7 @@ def upload_to_s3(s3_client, local_path: Path, s3_key: str) -> None:
         ExtraArgs={"ContentType": "application/x-grib"}
     )
 
-# --------------------- Mongo 메타 upsert (CMEMS 스타일 + ECMWF 확장) ---------------------
+# --------------------- Mongo 메타 키 ---------------------
 def build_keys(
     source: str,
     dataset_code: str,
@@ -150,11 +168,6 @@ def build_keys(
     step: int,
     valid_time: datetime,
 ) -> tuple[str, str]:
-    """
-    ✅ CHANGED
-    - natural_key: run_time + step 포함 (예측 데이터는 이게 유니크)
-    - valid_key  : valid_time 기준 조회용(최신 run 선택 등에 사용)
-    """
     natural_key = (
         f"{source}|{dataset_code}|{model}|{asset_type}|{stream}|{param}"
         f"|run={iso_z(run_time)}|step={step}"
@@ -165,13 +178,14 @@ def build_keys(
     )
     return natural_key, valid_key
 
+# --------------------- Mongo 메타 upsert: raw/forecast ---------------------
 def upsert_metadata_mongo(
     source: str,
     dataset_code: str,
     model: str,
     resol: str,
     asset_type: str,
-    type_code: str,   # ECMWF 내부값(fc)
+    type_code: str,
     stream: str,
     param: str,
     unit: str,
@@ -208,40 +222,31 @@ def upsert_metadata_mongo(
         "unit": unit,
 
         "model": model,
-        "type": asset_type,  # ✅ CHANGED: "forecast"
+        "type": asset_type,  # "forecast"
         "stream": stream,
 
-        "resolution": {
-            "lon_deg": 0.25,
-            "lat_deg": 0.25
-        },
+        "resolution": {"lon_deg": 0.25, "lat_deg": 0.25},
 
-        # 예측 시간축
         "run_time_utc": iso_z(run_time),
         "step_hours": step,
         "valid_time_utc": iso_z(valid_time),
 
-        # 빠른 필터
         "year": int(valid_time.strftime("%Y")),
         "month": int(valid_time.strftime("%m")),
 
-        # 파일 정보
         "name": filename,
-        "format": "grib2",               # ✅ ADDED (실무에서 유용)
-        "content_type": "application/x-grib",  # ✅ ADDED
+        "format": "grib2",
+        "content_type": "application/x-grib",
         "size_bytes": size_bytes,
 
-        # 다운로드/적재 시각(= 네가 받은/기록한 시간)
         "created_at": iso_z_now(),
 
-        # 키
-        "natural_key": natural_key,  # ✅ CHANGED (유니크)
-        "valid_key": valid_key,      # ✅ ADDED (valid_time 단위 조회용)
+        "natural_key": natural_key,
+        "valid_key": valid_key,
 
-        # 원천 재현용(ECMWF 요청 파라미터 보존)
-        "source_parameters": {        # ✅ ADDED
+        "source_parameters": {
             "ecmwf": {
-                "type": type_code,   # "fc"
+                "type": type_code,  # "fc"
                 "stream": stream,
                 "time": f"{run_time:%H}",
                 "step": step,
@@ -252,19 +257,92 @@ def upsert_metadata_mongo(
     }
 
     if s3_key:
-        doc["s3"] = {
-            "bucket": BUCKET,
-            "region": REGION,
-            "key": s3_key
-        }
+        doc["s3"] = {"bucket": BUCKET, "region": REGION, "key": s3_key}
 
-    col.update_one(
-        {"natural_key": natural_key},
-        {"$setOnInsert": doc},
-        upsert=True
+    col.update_one({"natural_key": natural_key}, {"$setOnInsert": doc}, upsert=True)
+    print(f"🧾 mongo upsert: {natural_key}")
+
+# --------------------- Mongo 메타 upsert: derived(planned) ---------------------
+def upsert_derived_metadata_mongo(
+    source: str,
+    dataset_code: str,
+    model: str,
+    resol: str,
+    type_code: str,
+    stream: str,            # 보통 "oper"
+    derived_var: str,       # wind_speed_10m 등
+    derived_meta: dict,     # DERIVED_VARS[...]
+    run_time: datetime,
+    step: int,
+    valid_time: datetime,
+):
+    if col is None:
+        return
+
+    asset_type = "derived"
+
+    natural_key, valid_key = build_keys(
+        source=source,
+        dataset_code=dataset_code,
+        model=model,
+        asset_type=asset_type,
+        stream=stream,
+        param=derived_var,
+        run_time=run_time,
+        step=step,
+        valid_time=valid_time,
     )
 
-    print(f"🧾 mongo upsert: {natural_key}")
+    doc = {
+        "source": source,
+        "dataset_code": dataset_code,
+
+        "variable": derived_var,
+        "name_en": derived_meta.get("name_en", derived_var),
+        "unit": derived_meta.get("unit", ""),
+
+        "model": model,
+        "type": asset_type,  # "derived"
+        "stream": stream,
+
+        "resolution": {"lon_deg": 0.25, "lat_deg": 0.25},
+
+        "run_time_utc": iso_z(run_time),
+        "step_hours": step,
+        "valid_time_utc": iso_z(valid_time),
+
+        "year": int(valid_time.strftime("%Y")),
+        "month": int(valid_time.strftime("%m")),
+
+        "created_at": iso_z_now(),
+
+        "natural_key": natural_key,
+        "valid_key": valid_key,
+
+        "derivation": {
+            "depends_on": derived_meta.get("depends_on", []),
+            "method": derived_meta.get("method", ""),
+        },
+
+        "source_parameters": {
+            "ecmwf": {
+                "type": type_code,
+                "stream": stream,
+                "time": f"{run_time:%H}",
+                "step": step,
+                "resol": resol,
+            }
+        },
+
+        "status": "planned",
+    }
+
+    conv = derived_meta.get("convention")
+    if conv:
+        doc["derivation"]["convention"] = conv
+
+    col.update_one({"natural_key": natural_key}, {"$setOnInsert": doc}, upsert=True)
+    print(f"🧾 mongo upsert (derived): {natural_key}")
 
 # --------------------- jsonl 메타 로그 ---------------------
 def append_metadata_to_jsonl(metadata_log_path: Path, doc: dict):
@@ -272,7 +350,9 @@ def append_metadata_to_jsonl(metadata_log_path: Path, doc: dict):
         f.write(json.dumps(doc, ensure_ascii=False) + "\n")
 
 def main():
-    ap = argparse.ArgumentParser(description="ECMWF IFS → run-based folder structure + GRIB2 + S3 + Mongo metadata")
+    ap = argparse.ArgumentParser(
+        description="ECMWF IFS → run-based folder structure + GRIB2 + S3 + Mongo metadata (+ derived planned metadata)"
+    )
     ap.add_argument("RUN_UTC", help="런 시각 예: 2025-12-16T00:00:00Z (15일치면 00Z/12Z 권장)")
     ap.add_argument("--max_step", type=int, default=DEFAULT_MAX_STEP, help="예측 step 최대 (기본: 360)")
     ap.add_argument("--sleep", type=float, default=0.2, help="요청 간 sleep(초)")
@@ -319,7 +399,7 @@ def main():
             out_path = get_out_path(run_set_dir, stream, param, filename)
             ensure_dirs(out_path.parent)
 
-            # 1) 다운로드(원본 로직 유지)
+            # 1) 다운로드
             if out_path.exists():
                 print(f"⏭️ exists locally: {out_path.relative_to(run_set_dir)}")
                 existed += 1
@@ -328,9 +408,9 @@ def main():
                 try:
                     client.retrieve(
                         date=run_dt.date(),
-                        type=TYPE_CODE,        # ✅ 여기는 ECMWF 내부 코드(fc) 유지
+                        type=TYPE_CODE,
                         stream=stream,
-                        time=f"{run_dt:%H}",   # 문자열 권장
+                        time=f"{run_dt:%H}",
                         step=step,
                         param=param,
                         target=str(out_path),
@@ -356,7 +436,7 @@ def main():
                     time.sleep(args.sleep)
                     continue
 
-            # 3) Mongo 메타 upsert
+            # 3) Mongo 메타 upsert (raw)
             if (not args.no_mongo) and (col is not None):
                 try:
                     upsert_metadata_mongo(
@@ -364,8 +444,8 @@ def main():
                         dataset_code=PRODUCT_CODE,
                         model=MODEL,
                         resol=RESOL,
-                        asset_type=ASSET_TYPE,  # ✅ CHANGED: "forecast"
-                        type_code=TYPE_CODE,    # ✅ "fc"는 source_parameters로 보관
+                        asset_type=ASSET_TYPE,
+                        type_code=TYPE_CODE,
                         stream=stream,
                         param=param,
                         unit=unit,
@@ -382,7 +462,30 @@ def main():
                     print(f"  ❌ mongo upsert failed: {e}")
                     failed += 1
 
-            # 4) jsonl 로그도 Mongo 문서와 동일한 구조로 기록
+            # ✅ 3.5) 파생(바람) 메타데이터 planned 미리 생성 (10v 시점에 1번)
+            if (not args.no_mongo) and (col is not None):
+                if stream == "oper" and param == "10v":
+                    for dvar, dmeta in DERIVED_VARS.items():
+                        try:
+                            upsert_derived_metadata_mongo(
+                                source=SOURCE,
+                                dataset_code=PRODUCT_CODE,
+                                model=MODEL,
+                                resol=RESOL,
+                                type_code=TYPE_CODE,
+                                stream=stream,
+                                derived_var=dvar,
+                                derived_meta=dmeta,
+                                run_time=run_dt,
+                                step=step,
+                                valid_time=valid_time,
+                            )
+                            mongo_written += 1
+                        except Exception as e:
+                            print(f"  ❌ derived mongo upsert failed: {e}")
+                            failed += 1
+
+            # 4) jsonl 로그 (raw만)
             if not args.no_jsonl:
                 try:
                     natural_key, valid_key = build_keys(
@@ -406,7 +509,7 @@ def main():
                         "unit": unit,
 
                         "model": MODEL,
-                        "type": ASSET_TYPE,  # ✅ CHANGED: "forecast"
+                        "type": ASSET_TYPE,
                         "stream": stream,
 
                         "resolution": {"lon_deg": 0.25, "lat_deg": 0.25},
@@ -450,7 +553,7 @@ def main():
                     print(f"  ❌ jsonl log failed: {e}")
                     failed += 1
 
-            # 5) (옵션) 업로드 후 로컬 삭제
+            # 5) 업로드 후 로컬 삭제
             if DELETE_LOCAL_AFTER_UPLOAD and s3_key:
                 try:
                     out_path.unlink(missing_ok=True)
