@@ -76,11 +76,13 @@
       </select>
     </label>
 
-    <label>run_time_utc
-      <select name="run_time_utc">
+    <label>run time
+      <select name="run_cycle">
         <option value="">(all)</option>
-        {% for v in choices.run_time_utc %}
-          <option value="{{v}}" {{ 'selected' if filters.run_time_utc==v else '' }}>{{v}}</option>
+        {% for v in choices.run_cycle %}
+          <option value="{{ v }}" {{ 'selected' if filters.run_cycle==v else '' }}>
+            T{{ "%02d"|format(v) }}:00
+          </option>
         {% endfor %}
       </select>
     </label>

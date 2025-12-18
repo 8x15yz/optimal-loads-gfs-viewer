@@ -74,6 +74,7 @@ async def inventory(
     month: MonthParam = None,
     day: int | None = None,     
     run_time_utc: str | None = None,  
+    run_cycle: int | None = None, 
     step_hours: int | None = None,          
     q: str | None = None,
     page: PageParam = 1,
@@ -90,6 +91,9 @@ async def inventory(
     if day is not None:
         dd = f"{day:02d}"
         cond["valid_time_utc"] = {"$regex": fr"-{dd}T"}
+    if run_cycle is not None:
+        hh = f"T{run_cycle:02d}:"
+        cond["run_time_utc"] = {"$regex": hh}
     if run_time_utc:  cond["run_time_utc"] = run_time_utc
     if step_hours is not None: cond["step_hours"] = step_hours
 
@@ -158,6 +162,7 @@ async def inventory(
     distinct_day = [int(d["_id"]) for d in day_docs if d.get("_id") and d["_id"].isdigit()]
     distinct_run_time = await coll.distinct("run_time_utc")
     distinct_step = await coll.distinct("step_hours")
+    distinct_run_cycle = [0, 6, 12, 18]
 
 
     return templates.TemplateResponse("inventory.html", {
@@ -175,6 +180,7 @@ async def inventory(
             "run_time_utc": run_time_utc,        # ✅
             "step_hours": step_hours,            # ✅
             "q": q
+            "run_cycle": run_cycle, 
         },
         "choices": {
             "source": sorted(filter(None, distinct_source)),
@@ -186,5 +192,6 @@ async def inventory(
             "day": distinct_day,                                     # ✅
             "run_time_utc": sorted(filter(None, distinct_run_time)), # ✅
             "step_hours": sorted([s for s in distinct_step if isinstance(s, int)]), # ✅
+            "run_cycle": [0, 6, 12, 18],  # ✅
         }
     })
