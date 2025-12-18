@@ -17,6 +17,11 @@ AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 S3_BUCKET  = os.getenv("S3_BUCKET", "optimal-loads")
 s3 = boto3.client("s3", region_name=AWS_REGION)
 
+ALIASES = {
+    "10u": ["10u", "u10"],
+    "10v": ["10v", "v10"],
+}
+
 router = APIRouter(prefix="/api", tags=["grid"])
 
 
@@ -278,6 +283,14 @@ async def get_griddata(
 # =============================================================================
 # Helpers
 # =============================================================================
+def resolve_var(ds, var: str) -> str:
+    candidates = ALIASES.get(var, [var])
+    for name in candidates:
+        if name in ds.data_vars:
+            return name
+    raise KeyError(
+        f"Variable '{var}' not found. Available: {list(ds.data_vars)}"
+    )
 
 def _parse_utc(dt_str: str) -> datetime:
     s = dt_str.strip()
@@ -372,7 +385,8 @@ def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]]):
     ds = _normalize_lonlat(ds)
     if var not in ds:
         raise KeyError(f"Variable '{var}' not found in dataset.")
-    da = ds[var]
+    var2 = resolve_var(ds, var)
+    da = ds[var2]
 
     # 단일 time 축 제거
     if "time" in da.dims and da.sizes.get("time", 1) == 1:
