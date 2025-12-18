@@ -162,7 +162,6 @@ async def inventory(
     distinct_day = [int(d["_id"]) for d in day_docs if d.get("_id") and d["_id"].isdigit()]
     distinct_run_time = await coll.distinct("run_time_utc")
     distinct_step = await coll.distinct("step_hours")
-    distinct_run_cycle = [0, 6, 12, 18]
 
 
     return templates.TemplateResponse("inventory.html", {
@@ -179,7 +178,7 @@ async def inventory(
             "day": day,                          # ✅
             "run_time_utc": run_time_utc,        # ✅
             "step_hours": step_hours,            # ✅
-            "q": q
+            "q": q,
             "run_cycle": run_cycle, 
         },
         "choices": {
