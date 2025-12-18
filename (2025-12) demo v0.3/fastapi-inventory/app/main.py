@@ -70,47 +70,71 @@ async def inventory(
     source: str | None = None,
     dataset_code: str | None = None,
     variable: str | None = None,
-    year: YearParam = None,          # ← 기본값은 여기서
-    month: MonthParam = None,        # ← 기본값은 여기서
+    year: YearParam = None,
+    month: MonthParam = None,
     q: str | None = None,
-    page: PageParam = 1,             # ← 기본값은 여기서
-    page_size: SizeParam = 50,       # ← 기본값은 여기서
+    page: PageParam = 1,
+    page_size: SizeParam = 50,
 ):
     coll = await get_collection()
 
-    # ---- 필터 조건 구성 ----
     cond: dict = {}
     if source:        cond["source"] = source
     if dataset_code:  cond["dataset_code"] = dataset_code
     if variable:      cond["variable"] = variable
     if year is not None:  cond["year"] = year
     if month is not None: cond["month"] = month
-    if q and q.strip():   # 공백검색 방지
+
+    if q and q.strip():
         cond["$or"] = [
-            {"name":   {"$regex": q, "$options": "i"}},
-            {"s3.key": {"$regex": q, "$options": "i"}},
+            {"name":        {"$regex": q, "$options": "i"}},
+            {"s3.key":      {"$regex": q, "$options": "i"}},
+            {"natural_key": {"$regex": q, "$options": "i"}},
+            {"valid_key":   {"$regex": q, "$options": "i"}},
         ]
 
-    # ---- 페이지네이션 ----
     total = await coll.count_documents(cond)
     pages = max(1, (total + page_size - 1) // page_size)
-    page = min(page, pages)   # 사용자가 page=999 넣어도 안전하게 보정
+    page = min(page, pages)
     skip = (page - 1) * page_size
 
-    # ---- DB 조회 ----
+    projection = {
+        "_id": 0,
+
+        # 기존
+        "source": 1, "dataset_code": 1, "variable": 1,
+        "year": 1, "month": 1, "valid_time_utc": 1,
+        "name": 1, "size_bytes": 1,
+
+        # ✅ 추가: 화면 + 상세에서 필요
+        "name_en": 1,
+        "unit": 1,
+        "resolution": 1,
+
+        "model": 1,
+        "type": 1,
+        "stream": 1,
+
+        "run_time_utc": 1,
+        "step_hours": 1,
+
+        "natural_key": 1,
+        "valid_key": 1,
+
+        "s3": 1,
+        "format": 1,
+        "content_type": 1,
+        "created_at": 1,
+        "source_parameters": 1,
+    }
+
     cursor = (
-        coll.find(cond, {
-            "_id": 0,
-            "source": 1, "dataset_code": 1, "variable": 1,
-            "year": 1, "month": 1, "valid_time_utc": 1,
-            "name": 1, "size_bytes": 1
-        })
-        .sort([("valid_time_utc", -1)])  # 최신 우선
+        coll.find(cond, projection)
+        .sort([("valid_time_utc", -1)])
         .skip(skip).limit(page_size)
     )
     records = [doc async for doc in cursor]
 
-    # ---- Select 필터 선택지 (distinct) ----
     distinct_source   = await coll.distinct("source")
     distinct_dataset  = await coll.distinct("dataset_code")
     distinct_variable = await coll.distinct("variable")

@@ -3,17 +3,14 @@
 {% set API_BASE = request.base_url|string %}
 
 <style>
-  /* 테이블/코드 보기 개선 */
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
   .muted { opacity: .75; }
   table { width: 100%; border-collapse: collapse; }
   th, td { padding: 10px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
   thead th { position: sticky; top: 0; background: #fff; z-index: 1; }
   .btn-lite { padding: 6px 10px; border:1px solid #ddd; border-radius: 8px; background:#fff; cursor:pointer; }
-  .pill { padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px; }
   .detail-row { display: none; }
   .detail-card { padding: 12px; border:1px solid #eee; border-radius: 12px; background:#fafafa; }
-  .kv { display:grid; grid-template-columns: 160px 1fr; gap:6px 12px; font-size:13px; }
   .codebox { display:block; padding:10px; border:1px solid #eee; border-radius:10px; background:#fff; overflow:auto; max-width:100%; }
   .toggle { cursor:pointer; user-select:none; font-size: 14px; }
 </style>
@@ -90,7 +87,7 @@
 <div class="card" style="padding:12px; margin-bottom:14px;">
   <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
     <div class="muted">
-      Tip: ▶ 를 누르면 단위/해상도/명칭/run·step/S3/API 예시가 펼쳐져.
+      Tip: ▶ 를 누르면 해당 항목에 대한 <b>API 호출 예시</b>만 펼쳐서 볼 수 있어.
     </div>
     <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
       <button type="button" class="btn-lite" onclick="expandAll(true)">Expand all</button>
@@ -120,101 +117,61 @@
     <tbody>
       {% for r in records %}
         {% set rid = "r" ~ loop.index %}
+
         <tr>
+          <td><span class="toggle" onclick="toggleRow('{{ rid }}')" title="Show API example">▶</span></td>
+          <td>{{ r.get("source","") }}</td>
+          <td>{{ r.get("dataset_code","") }}</td>
+          <td><b>{{ r.get("variable","") }}</b></td>
+          <td>{{ r.get("name_en","") }}</td>
+          <td>{{ r.get("unit","") }}</td>
           <td>
-            <span class="toggle" onclick="toggleRow('{{ rid }}')" title="Show details">▶</span>
-          </td>
-          <td>{{ r.source or '' }}</td>
-          <td>{{ r.dataset_code or '' }}</td>
-          <td><b>{{ r.variable or '' }}</b></td>
-          <td>{{ r.name_en or '' }}</td>
-          <td>{{ r.unit or '' }}</td>
-          <td>
-            {% if r.resolution %}
-              {{ "%.3f"|format(r.resolution.lon_deg) }} × {{ "%.3f"|format(r.resolution.lat_deg) }}°
+            {% if r.get("resolution") %}
+              {{ "%.3f"|format(r["resolution"]["lon_deg"]) }} × {{ "%.3f"|format(r["resolution"]["lat_deg"]) }}°
             {% else %}
               -
             {% endif %}
           </td>
-          <td class="mono">{{ r.run_time_utc or '' }}</td>
-          <td class="mono">{{ r.step_hours if r.step_hours is not none else '' }}</td>
-          <td class="mono">{{ r.valid_time_utc or '' }}</td>
-          <td>
-            {% if r.size_bytes %}{{ ("%.1f"|format(r.size_bytes/1024/1024)) }}{% endif %}
-          </td>
+          <td class="mono">{{ r.get("run_time_utc","") }}</td>
+          <td class="mono">{{ r["step_hours"] if r.get("step_hours") is not none else "" }}</td>
+          <td class="mono">{{ r.get("valid_time_utc","") }}</td>
+          <td>{% if r.get("size_bytes") %}{{ ("%.1f"|format(r["size_bytes"]/1024/1024)) }}{% endif %}</td>
         </tr>
 
-        {# ---- detail row (colspan) ---- #}
         <tr id="{{ rid }}" class="detail-row">
           <td colspan="11">
             <div class="detail-card">
-
-              <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
-                <span class="pill">{{ r.source or '' }}</span>
-                <span class="pill">{{ r.dataset_code or '' }}</span>
-                {% if r.model %}<span class="pill">model={{ r.model }}</span>{% endif %}
-                {% if r.type %}<span class="pill">type={{ r.type }}</span>{% endif %}
-                {% if r.stream %}<span class="pill">stream={{ r.stream }}</span>{% endif %}
-                {% if r.format %}<span class="pill">{{ r.format }}</span>{% endif %}
-                {% if r.content_type %}<span class="pill">{{ r.content_type }}</span>{% endif %}
-              </div>
-
-              <div class="kv">
-                <div class="muted">name</div>
-                <div class="mono">{{ r.name or '' }}</div>
-
-                <div class="muted">natural_key</div>
-                <div class="mono">{{ r.natural_key or '' }}</div>
-
-                <div class="muted">valid_key</div>
-                <div class="mono">{{ r.valid_key or '' }}</div>
-
-                <div class="muted">S3 key</div>
-                <div class="mono">{{ r.s3.key if r.s3 and r.s3.key else '' }}</div>
-
-                <div class="muted">created_at</div>
-                <div class="mono">{{ r.created_at or '' }}</div>
-              </div>
-
-              {% if r.source_parameters %}
-                <div style="margin-top:12px;">
-                  <div class="muted" style="margin-bottom:6px;">source_parameters</div>
-                  <pre class="mono" style="white-space:pre-wrap; margin:0; padding:10px; border:1px solid #eee; border-radius:10px; background:#fff;">{{ r.source_parameters | tojson(indent=2) }}</pre>
-                </div>
-              {% endif %}
-
-              {# ---- API example ---- #}
-              {% if r.run_time_utc and r.step_hours is not none %}
+              {% if r.get("run_time_utc") and r.get("step_hours") is not none %}
                 {% set qs =
-                  "source=" ~ (r.source or "") ~
-                  "&dataset_code=" ~ (r.dataset_code or "") ~
-                  "&model=" ~ (r.model or "") ~
-                  "&type=" ~ (r.type or "") ~
-                  "&stream=" ~ (r.stream or "") ~
-                  "&variable=" ~ (r.variable or "") ~
-                  "&run_time_utc=" ~ (r.run_time_utc or "") ~
-                  "&step_hours=" ~ (r.step_hours if r.step_hours is not none else "")
+                  "source=" ~ r.get("source","") ~
+                  "&dataset_code=" ~ r.get("dataset_code","") ~
+                  "&model=" ~ r.get("model","") ~
+                  "&type=" ~ r.get("type","") ~
+                  "&stream=" ~ r.get("stream","") ~
+                  "&variable=" ~ r.get("variable","") ~
+                  "&run_time_utc=" ~ r.get("run_time_utc","") ~
+                  "&step_hours=" ~ r["step_hours"]
                 %}
                 {% set bbox_qs = "bbox=128&bbox=34&bbox=130&bbox=36" %}
                 {% set api_url = API_BASE ~ "api/griddata?" ~ qs ~ "&" ~ bbox_qs %}
 
-                <div style="margin-top:12px; padding-top:10px; border-top:1px solid #eee;">
-                  <div class="muted" style="margin-bottom:6px;">API example</div>
+                <div class="muted" style="margin-bottom:6px;">API example</div>
 
-                  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <code class="codebox mono">GET {{ api_url }}</code>
-                    <button type="button" class="btn-lite" onclick="copyText(`{{ api_url }}`)">Copy URL</button>
-                  </div>
-
-                  <div class="muted" style="margin-top:6px;">
-                    bbox는 예시값(128,34,130,36)이야. 필요한 영역으로 바꿔서 호출하면 돼.
-                  </div>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                  <code class="codebox mono">GET {{ api_url }}</code>
+                  <button type="button" class="btn-lite" onclick="copyText(`{{ api_url }}`)">Copy URL</button>
                 </div>
-              {% endif %}
 
+                <div class="muted" style="margin-top:6px;">
+                  bbox는 예시값(128,34,130,36)이야. 필요한 영역으로 바꿔서 호출하면 돼.
+                </div>
+              {% else %}
+                <div class="muted">이 항목은 run_time_utc / step_hours 정보가 없어 API 예시를 만들 수 없어.</div>
+              {% endif %}
             </div>
           </td>
         </tr>
+
       {% endfor %}
     </tbody>
   </table>
