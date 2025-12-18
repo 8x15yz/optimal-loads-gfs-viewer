@@ -190,10 +190,88 @@ async def inventory_index(
 # (선택) 파일 클릭 핸들러 - 일단 placeholder
 # =========================================================
 
-@app.get("/inventory/file", include_in_schema=False)
-async def inventory_file(key: str = Query(..., description="S3 key")):
-    # TODO:
-    # 1) presigned URL로 리다이렉트
-    # 2) 또는 파일 메타 + griddata 예시를 보여주는 페이지로 렌더링
-    raise HTTPException(status_code=501, detail=f"Not implemented yet. key={key}")
+from fastapi import HTTPException, Query
+from fastapi.responses import HTMLResponse
+import json
+from datetime import datetime
 
+@app.get("/inventory/file", response_class=HTMLResponse, include_in_schema=False)
+async def inventory_file(request: Request, key: str = Query(..., description="S3 key")):
+    coll = await get_collection()
+
+    # ✅ key로 단건 조회
+    doc = await coll.find_one({"s3.key": key}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Not found: {key}")
+
+    # ✅ 표로 보여주기 좋은 주요 필드(원하는대로 추가/삭제 가능)
+    preferred_order = [
+        ("s3.key", None),
+        ("source", None),
+        ("dataset_code", None),
+        ("model", None),
+        ("type", None),
+        ("stream", None),
+        ("variable", None),
+        ("name", None),
+        ("name_en", None),
+        ("unit", None),
+        ("format", None),
+        ("content_type", None),
+        ("size_bytes", None),
+        ("resolution", None),
+        ("run_time_utc", None),
+        ("step_hours", None),
+        ("valid_time_utc", None),
+        ("year", None),
+        ("month", None),
+        ("natural_key", None),
+        ("valid_key", None),
+        ("created_at", None),
+        ("source_parameters", None),
+        ("s3", None),
+    ]
+
+    def get_by_path(d, path: str):
+        cur = d
+        for part in path.split("."):
+            if not isinstance(cur, dict) or part not in cur:
+                return None
+            cur = cur[part]
+        return cur
+
+    def fmt(v):
+        if v is None:
+            return ""
+        if isinstance(v, datetime):
+            return v.isoformat()
+        if isinstance(v, (dict, list)):
+            return json.dumps(v, ensure_ascii=False, indent=2)
+        return str(v)
+
+    rows = []
+    used = set()
+
+    for field, _ in preferred_order:
+        val = get_by_path(doc, field) if "." in field else doc.get(field)
+        if val is not None:
+            rows.append({"k": field, "v": fmt(val), "is_json": isinstance(val, (dict, list))})
+            used.add(field.split(".")[0])
+
+    # ✅ 나머지 필드도 아래쪽에 “Other fields”로 보여주고 싶으면
+    # (원치 않으면 이 블록 삭제해도 됨)
+    other = []
+    for k, v in doc.items():
+        if k in used:
+            continue
+        other.append({"k": k, "v": fmt(v), "is_json": isinstance(v, (dict, list))})
+
+    return templates.TemplateResponse(
+        "inventory_file.html",
+        {
+            "request": request,
+            "key": key,
+            "rows": rows,
+            "other": other,
+        },
+    )
