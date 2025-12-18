@@ -219,14 +219,12 @@ async def get_griddata(
 # ---- helpers (API 전용) ----
 def _open_dataset_safely(path: str) -> xr.Dataset:
     last_err = None
-    # cfgrib 먼저 → grib2일 경우 속도 향상
-    for engine in ("cfgrib", "h5netcdf"): #, "netcdf4"):
+    for engine in ("h5netcdf", "netcdf4"):
         try:
             return xr.open_dataset(path, engine=engine)
         except Exception as e:
             last_err = e
     raise RuntimeError(f"Failed to open dataset: {last_err}")
-
 
 def _normalize_lonlat(ds: xr.Dataset) -> xr.Dataset:
     rename_map = {}
@@ -324,6 +322,14 @@ def _norm_var(v: str) -> str:
 
 
 # ---- helpers (API 전용) ----
+def _open_dataset_safely(path: str) -> xr.Dataset:
+    last_err = None
+    for engine in ("h5netcdf", "netcdf4"):
+        try:
+            return xr.open_dataset(path, engine=engine)
+        except Exception as e:
+            last_err = e
+    raise RuntimeError(f"Failed to open dataset: {last_err}")
 
 def _normalize_lonlat(ds: xr.Dataset) -> xr.Dataset:
     rename_map = {}

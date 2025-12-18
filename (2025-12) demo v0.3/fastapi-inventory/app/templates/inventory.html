@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="margin:0 0 12px;">BLUEMAP Marine Weather Data Inventory</h1>
+
+<div class="card" style="margin-bottom:16px;">
+  <form class="row" method="get" action="/inventory">
+    <label>source
+      <select name="source">
+        <option value="">(all)</option>
+        {% for v in choices.source %}
+          <option value="{{v}}" {{ 'selected' if filters.source==v else '' }}>{{v}}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>dataset
+      <select name="dataset_code">
+        <option value="">(all)</option>
+        {% for v in choices.dataset_code %}
+          <option value="{{v}}" {{ 'selected' if filters.dataset_code==v else '' }}>{{v}}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>variable
+      <select name="variable">
+        <option value="">(all)</option>
+        {% for v in choices.variable %}
+          <option value="{{v}}" {{ 'selected' if filters.variable==v else '' }}>{{v}}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>year
+      <select name="year">
+        <option value="">(all)</option>
+        {% for v in choices.year %}
+          <option value="{{v}}" {{ 'selected' if filters.year==v else '' }}>{{v}}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>month
+      <select name="month">
+        <option value="">(all)</option>
+        {% for v in choices.month %}
+          <option value="{{v}}" {{ 'selected' if filters.month==v else '' }}>{{v}}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Search
+      <input type="text" name="q" value="{{ filters.q or '' }}" placeholder="name / s3.key" />
+    </label>
+    <label>page_size
+      <select name="page_size">
+        {% for v in [25,50,100,200,500] %}
+          <option value="{{v}}" {{ 'selected' if page_size==v else '' }}>{{v}}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Submit</button>
+  </form>
+</div>
+
+<div class="muted" style="margin-bottom:8px;">
+  Total: {{ total }} items | Page {{ page }} / {{ pages }}
+
+</div>
+
+<div class="card" style="overflow:auto;">
+  <table>
+    <thead>
+      <tr>
+        <th>source</th>
+        <th>dataset</th>
+        <th>variable</th>
+        <th>valid_time(UTC)</th>
+        <th>year</th>
+        <th>month</th>
+        <th>name</th>
+        <th>size(MB)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in records %}
+        <tr>
+          <td>{{ r.source or '' }}</td>
+          <td>{{ r.dataset_code or '' }}</td>
+          <td>{{ r.variable or '' }}</td>
+          <td>{{ r.valid_time_utc or '' }}</td>
+          <td>{{ r.year or '' }}</td>
+          <td>{{ "%02d"|format(r.month) if r.month is not none else '' }}</td>
+          <td class="mono">{{ r.name or '' }}</td>
+          <td>
+            {% if r.size_bytes %}{{ ("%.1f"|format(r.size_bytes/1024/1024)) }}{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="pagination" style="margin-top:12px;">
+  {% if page > 1 %}
+    <a href="{{ request.url.include_query_params(page=1) }}">« First</a>
+    <a href="{{ request.url.include_query_params(page=page-1) }}">‹ Previous</a>
+  {% endif %}
+  {% if page < pages %}
+    <a href="{{ request.url.include_query_params(page=page+1) }}">Next ›</a>
+    <a href="{{ request.url.include_query_params(page=pages) }}">Last »</a>
+  {% endif %}
+</div>
+{% endblock %}
