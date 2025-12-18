@@ -72,6 +72,9 @@ async def inventory(
     variable: str | None = None,
     year: YearParam = None,
     month: MonthParam = None,
+    day: int | None = None,     
+    run_time_utc: str | None = None,  
+    step_hours: int | None = None,          
     q: str | None = None,
     page: PageParam = 1,
     page_size: SizeParam = 50,
@@ -84,6 +87,12 @@ async def inventory(
     if variable:      cond["variable"] = variable
     if year is not None:  cond["year"] = year
     if month is not None: cond["month"] = month
+    if day is not None:
+        dd = f"{day:02d}"
+        cond["valid_time_utc"] = {"$regex": fr"-{dd}T"}
+    if run_time_utc:  cond["run_time_utc"] = run_time_utc
+    if step_hours is not None: cond["step_hours"] = step_hours
+
 
     if q and q.strip():
         cond["$or"] = [
@@ -140,6 +149,16 @@ async def inventory(
     distinct_variable = await coll.distinct("variable")
     distinct_year     = sorted([int(y) for y in await coll.distinct("year") if isinstance(y, int)])
     distinct_month    = sorted([int(m) for m in await coll.distinct("month") if isinstance(m, int)])
+    day_pipeline = [
+        {"$project": {"dd": {"$substrBytes": ["$valid_time_utc", 8, 2]}}},
+        {"$group": {"_id": "$dd"}},
+        {"$sort": {"_id": 1}},
+    ]
+    day_docs = await coll.aggregate(day_pipeline).to_list(length=1000)
+    distinct_day = [int(d["_id"]) for d in day_docs if d.get("_id") and d["_id"].isdigit()]
+    distinct_run_time = await coll.distinct("run_time_utc")
+    distinct_step = await coll.distinct("step_hours")
+
 
     return templates.TemplateResponse("inventory.html", {
         "request": request,
@@ -151,7 +170,11 @@ async def inventory(
         "pages": pages,
         "filters": {
             "source": source, "dataset_code": dataset_code, "variable": variable,
-            "year": year, "month": month, "q": q
+            "year": year, "month": month,
+            "day": day,                          # ✅
+            "run_time_utc": run_time_utc,        # ✅
+            "step_hours": step_hours,            # ✅
+            "q": q
         },
         "choices": {
             "source": sorted(filter(None, distinct_source)),
@@ -159,5 +182,9 @@ async def inventory(
             "variable": sorted(filter(None, distinct_variable)),
             "year": distinct_year,
             "month": distinct_month,
+
+            "day": distinct_day,                                     # ✅
+            "run_time_utc": sorted(filter(None, distinct_run_time)), # ✅
+            "step_hours": sorted([s for s in distinct_step if isinstance(s, int)]), # ✅
         }
     })
