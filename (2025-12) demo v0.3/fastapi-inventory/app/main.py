@@ -210,7 +210,6 @@ async def inventory_index(
             "is_dir": True,
             "path": child_path,     # /inventory?path=...
             "file_id": None,
-            "api_url": f"/api/griddata?nk={quote(d.get('natural_key'))}",
             "last_modified": last_modified,
             "size_human": None,
         })
@@ -227,7 +226,7 @@ async def inventory_index(
             "name": display_name,
             "is_dir": False,
             "path": None,
-            # ✅ derived도 열람 가능하도록 natural_key를 file id로 사용 (가장 안전/유니크)
+            "api_url": f"/api/griddata?nk={quote(d.get('natural_key'))}",
             "file_id": d.get("natural_key"),
             "last_modified": last_modified,
             "size_human": _human_size(d.get("size_bytes")),
