@@ -80,3 +80,19 @@
 </table>
 
 {% endblock %}
+<script>
+async function copyApiUrl(btn) {
+  const url = btn.dataset.url || "";
+  if (!url) return;
+
+  try {
+    await navigator.clipboard.writeText(url);
+    const old = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => (btn.textContent = old), 900);
+  } catch (e) {
+    // HTTPS 아님 / 권한 문제 fallback
+    window.prompt("Copy this URL:", url);
+  }
+}
+</script>
