@@ -114,33 +114,32 @@ def _to_iso_z(v: Any) -> str:
 
 def _build_api_example(doc: Dict[str, Any], bbox: List[str]) -> str:
     """
-    ECMWF griddata API example (NO URL ENCODING for datetime)
+    Final griddata API example
+    - stream, type 제거
+    - datetime은 RFC3339 그대로 (NO URL encoding)
     """
 
     source = doc.get("source", "ecmwf")
     dataset_code = doc.get("dataset_code", "original")
     model = doc.get("model", "ifs")
-    asset_type = doc.get("type", "forecast")
-    stream = doc.get("stream", "")
     variable = doc.get("variable", "")
 
     run_time_utc = _to_iso_z(doc.get("run_time_utc"))
-    step_hours = doc.get("step_hours", 0)
+    step_hours = int(doc.get("step_hours", 0))
 
-    bbox_q = "&".join([f"bbox={v}" for v in bbox])
+    bbox_q = "&".join(f"bbox={v}" for v in bbox)
 
     return (
-        "/api/griddata"
+        "http://52.78.244.211/api/griddata"
         f"?source={source}"
         f"&dataset_code={dataset_code}"
         f"&model={model}"
-        f"&type={asset_type}"
-        f"&stream={stream}"
         f"&variable={variable}"
         f"&run_time_utc={run_time_utc}"
-        f"&step_hours={int(step_hours)}"
+        f"&step_hours={step_hours}"
         f"&{bbox_q}"
     )
+
 
 
 # =========================================================
