@@ -112,30 +112,33 @@ def _to_iso_z(v: Any) -> str:
         return v.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return str(v)
 
-from urllib.parse import quote
 def _build_api_example(doc: Dict[str, Any], bbox: List[str]) -> str:
     """
-    /api/griddata?variable=...&forecast_datetime=YYYY-MM-DDTHH:MM:SSZ&source=...&bbox=... (콜론 유지)
+    ECMWF griddata API example (NO URL ENCODING for datetime)
     """
-    variable = doc.get("variable") or ""
-    source   = doc.get("source") or ""
 
-    fdt = doc.get("forecast_datetime") or doc.get("valid_time_utc") or doc.get("run_time_utc")
-    forecast_datetime = _to_iso_z(fdt)
+    source = doc.get("source", "ecmwf")
+    dataset_code = doc.get("dataset_code", "original")
+    model = doc.get("model", "ifs")
+    asset_type = doc.get("type", "forecast")
+    stream = doc.get("stream", "")
+    variable = doc.get("variable", "")
 
-    # ✅ 핵심: forecast_datetime에서 ":"는 인코딩하지 않도록 safe=":"
-    # (T, Z, -, 숫자는 원래 인코딩 안 됨)
-    forecast_datetime = quote(forecast_datetime, safe=":")
+    run_time_utc = _to_iso_z(doc.get("run_time_utc"))
+    step_hours = doc.get("step_hours", 0)
 
-    # ✅ bbox는 숫자만 오니까 인코딩 필요 없음
     bbox_q = "&".join([f"bbox={v}" for v in bbox])
 
-    # ✅ 너가 원하는 형태: "GET " 없이 /api/... 로만 (원하면 GET 붙여도 됨)
     return (
-        f"/api/griddata"
-        f"?variable={variable}"
-        f"&forecast_datetime={forecast_datetime}"
-        f"&source={source}"
+        "/api/griddata"
+        f"?source={source}"
+        f"&dataset_code={dataset_code}"
+        f"&model={model}"
+        f"&type={asset_type}"
+        f"&stream={stream}"
+        f"&variable={variable}"
+        f"&run_time_utc={run_time_utc}"
+        f"&step_hours={int(step_hours)}"
         f"&{bbox_q}"
     )
 
