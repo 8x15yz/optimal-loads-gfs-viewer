@@ -112,7 +112,7 @@ def _to_iso_z(v: Any) -> str:
         return v.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return str(v)
 
-
+from urllib.parse import quote
 def _build_api_example(doc: Dict[str, Any], bbox: List[str]) -> str:
     """
     /api/griddata?variable=...&forecast_datetime=YYYY-MM-DDTHH:MM:SSZ&source=...&bbox=... (콜론 유지)
