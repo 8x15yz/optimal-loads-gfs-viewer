@@ -311,8 +311,11 @@ def _build_natural_key(
     run_time_utc: str,
     step_hours: int
 ) -> str:
-    # ⚠️ 너 메타데이터 예시와 동일 포맷
-    return f"{source}|{dataset_code}|{model}|{type_}|{stream}|{variable}|run={run_time_utc}|step={int(step_hours)}"
+    # ✅ Mongo에 저장된 순서대로!
+    return (
+        f"{dataset_code}|{source}|{model}|{type_}|{stream}|{variable}"
+        f"|run={run_time_utc}|step={int(step_hours)}"
+    )
 
 async def _find_by_natural_key(
     coll,
