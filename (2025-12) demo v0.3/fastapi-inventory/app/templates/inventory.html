@@ -12,10 +12,12 @@
   tbody td { border-bottom: 1px solid #eee; }
   a { color: #00f; text-decoration: underline; }
   .muted { color:#666; }
+  .btn { padding:2px 8px; border:1px solid #ddd; border-radius:6px; background:#fff; cursor:pointer; }
+  .btn:hover { background:#f7f7f7; }
 </style>
 
 <h2 class="mono">
-  Index of 
+  <div>Index of</div>
   {%- for part in current_path.strip('/').split('/') -%}
     /
     {%- if '-' in part and part[0:4].isdigit() -%}
@@ -59,7 +61,15 @@
         {% if e.is_dir %}
           <a href="/inventory?path={{ e.path|urlencode }}">{{ e.name }}/</a>
         {% else %}
-          <a href="/inventory/file?nk={{ e.file_id|urlencode }}">{{ e.name }}</a>
+          <button
+            type="button"
+            class="btn mono"
+            data-url="{{ e.api_url }}"
+            onclick="copyApiUrl(this)"
+          >
+            Copy API URL
+          </button>
+          <span class="mono" style="margin-left:8px;">{{ e.name }}</span>
         {% endif %}
       </td>
       <td>{{ e.last_modified or "-" }}</td>
