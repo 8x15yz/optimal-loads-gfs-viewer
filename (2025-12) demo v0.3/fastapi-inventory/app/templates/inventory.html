@@ -14,11 +14,16 @@
   .muted { color:#666; }
 </style>
 
-{% set parts = current_path.strip('/').split('/') %}
 <h1 class="mono">
-  Index of
-  <span class="muted">/{{ '/'.join(parts[:-1]) }}/</span>
-  <strong>{{ parts[-1].split('-')[-1] }}</strong>/
+Index of
+{% for part in current_path.strip('/').split('/') %}
+  /
+  {% if '-' in part and part[0:4].isdigit() %}
+    {{ part.split('-')[-1] }}
+  {% else %}
+    {{ part }}
+  {% endif %}
+{% endfor %}
 </h1>
 
 {% if description %}
