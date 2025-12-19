@@ -14,7 +14,12 @@
   .muted { color:#666; }
 </style>
 
-<h1 class="mono">Index of {{ current_path }}</h1>
+{% set parts = current_path.strip('/').split('/') %}
+<h1 class="mono">
+  Index of
+  <span class="muted">/{{ '/'.join(parts[:-1]) }}/</span>
+  <strong>{{ parts[-1].split('-')[-1] }}</strong>/
+</h1>
 
 {% if description %}
   <div class="mono muted" style="margin:6px 0 12px;">
