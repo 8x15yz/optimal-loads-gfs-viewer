@@ -1,3 +1,4 @@
+from email.utils import quote
 from fastapi import FastAPI, Request, Query, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -209,6 +210,7 @@ async def inventory_index(
             "is_dir": True,
             "path": child_path,     # /inventory?path=...
             "file_id": None,
+            "api_url": f"/api/griddata?nk={quote(d.get('natural_key'))}",
             "last_modified": last_modified,
             "size_human": None,
         })
