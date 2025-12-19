@@ -37,7 +37,6 @@ async def get_griddata(
     dataset_code: str = Query(..., example="original"),
     model: str = Query(..., example="ifs"),
     type: str = Query(..., example="forecast"),
-    stream: str = Query(..., example="wave"),
     variable: str = Query(..., example="swh"),
     run_time_utc: str = Query(..., example="2025-12-16T00:00:00Z"),
     step_hours: int = Query(..., ge=0, le=360, example=24),
@@ -76,14 +75,14 @@ async def get_griddata(
 
         doc_u = await _find_by_natural_key(
             coll,
-            source=source, dataset_code=dataset_code, model=model, type_=type, stream=stream,
+            source=source, dataset_code=dataset_code, model=model, type_=type
             variable="eastward_wind",
             run_time_utc=_to_z(run_dt),
             step_hours=step_hours
         )
         doc_v = await _find_by_natural_key(
             coll,
-            source=source, dataset_code=dataset_code, model=model, type_=type, stream=stream,
+            source=source, dataset_code=dataset_code, model=model, type_=type
             variable="northward_wind",
             run_time_utc=_to_z(run_dt),
             step_hours=step_hours
@@ -192,7 +191,7 @@ async def get_griddata(
 
     doc = await _find_by_natural_key(
         coll,
-        source=source, dataset_code=dataset_code, model=model, type_=type, stream=stream,
+        source=source, dataset_code=dataset_code, model=model, type_=type,
         variable=norm_var,
         run_time_utc=_to_z(run_dt),
         step_hours=step_hours
@@ -206,7 +205,6 @@ async def get_griddata(
                 "dataset_code": dataset_code,
                 "model": model,
                 "type": type,
-                "stream": stream,
                 "variable": norm_var,
                 "run_time_utc": _to_z(run_dt),
                 "step_hours": int(step_hours),
