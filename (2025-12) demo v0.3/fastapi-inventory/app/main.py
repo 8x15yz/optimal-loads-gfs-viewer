@@ -115,26 +115,29 @@ def _to_iso_z(v: Any) -> str:
 
 def _build_api_example(doc: Dict[str, Any], bbox: List[str]) -> str:
     """
-    원하는 예시 형식:
-    GET /api/griddata?variable=...&forecast_datetime=...&source=...&bbox=...&bbox=...&bbox=...&bbox=...
+    /api/griddata?variable=...&forecast_datetime=YYYY-MM-DDTHH:MM:SSZ&source=...&bbox=... (콜론 유지)
     """
     variable = doc.get("variable") or ""
-    source = doc.get("source") or ""
+    source   = doc.get("source") or ""
 
-    # forecast_datetime로 쓸 기준: (선호 순서)
-    # 1) forecast_datetime 필드가 있으면 그걸
-    # 2) 없으면 valid_time_utc
-    # 3) 없으면 run_time_utc
     fdt = doc.get("forecast_datetime") or doc.get("valid_time_utc") or doc.get("run_time_utc")
+    forecast_datetime = _to_iso_z(fdt)
 
-    qs: List[Tuple[str, str]] = [
-        ("variable", variable),
-        ("forecast_datetime", _to_iso_z(fdt)),
-        ("source", source),
-    ]
-    qs += [("bbox", v) for v in bbox]
+    # ✅ 핵심: forecast_datetime에서 ":"는 인코딩하지 않도록 safe=":"
+    # (T, Z, -, 숫자는 원래 인코딩 안 됨)
+    forecast_datetime = quote(forecast_datetime, safe=":")
 
-    return "GET /api/griddata?" + urlencode(qs)
+    # ✅ bbox는 숫자만 오니까 인코딩 필요 없음
+    bbox_q = "&".join([f"bbox={v}" for v in bbox])
+
+    # ✅ 너가 원하는 형태: "GET " 없이 /api/... 로만 (원하면 GET 붙여도 됨)
+    return (
+        f"/api/griddata"
+        f"?variable={variable}"
+        f"&forecast_datetime={forecast_datetime}"
+        f"&source={source}"
+        f"&{bbox_q}"
+    )
 
 
 # =========================================================
