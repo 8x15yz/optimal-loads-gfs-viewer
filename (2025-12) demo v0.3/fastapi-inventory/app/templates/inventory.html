@@ -1,4 +1,4 @@
-{# templates/inventory_index.html #}
+{# templates/inventory.html #}
 {% extends "base.html" %}
 {% block content %}
 
@@ -43,18 +43,17 @@
 
     {# Entries #}
     {% for e in entries %}
-      <tr>
-        <td>
-          {% if e.is_dir %}
-            <a href="/inventory?path={{ e.path|urlencode }}">{{ e.name }}/</a>
-          {% else %}
-            {# 파일을 클릭하면 griddata 호출/다운로드/상세 등으로 연결 가능 #}
-            <a href="/inventory/file?key={{ e.key|urlencode }}">{{ e.name }}</a>
-          {% endif %}
-        </td>
-        <td>{{ e.last_modified or "-" }}</td>
-        <td>{{ e.size_human or "-" }}</td>
-      </tr>
+    <tr>
+      <td>
+        {% if e.is_dir %}
+          <a href="/inventory?path={{ e.path|urlencode }}">{{ e.name }}/</a>
+        {% else %}
+          <a href="/inventory/file?nk={{ e.file_id|urlencode }}">{{ e.name }}</a>
+        {% endif %}
+      </td>
+      <td>{{ e.last_modified or "-" }}</td>
+      <td>{{ e.size_human or "-" }}</td>
+    </tr>
     {% endfor %}
   </tbody>
 </table>

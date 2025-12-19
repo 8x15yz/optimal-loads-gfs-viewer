@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 # --------------------- 사용자 설정 ---------------------
+SOURCE_REAL = "aws"
 SOURCE = "ecmwf"
 MODEL  = "ifs"
 RESOL  = "0p25"
@@ -26,11 +27,11 @@ ASSET_TYPE = "forecast"  # (raw/forecast 데이터용)
 
 # ✅ 변수별로 stream 지정
 PARAMS = {
-    "swh":  {"unit": "m",   "name_en": "Significant height of combined wind waves and swell", "stream": "wave"},
-    "pp1d": {"unit": "s",   "name_en": "Peak wave period", "stream": "wave"},
-    "mwp":  {"unit": "s",   "name_en": "Mean wave period", "stream": "wave"},
-    "10u":  {"unit": "m/s", "name_en": "10 metre U wind component", "stream": "oper"},
-    "10v":  {"unit": "m/s", "name_en": "10 metre V wind component", "stream": "oper"},
+    "10u":  {"unit": "m/s", "name_en": "Eastward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
+    "10v":  {"unit": "m/s", "name_en": "Northward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
+    "swh":  {"unit": "m",   "name_en": "Significant height of combined wind waves and swell", "stream": "wave", "product_code": "original"},
+    "pp1d": {"unit": "s",   "name_en": "Peak wave period", "stream": "wave", "product_code": "original"},
+    "mwp":  {"unit": "s",   "name_en": "Mean wave period", "stream": "wave", "product_code": "original"},
 }
 
 # ✅ 파생 변수(바람) 메타데이터 "미리" 생성용(파일 없이도 메타 생성)
@@ -40,6 +41,7 @@ DERIVED_VARS = {
         "name_en": "10 metre wind speed",
         "depends_on": ["10u", "10v"],
         "method": "sqrt(u^2 + v^2)",
+        "product_code": "computed",
     },
     "wind_dir_10m": {
         "unit": "degree",
@@ -47,6 +49,7 @@ DERIVED_VARS = {
         "depends_on": ["10u", "10v"],
         "method": "wind_dir_deg = (atan2(-u, -v) * 180/pi + 360) % 360",
         "convention": "meteorological_from",
+        "product_code": "computed",
     },
 }
 
@@ -62,7 +65,7 @@ DATA_ROOT = SCRIPT_DIR / "ecmwf" / MODEL / TYPE_CODE
 # 예: s3://optimal-loads/ecmwf/original/ifs/fc/YYYY/MM/DD/00Z/oper/10u/file.grib2
 BUCKET = os.getenv("S3_BUCKET", "optimal-loads")
 REGION = os.getenv("AWS_REGION", "ap-northeast-2")
-S3_PREFIX_ROOT = f"ecmwf/{PRODUCT_CODE}/{MODEL}/{TYPE_CODE}"
+S3_PREFIX_ROOT = f"ecmwf/{MODEL}/{TYPE_CODE}"
 
 # 로컬 파일 업로드 후 지울지
 DELETE_LOCAL_AFTER_UPLOAD = True
@@ -141,19 +144,19 @@ def ensure_dirs(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 # --------------------- S3 업로드 ---------------------
-def build_s3_key(run_dt: datetime, stream: str, param: str, filename: str) -> str:
+def build_s3_key(run_dt: datetime, product_code: str, param: str, filename: str) -> str:
     yyyy = run_dt.strftime("%Y")
     mm   = run_dt.strftime("%m")
     dd   = run_dt.strftime("%d")
     hhZ  = f"{run_dt:%H}Z"
-    return f"{S3_PREFIX_ROOT}/{yyyy}/{mm}/{dd}/{hhZ}/{stream}/{param}/{filename}"
+    return f"{S3_PREFIX_ROOT}/{yyyy}/{mm}/{dd}/{hhZ}/{product_code}/{param}/{filename}"
 
 def upload_to_s3(s3_client, local_path: Path, s3_key: str) -> None:
     s3_client.upload_file(
         str(local_path),
         BUCKET,
         s3_key,
-        ExtraArgs={"ContentType": "application/x-grib"}
+        ExtraArgs={"ContentType": "application/x-grib"},
     )
 
 # --------------------- Mongo 메타 키 ---------------------
@@ -169,11 +172,11 @@ def build_keys(
     valid_time: datetime,
 ) -> tuple[str, str]:
     natural_key = (
-        f"{source}|{dataset_code}|{model}|{asset_type}|{stream}|{param}"
+        f"{dataset_code}|{source}|{model}|{asset_type}|{stream}|{param}"
         f"|run={iso_z(run_time)}|step={step}"
     )
     valid_key = (
-        f"{source}|{dataset_code}|{model}|{asset_type}|{stream}|{param}"
+        f"{dataset_code}|{source}|{model}|{asset_type}|{stream}|{param}"
         f"|valid={iso_z(valid_time)}"
     )
     return natural_key, valid_key
@@ -253,7 +256,10 @@ def upsert_metadata_mongo(
                 "param": param,
                 "resol": resol,
             }
-        }
+        },
+        
+        "inventory_directory": f'{source}/{model}/{run_time:%Y/%Y-%m/%Y-%m-%d/%H}Z/{dataset_code}/{param}/',
+        "inventory_name": f'{dataset_code}_{param}_{run_time:%Y%m%d_%H}Z_step{step:03}',
     }
 
     if s3_key:
@@ -335,6 +341,9 @@ def upsert_derived_metadata_mongo(
         },
 
         "status": "planned",
+
+        "inventory_directory": f'{source}/{model}/{run_time:%Y/%Y-%m/%Y-%m-%d/%H}Z/{dataset_code}/{derived_var}/',
+        "inventory_name": f'{dataset_code}_{derived_var}_{run_time:%Y%m%d_%H}Z_step{step:03}',
     }
 
     conv = derived_meta.get("convention")
@@ -379,7 +388,7 @@ def main():
     print(f"▶ Mongo     : {'OFF' if args.no_mongo else ('ON' if MONGO_URI else 'OFF (no MONGO_URI)')}")
     print("")
 
-    client = Client(source=SOURCE, model=MODEL, resol=RESOL)
+    client = Client(source=SOURCE_REAL, model=MODEL, resol=RESOL)
 
     s3 = None
     if not args.no_s3:
@@ -387,10 +396,16 @@ def main():
 
     downloaded = existed = uploaded = mongo_written = jsonl_written = failed = 0
 
+    # ✅ derived 메타는 (run, step)당 1번만 생성하기 위한 가드
+    # - 이유: 10u/10v 처리 순서가 바뀌거나 재시도/부분실패가 있어도 중복 생성 시도를 줄이고,
+    #        API에서 파생변수 목록을 안정적으로 노출할 수 있게 함
+    derived_written_steps: set[tuple[str, int]] = set()
+
     for param, meta in PARAMS.items():
         unit = meta["unit"]
         name_en = meta["name_en"]
         stream = meta.get("stream", "oper")
+        product_code = meta.get("product_code")
 
         for step in steps:
             valid_time = run_dt + timedelta(hours=step)
@@ -426,7 +441,7 @@ def main():
             s3_key = None
             if s3 is not None:
                 try:
-                    s3_key = build_s3_key(run_dt, stream, param, filename)
+                    s3_key = build_s3_key(run_dt, product_code, param, filename)
                     print(f"  📤 upload s3://{BUCKET}/{s3_key}")
                     upload_to_s3(s3, out_path, s3_key)
                     uploaded += 1
@@ -462,96 +477,35 @@ def main():
                     print(f"  ❌ mongo upsert failed: {e}")
                     failed += 1
 
-            # ✅ 3.5) 파생(바람) 메타데이터 planned 미리 생성 (10v 시점에 1번)
+            # ✅ 3.5) 파생(바람) 메타데이터 planned 미리 생성 (run+step 당 1번)
+            # - API에서 wind_speed_10m / wind_dir_10m 요청이 들어오면
+            #   실제 계산은 10u/10v로 수행할 것이므로,
+            #   Mongo에는 derived 메타를 "planned"로 미리 넣어둔다.
             if (not args.no_mongo) and (col is not None):
-                if stream == "oper" and param == "10v":
-                    for dvar, dmeta in DERIVED_VARS.items():
-                        try:
-                            upsert_derived_metadata_mongo(
-                                source=SOURCE,
-                                dataset_code=PRODUCT_CODE,
-                                model=MODEL,
-                                resol=RESOL,
-                                type_code=TYPE_CODE,
-                                stream=stream,
-                                derived_var=dvar,
-                                derived_meta=dmeta,
-                                run_time=run_dt,
-                                step=step,
-                                valid_time=valid_time,
-                            )
-                            mongo_written += 1
-                        except Exception as e:
-                            print(f"  ❌ derived mongo upsert failed: {e}")
-                            failed += 1
+                if stream == "oper" and param in ("10u", "10v"):
+                    step_key = (iso_z(run_dt), step)
+                    if step_key not in derived_written_steps:
+                        for dvar, dmeta in DERIVED_VARS.items():
+                            try:
+                                upsert_derived_metadata_mongo(
+                                    source=SOURCE,
+                                    dataset_code="computed",
+                                    model=MODEL,
+                                    resol=RESOL,
+                                    type_code=TYPE_CODE,
+                                    stream="oper",
+                                    derived_var=dvar,
+                                    derived_meta=dmeta,
+                                    run_time=run_dt,
+                                    step=step,
+                                    valid_time=valid_time,
+                                )
+                                mongo_written += 1
+                            except Exception as e:
+                                print(f"  ❌ derived mongo upsert failed: {e}")
+                                failed += 1
 
-            # 4) jsonl 로그 (raw만)
-            if not args.no_jsonl:
-                try:
-                    natural_key, valid_key = build_keys(
-                        source=SOURCE,
-                        dataset_code=PRODUCT_CODE,
-                        model=MODEL,
-                        asset_type=ASSET_TYPE,
-                        stream=stream,
-                        param=param,
-                        run_time=run_dt,
-                        step=step,
-                        valid_time=valid_time,
-                    )
-
-                    doc = {
-                        "source": SOURCE,
-                        "dataset_code": PRODUCT_CODE,
-
-                        "variable": param,
-                        "name_en": name_en,
-                        "unit": unit,
-
-                        "model": MODEL,
-                        "type": ASSET_TYPE,
-                        "stream": stream,
-
-                        "resolution": {"lon_deg": 0.25, "lat_deg": 0.25},
-
-                        "run_time_utc": iso_z(run_dt),
-                        "step_hours": step,
-                        "valid_time_utc": iso_z(valid_time),
-
-                        "year": int(valid_time.strftime("%Y")),
-                        "month": int(valid_time.strftime("%m")),
-
-                        "name": filename,
-                        "format": "grib2",
-                        "content_type": "application/x-grib",
-                        "local_path": str(out_path),
-                        "size_bytes": out_path.stat().st_size,
-
-                        "created_at": iso_z_now(),
-
-                        "natural_key": natural_key,
-                        "valid_key": valid_key,
-
-                        "source_parameters": {
-                            "ecmwf": {
-                                "type": TYPE_CODE,
-                                "stream": stream,
-                                "time": f"{run_dt:%H}",
-                                "step": step,
-                                "param": param,
-                                "resol": RESOL,
-                            }
-                        }
-                    }
-
-                    if s3_key:
-                        doc["s3"] = {"bucket": BUCKET, "region": REGION, "key": s3_key}
-
-                    append_metadata_to_jsonl(metadata_log_path, doc)
-                    jsonl_written += 1
-                except Exception as e:
-                    print(f"  ❌ jsonl log failed: {e}")
-                    failed += 1
+                        derived_written_steps.add(step_key)
 
             # 5) 업로드 후 로컬 삭제
             if DELETE_LOCAL_AFTER_UPLOAD and s3_key:

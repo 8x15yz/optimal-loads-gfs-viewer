@@ -1,4 +1,4 @@
-cat > /app/app/templates/inventory_file.html <<'EOF'
+{# templates/inventory_file.html #}
 {% extends "base.html" %}
 {% block content %}
 
@@ -19,12 +19,23 @@ cat > /app/app/templates/inventory_file.html <<'EOF'
 <div class="wrap">
   <h1 class="mono">File metadata</h1>
   <div class="muted mono" style="margin-bottom:12px;">
-    key: {{ key }}
+    natural_key: {{ nk }}
   </div>
 
+  {% if display_name %}
+  <div class="mono" style="margin-bottom:12px;">
+    name: {{ display_name }}
+  </div>
+  {% endif %}
+
+  {% if s3_key %}
+  <div class="muted mono" style="margin-bottom:12px;">
+    s3.key: {{ s3_key }}
+  </div>
+  {% endif %}
+
   <div style="margin-bottom:12px;">
-    {# key에서 파일명을 떼고 상위 폴더로 돌아가기 #}
-    <a class="btn mono" href="/inventory?path=/{{ key.rsplit('/', 1)[0] }}">← Back to directory</a>
+    <a class="btn mono" href="/inventory?path=/{{ inventory_directory }}">← Back to directory</a>
   </div>
 
   <table class="mono">
@@ -66,4 +77,3 @@ cat > /app/app/templates/inventory_file.html <<'EOF'
 </div>
 
 {% endblock %}
-EOF

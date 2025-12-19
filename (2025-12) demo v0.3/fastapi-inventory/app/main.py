@@ -110,102 +110,133 @@ def describe_path(path: str) -> str | None:
 
 
 # =========================================================
-# ✅ NEW: /inventory (Index of …)
+# ✅ NEW: /inventory (Index of …)  - inventory_directory 기반
 # =========================================================
-
 
 @app.get("/inventory", response_class=HTMLResponse, include_in_schema=False)
 async def inventory_index(
     request: Request,
-    path: str = Query("/", description="directory-like path. e.g. /pub/data/nccf/com/gfs/prod/gfs.20251209"),
+    path: str = Query("/", description="directory-like path. e.g. /ecmwf/ifs/2025/2025-07/2025-07-16/06Z/"),
 ):
-    """
-    NOAA 'Index of ...' 스타일 디렉토리 브라우저.
-    Mongo에 저장된 s3.key를 기준으로 path 하위의 '바로 한 단계 자식'만 폴더/파일로 묶어 보여준다.
-    """
     coll = await get_collection()
 
     current_path = _norm_path(path)
-    parent_path = _parent_path(current_path)
 
-    # ✅ 네 스키마가 s3: { key: "..."} 구조니까 "s3.key" 사용
-    KEY_FIELD = "s3.key"
+    # ✅ directory는 trailing "/"를 강제 (inventory_directory도 이 형태로 저장하니까)
+    if current_path != "/" and not current_path.endswith("/"):
+        current_path = current_path + "/"
 
-    # path -> S3 key prefix (앞 "/" 제거 + trailing "/" 보장)
-    prefix = current_path.strip("/")
-    prefix = f"{prefix}/" if prefix else ""
+    parent_path = _parent_path(current_path.rstrip("/"))  # parent는 / 없이 계산
+    if parent_path and not parent_path.endswith("/"):
+        parent_path += "/"
 
-    pipeline = [
-        {"$match": {KEY_FIELD: {"$regex": f"^{prefix}"}}},
-        {"$project": {
-            "key": f"${KEY_FIELD}",
-            "size_bytes": "$size_bytes",
-            "created_at": "$created_at",
-        }},
+    DIR_FIELD  = "inventory_directory"
+    NAME_FIELD = "inventory_name"   # 파일 베이스 이름
+    FILE_FIELD = "name"             # 있으면 이걸 우선 노출(확장자 포함)
+
+    # path -> prefix (앞 "/" 제거)
+    prefix_dir = current_path.lstrip("/")  # e.g. ecmwf/ifs/2025/.../10v/
+    if prefix_dir == "/":
+        prefix_dir = ""
+
+    # -----------------------------
+    # 1) ✅ 하위 폴더(1-depth) 목록
+    # -----------------------------
+    # current_dir보다 더 깊은 inventory_directory를 가진 문서들에서 "바로 다음 segment"만 추출
+    pipeline_dirs = [
+        {"$match": {DIR_FIELD: {"$regex": f"^{prefix_dir}"}}},
+        {"$project": {"dir": f"${DIR_FIELD}", "created_at": "$created_at"}},
         {"$addFields": {
             "remainder": {
                 "$substrBytes": [
-                    "$key",
-                    len(prefix),
-                    {"$subtract": [{"$strLenBytes": "$key"}, len(prefix)]}
+                    "$dir",
+                    len(prefix_dir),
+                    {"$subtract": [{"$strLenBytes": "$dir"}, len(prefix_dir)]}
                 ]
             }
         }},
+        # remainder가 ""면 현재 디렉토리의 “파일들”이므로 폴더 후보에서 제외
+        {"$match": {"remainder": {"$ne": ""}}},
         {"$addFields": {
             "parts": {"$split": ["$remainder", "/"]},
             "first": {"$arrayElemAt": [{"$split": ["$remainder", "/"]}, 0]},
         }},
-        {"$addFields": {
-            "has_more": {"$gt": [{"$size": "$parts"}, 1]}
-        }},
+        # first가 빈 문자열이면 제외(이상치 방어)
+        {"$match": {"first": {"$ne": ""}}},
         {"$group": {
             "_id": "$first",
-            "is_dir": {"$max": {"$cond": ["$has_more", 1, 0]}},
             "last_modified": {"$max": "$created_at"},
-            "size_bytes": {
-                "$sum": {
-                    "$cond": ["$has_more", 0, {"$ifNull": ["$size_bytes", 0]}]
-                }
-            }
         }},
-        {"$sort": {"_id": 1}}
+        {"$sort": {"_id": 1}},
     ]
+    dir_groups = await coll.aggregate(pipeline_dirs).to_list(length=5000)
 
-    groups = await coll.aggregate(pipeline).to_list(length=5000)
+    # -----------------------------
+    # 2) ✅ 현재 디렉토리의 “파일” 목록
+    # -----------------------------
+    # inventory_directory == current_dir 인 문서들을 파일로 나열
+    pipeline_files = [
+        {"$match": {DIR_FIELD: prefix_dir}},
+        {"$project": {
+            "inventory_name": f"${NAME_FIELD}",
+            "name": f"${FILE_FIELD}",
+            "natural_key": "$natural_key",
+            "created_at": "$created_at",
+            "size_bytes": "$size_bytes",
+            "format": "$format",
+            "content_type": "$content_type",
+            "type": "$type",
+            "dataset_code": "$dataset_code",
+        }},
+        {"$sort": {"name": 1, "inventory_name": 1}},
+    ]
+    file_docs = await coll.aggregate(pipeline_files).to_list(length=5000)
 
     entries: List[Dict[str, Any]] = []
-    for g in groups:
+
+    # ---- 폴더 엔트리
+    for g in dir_groups:
         name = g.get("_id")
         if not name:
             continue
 
-        is_dir = bool(g.get("is_dir", 0))
         lm = g.get("last_modified")
         last_modified = lm.strftime("%d-%b-%Y %H:%M") if isinstance(lm, datetime) else None
 
-        # UI에서 쓰는 child path (앞에는 "/" 유지)
-        child_path = (current_path.rstrip("/") + "/" + name).replace("//", "/")
+        child_path = (current_path + name + "/").replace("//", "/")
+        entries.append({
+            "name": name,
+            "is_dir": True,
+            "path": child_path,     # /inventory?path=...
+            "file_id": None,
+            "last_modified": last_modified,
+            "size_human": None,
+        })
 
-        if is_dir:
-            entries.append({
-                "name": name,
-                "is_dir": True,
-                "path": child_path,
-                "key": None,
-                "last_modified": last_modified,
-                "size_human": None,
-            })
-        else:
-            full_key = prefix + name  # S3 key (앞 "/" 없음)
-            entries.append({
-                "name": name,
-                "is_dir": False,
-                "path": None,
-                "key": full_key,
-                "last_modified": last_modified,
-                "size_human": _human_size(int(g.get("size_bytes", 0))),
-            })
-    description = describe_path(current_path)
+    # ---- 파일 엔트리
+    for d in file_docs:
+        lm = d.get("created_at")
+        last_modified = lm.strftime("%d-%b-%Y %H:%M") if isinstance(lm, datetime) else None
+
+        # 화면에 보여줄 파일명: name(확장자 포함)이 있으면 그걸 우선, 없으면 inventory_name
+        display_name = d.get("name") or d.get("inventory_name") or "(unnamed)"
+
+        entries.append({
+            "name": display_name,
+            "is_dir": False,
+            "path": None,
+            # ✅ derived도 열람 가능하도록 natural_key를 file id로 사용 (가장 안전/유니크)
+            "file_id": d.get("natural_key"),
+            "last_modified": last_modified,
+            "size_human": _human_size(d.get("size_bytes")),
+        })
+
+    # (선택) 폴더가 위에, 파일이 아래로 보이게 정렬
+    entries.sort(key=lambda x: (0 if x["is_dir"] else 1, x["name"]))
+
+    # ✅ describe_path도 이제 path에서 oper/wave가 안 나오니, dataset_code/variable 기반으로 바꾸는 게 좋음
+    # 일단은 폴더 path만 보고 간단히:
+    description = None
 
     return templates.TemplateResponse(
         "inventory.html",
