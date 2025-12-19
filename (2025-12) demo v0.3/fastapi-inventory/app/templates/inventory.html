@@ -14,17 +14,18 @@
   .muted { color:#666; }
 </style>
 
-<h1 class="mono">
-Index of
-{% for part in current_path.strip('/').split('/') %}
-  /
-  {% if '-' in part and part[0:4].isdigit() %}
-    {{ part.split('-')[-1] }}
-  {% else %}
-    {{ part }}
-  {% endif %}
-{% endfor %}
-</h1>
+<h2 class="mono">
+  Index of
+  {%- for part in current_path.strip('/').split('/') -%}
+    /
+    {%- if '-' in part and part[0:4].isdigit() -%}
+      {{ part.split('-')[-1] }}
+    {%- else -%}
+      {{ part }}
+    {%- endif -%}
+  {%- endfor -%}
+</h2>
+
 
 {% if description %}
   <div class="mono muted" style="margin:6px 0 12px;">
