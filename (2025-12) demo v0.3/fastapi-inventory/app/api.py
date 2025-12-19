@@ -75,14 +75,14 @@ async def get_griddata(
 
         doc_u = await _find_by_natural_key(
             coll,
-            source=source, dataset_code=dataset_code, model=model, type_=type
+            source=source, dataset_code=dataset_code, model=model, type_=type,
             variable="eastward_wind",
             run_time_utc=_to_z(run_dt),
             step_hours=step_hours
         )
         doc_v = await _find_by_natural_key(
             coll,
-            source=source, dataset_code=dataset_code, model=model, type_=type
+            source=source, dataset_code=dataset_code, model=model, type_=type,
             variable="northward_wind",
             run_time_utc=_to_z(run_dt),
             step_hours=step_hours
@@ -322,13 +322,23 @@ async def _find_by_natural_key(
     dataset_code: str,
     model: str,
     type_: str,
-    stream: str,
     variable: str,
     run_time_utc: str,
-    step_hours: int
+    step_hours: int,
 ):
-    nk = _build_natural_key(source, dataset_code, model, type_, stream, variable, run_time_utc, step_hours)
-    return await coll.find_one({"natural_key": nk})
+    """
+    API 조회용: stream 없이 Mongo 메타데이터 기준으로 찾는다.
+    """
+    return await coll.find_one({
+        "source": source,
+        "dataset_code": dataset_code,
+        "model": model,
+        "type": type_,
+        "variable": variable,
+        "run_time_utc": run_time_utc,
+        "step_hours": int(step_hours),
+    })
+
 
 def _tmp_suffix_from_doc(doc: dict) -> str:
     fmt = (doc.get("format") or "").lower()
