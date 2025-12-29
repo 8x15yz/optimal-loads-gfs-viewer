@@ -69,7 +69,7 @@ async def get_griddata(
     valid_time_utc = _to_z(valid_dt)
 
     # ---- computed wind은 U/V 원본을 같은 run+step으로 찾고 계산 ----
-    if norm_var in ("wind_speed", "wind_dir"):
+    if norm_var in ("wind_speed_10m", "wind_dir_10m"):
         coll = await get_assets_collection()
 
         doc_u = await _find_by_natural_key(
@@ -139,7 +139,7 @@ async def get_griddata(
             speed = np.hypot(da_u.values, da_v.values)
             direc = (90.0 - np.degrees(np.arctan2(da_v.values, da_u.values))) % 360.0
 
-            target = speed if norm_var == "wind_speed" else direc
+            target = speed if norm_var == "wind_speed_10m" else direc
             da_like = da_u  # 좌표/차원 템플릿
 
             arr2, dlon, dlat, width, height = _prepare_array_for_response(
@@ -147,8 +147,8 @@ async def get_griddata(
                 lat_inc_u
             )
 
-            if norm_var == "wind_speed":
-                unit_meta, name_en_meta, std_name_meta = "m s-1", "10 m wind speed", "wind_speed"
+            if norm_var == "wind_speed_10m":
+                unit_meta, name_en_meta, std_name_meta = "m s-1", "10 m wind speed", "wind_speed_10m"
             else:
                 unit_meta, name_en_meta, std_name_meta = "degree", "10 m wind direction (from)", "wind_from_direction"
 
@@ -360,21 +360,22 @@ def _open_dataset_safely(path: str) -> xr.Dataset:
     raise RuntimeError(f"Failed to open dataset: {last_err}")
 
 def _norm_var(v: str) -> str:
-    raw = v.strip()
-    low = raw.lower()
+    low = v.strip().lower()
 
-    # computed alias만 매핑
-    if low in ("wind", "wind_speed", "spd", "ws"):
-        return "wind_speed"
-    if low in ("wdir", "wind_dir", "dir", "wd"):
-        return "wind_dir"
+    # computed(요청 alias들)
+    if low in ("wind_speed_10m", "ws", "ws10", "spd"):
+        return "wind_speed_10m"
+    if low in ("wind_dir_10m", "wdir", "wdir10", "dir", "wd"):
+        return "wind_dir_10m"
 
-    # (참고) CMEMS wave 예시 유지
-    if low in ("vhm0", "vmdr", "vtpk"):
-        return low.upper()
+    # U/V 성분(옛 이름 -> shortName)
+    if low in ("eastward_wind", "u10", "10u"):
+        return "10u"
+    if low in ("northward_wind", "v10", "10v"):
+        return "10v"
 
-    # ECMWF 같은 경우 swh/pp1d/mwp/10u 등 원형 유지
-    return raw
+    return v.strip()
+
 
 def _normalize_lonlat(ds: xr.Dataset) -> xr.Dataset:
     rename_map = {}
