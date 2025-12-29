@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Optimal-LOADS • Consortium Preview — Demo v0.2 (Document)</title>
+  <title>Optimal-LOADS • Consortium Preview — Demo v0.3 (ECMWF Open Data)</title>
   <style>
     :root {
       --bg: #ffffff;
@@ -14,6 +14,7 @@
       --card: #f8fafc;
       --ok: #16a34a;
       --warn: #d97706;
+      --danger: #dc2626;
     }
     * { box-sizing: border-box; }
     body {
@@ -66,6 +67,10 @@
       background: #fff7ed; border-left: 4px solid var(--warn);
       padding: 10px 12px; border-radius: 6px; margin: 14px 0;
     }
+    .danger {
+      background: #fef2f2; border-left: 4px solid var(--danger);
+      padding: 10px 12px; border-radius: 6px; margin: 14px 0;
+    }
     .table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14px; }
     .table th, .table td { border-bottom: 1px solid var(--border); padding: 8px 8px; text-align: left; vertical-align: top; }
     .code {
@@ -74,6 +79,12 @@
     }
     .small { font-size: 13px; }
     footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+
+    .link {
+      color: var(--brand);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
 
     @media (max-width: 640px) {
       .container { padding: 24px 16px; }
@@ -85,34 +96,52 @@
 <body>
   <div class="container">
 
-    <!-- Toolbar: language toggle + metadata index -->
+    <!-- Toolbar -->
     <div class="toolbar">
       <a class="btn-outline btn" href="/" aria-label="Switch to English">EN</a>
       <a class="btn-outline btn" href="/inventory" aria-label="Open Metadata Index">Metadata Index</a>
-      <a class="btn-outline btn" href="/docs" aria-label="Import Data">API Documentation</a>
+      <a class="btn-outline btn" href="/docs" aria-label="Open API Documentation">API Documentation</a>
     </div>
 
     <!-- HERO -->
     <section class="hero">
       <div class="kicker">Optimal-LOADS • Consortium Preview</div>
       <h1>BLUEMAP Marine Weather Data Inventory User Manual</h1>
-      <p>이 문서는 BLUEMAP Marine Weather Data Inventory 서비스의 <strong>사용자 안내</strong> 페이지 입니다.</p>
+      <p>이 문서는 BLUEMAP Marine Weather Data Inventory 서비스의 <strong>사용자 안내</strong> 페이지입니다.</p>
       <div class="badges">
         <span class="badge">Status: Active</span>
-        <span class="badge">Version: v0.2</span>
-        <span class="badge">Scope: Atmosphere + Ocean (Bathymetry planned)</span>
+        <span class="badge">Version: v0.3</span>
+        <span class="badge">Primary Data Source: ECMWF Open Data</span>
       </div>
     </section>
 
     <!-- OVERVIEW -->
     <section>
       <h2 class="h2-highlight">개요</h2>
-      <p>본 데모는 <strong>CMEMS (Copernicus Marine Service)</strong> 기반의 전지구 격자 데이터를 활용하여, 정적 카탈로그/지도 프리뷰와 경량 API를 제공합니다. 현재는 CMEMS만 사용 중이며, <strong>신뢰도 높은 데이터원이 검증될 경우 추가/대체</strong>를 진행합니다.</p>
+
+      <div class="note">
+        <b>본 서비스의 기본(Primary) 데이터원은 ECMWF Open Data 입니다.</b><br />
+        데이터셋 소개 및 정책은 아래 공식 페이지를 기준으로 합니다:
+        <a class="link" href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">
+          https://www.ecmwf.int/en/forecasts/datasets/open-data
+        </a>
+      </div>
+
+      <p>
+        본 데모는 <strong>ECMWF Open Data</strong> 기반의 전지구 격자 자료를 수집/보관하고,
+        정적 카탈로그(메타데이터 인덱스)와 지도 프리뷰, 그리고 경량 API를 제공합니다.
+      </p>
+
       <ul>
-        <li>Global gridded datasets (CMEMS Waves &amp; Atmosphere-derived)</li>
-        <li>Static data catalog + map preview</li>
+        <li>Global gridded datasets (Atmosphere 중심)</li>
+        <li>Static metadata index + preview</li>
         <li>Lightweight API for front-end widgets</li>
+        <li>Derived variables: wind_speed, wind_direction(from/to)</li>
       </ul>
+
+      <div class="warn small">
+        ⚠️ 본 문서는 “데모” 성격이며, 제공 범위(기간/해상도/지연시간)는 운영 환경에 따라 변경될 수 있습니다.
+      </div>
     </section>
 
     <!-- DATASETS -->
@@ -125,120 +154,169 @@
             <th>Category / 구분</th>
             <th>Variable / 변수</th>
             <th>Unit / 단위</th>
-            <th>Cadence / 주기</th>
-            <th>Coverage / 범위</th>
             <th>Notes / 비고</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td rowspan="2">Atmosphere / 대기 (CMEMS)</td>
-            <td><code>eastward_wind (u)</code></td>
+            <td rowspan="4">Atmosphere / 대기 (ECMWF)</td>
+            <td><code>10u</code> (U wind component @ 10 m)</td>
             <td>m s⁻¹</td>
-            <td>1시간</td>
-            <td>과거데이터</td>
-            <td>동쪽으로 불어가는 성분</td>
+            <td>동쪽(+E) 성분. “바람이 동쪽으로 불어가는 정도(동향 성분)”</td>
           </tr>
           <tr>
-            <td><code>northward_wind (v)</code></td>
+            <td><code>10v</code> (V wind component @ 10 m)</td>
             <td>m s⁻¹</td>
-            <td>1시간</td>
-            <td>과거데이터</td>
-            <td>북쪽으로 불어가는 성분</td>
+            <td>북쪽(+N) 성분. “바람이 북쪽으로 불어가는 정도(북향 성분)”</td>
           </tr>
           <tr>
-            <td rowspan="2">Ocean Currents / 해류 (CMEMS)</td>
-            <td><code>uo</code></td>
+            <td><code>wind_speed</code> (derived)</td>
             <td>m s⁻¹</td>
-            <td>6시간</td>
-            <td>예측 +10일</td>
-            <td>동쪽 성분</td>
+            <td>API 계산 응답(파생). <code>sqrt(10u² + 10v²)</code></td>
           </tr>
           <tr>
-            <td><code>vo</code></td>
-            <td>m s⁻¹</td>
-            <td>6시간</td>
-            <td>예측 +10일</td>
-            <td>북쪽 성분</td>
-          </tr>
-          <tr>
-            <td rowspan="3">Waves / 파랑 (CMEMS)</td>
-            <td><code>VHM0</code></td>
-            <td>m</td>
-            <td>3시간</td>
-            <td>예측 +10일</td>
-            <td>유의파고</td>
-          </tr>
-          <tr>
-            <td><code>VMDR</code></td>
+            <td><code>wind_direction_from</code>, <code>wind_direction_to</code> (derived)</td>
             <td>degree</td>
-            <td>3시간</td>
-            <td>예측 +10일</td>
-            <td>평균 파향</td>
+            <td>
+              API 계산 응답(파생).<br />
+              - <b>from</b>: “불어오는 방향(풍향)”<br />
+              - <b>to</b>: “불어가는 방향(진행 방향)”
+            </td>
           </tr>
+
           <tr>
-            <td><code>VTPK</code></td>
-            <td>s</td>
-            <td>3시간</td>
-            <td>예측 +10일</td>
-            <td>피크 주기</td>
-          </tr>
-          <tr>
-            <td rowspan="2">Derived / 계산 응답</td>
-            <td><code>wind_speed = √(u² + v²)</code></td>
-            <td>m s⁻¹</td>
-            <td>1시간</td>
-            <td>과거데이터</td>
-            <td>API 계산 응답</td>
-          </tr>
-          <tr>
-            <td><code>wind_direction</code></td>
-            <td>degree</td>
-            <td>1시간</td>
-            <td>과거데이터</td>
-            <td>(90° − atan2(v, u)) mod 360 · 북쪽 기준, 시계방향 (from-direction)</td>
+            <td>Ocean / Waves (planned)</td>
+            <td><span class="muted">TBD</span></td>
+            <td><span class="muted">TBD</span></td>
+            <td><span class="muted">운영 범위 확정 및 검증 후 확대 예정</span></td>
           </tr>
         </tbody>
       </table>
 
-      <div class="note small">📅 예측 자료는 순차적으로 <strong>최대 +14일(2주)</strong>까지 확대 제공 예정입니다.</div>
-      <div class="warn small">⚠️ 시간지연(latency) 및 지역별 가용성은 현재 조사 중이며, 일부 시점/해역에서 제공 범위가 달라질 수 있습니다.</div>
+      <div class="note small">📌 파생(derived) 응답은 원자료(10u/10v)를 기반으로 <strong>동일 시간/격자</strong>에서 계산됩니다.</div>
     </section>
 
     <!-- DERIVED -->
     <br />
     <section>
       <h2 class="h2-highlight">Derived Wind Variables / 계산 파생 변수</h2>
-      <ul>
-        <li>
-          <strong>풍속</strong>:
-          <div class="code">wind_speed = sqrt(u² + v²)</div>
-          <div class="muted small">
-            u = eastward_wind (m s⁻¹, +동쪽), v = northward_wind (m s⁻¹, +북쪽).
-            결과는 10&nbsp;m 고도 바람의 <b>크기</b>를 나타내며 단위는 m&nbsp;s⁻¹.
-          </div>
-        </li>
-        <li>
-          <strong>풍향 (from-direction, degree)</strong>:
-          <div class="code">(90° − atan2(v, u) × 180/π) mod 360</div>
-          <div class="muted small">
-            u = eastward_wind (m s⁻¹, +동쪽), v = northward_wind (m s⁻¹, +북쪽).
-            결과는 <b>북쪽(0°) 기준 시계방향</b>으로 카운팅, 값은 “불어오는 방향(from)”을 의미.
-          </div>
-        </li>
-      </ul>
+
+      <h3>1) 풍속 (wind_speed)</h3>
+      <p>풍속은 바람 벡터의 “크기(magnitude)”입니다.</p>
+      <div class="code">wind_speed = sqrt(u² + v²)</div>
+      <p class="muted small">
+        여기서 u = 10u (동쪽 +), v = 10v (북쪽 +). 단위는 m s⁻¹ 입니다.
+      </p>
+
+      <h3>2) 풍향: from-direction vs to-direction</h3>
+      <div class="note small">
+        <b>매우 중요</b>:
+        같은 바람이라도 “from”과 “to”는 180° 차이가 납니다.<br/>
+        - <b>from-direction</b> = 바람이 <b>불어오는 방향</b> (기상학에서 흔히 말하는 “풍향”)<br/>
+        - <b>to-direction</b> = 바람이 <b>불어가는 방향</b> (벡터가 향하는 방향)
+      </div>
+
+      <table class="table small">
+        <thead><tr><th>예시</th><th>의미</th><th>값</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>북풍</td>
+            <td>북쪽에서 남쪽으로 분다</td>
+            <td>from = 0°, to = 180°</td>
+          </tr>
+          <tr>
+            <td>동풍</td>
+            <td>동쪽에서 서쪽으로 분다</td>
+            <td>from = 90°, to = 270°</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>3) 풍향 계산을 “정말 쉽게” 단계별로</h3>
+
+      <h3 class="small">Step A — 먼저 각도(수학적 기준)를 구한다</h3>
+      <p class="small">
+        (u, v)는 좌표평면에서 (x, y) 벡터와 동일합니다. 즉 <b>x=u(동서)</b>, <b>y=v(남북)</b>.
+        <code>atan2(y, x)</code>는 “+x축(동쪽)을 기준으로 반시계 방향(CCW)”의 각도를 라디안으로 반환합니다.
+      </p>
+      <div class="code small">theta_math_rad = atan2(v, u)   # v가 y, u가 x</div>
+      <div class="code small">theta_math_deg = atan2(v, u) * 180/pi</div>
+
+      <div class="warn small">
+        ⚠️ 왜 <code>atan2(v, u)</code>냐?<br/>
+        <code>atan2(y, x)</code>는 관례적으로 (y, x) 순서입니다.
+        여기서는 y가 “북향(v)”, x가 “동향(u)”이므로 <code>atan2(v, u)</code>가 맞습니다.
+      </div>
+
+      <h3 class="small">Step B — “북쪽 기준, 시계방향”으로 바꾼다</h3>
+      <p class="small">
+        기상/항해 분야의 방위각은 보통<br/>
+        - 0° = 북쪽(N)<br/>
+        - 90° = 동쪽(E)<br/>
+        - 180° = 남쪽(S)<br/>
+        - 270° = 서쪽(W)<br/>
+        그리고 “시계방향”으로 증가합니다.
+      </p>
+
+      <p class="small">
+        그런데 <code>atan2</code> 결과는 “동쪽 기준(0°=E), 반시계(CCW)”입니다.  
+        이걸 “북쪽 기준(0°=N), 시계(CW)”로 바꾸려면,
+        <b>90°에서 빼는 변환</b>을 사용합니다.
+      </p>
+
+      <div class="code small">
+bearing_to_deg = 90.0 - theta_math_deg
+# = 90.0 - atan2(v, u) * 180/pi
+      </div>
+
+      <h3 class="small">Step C — 0~360°로 정규화(mod 360)</h3>
+      <p class="small">
+        위 계산은 음수(예: -45°) 또는 360° 초과가 나올 수 있습니다.
+        그래서 <code>mod 360</code>로 0~360 범위의 “대표값”으로 정규화합니다.
+      </p>
+      <div class="code small">
+bearing_to_deg = (bearing_to_deg % 360 + 360) % 360
+      </div>
+      <p class="muted small">
+        (언어별 % 동작 차이를 방지하려면 위처럼 이중 정규화가 안전합니다.)
+      </p>
+
+      <h3 class="small">Step D — from / to 를 만든다</h3>
+      <p class="small">
+        지금까지 만든 <code>bearing_to_deg</code>는 벡터가 “향하는 방향”이므로 <b>to-direction</b> 입니다.
+        기상학적 풍향(from-direction)은 여기서 180°를 더해 반대 방향으로 바꿉니다.
+      </p>
+
+      <div class="code small">
+wind_direction_to   = bearing_to_deg
+wind_direction_from = (wind_direction_to + 180.0) % 360
+      </div>
+
+      <div class="note small">
+        ✅ 정리(최종식):<br/>
+        - <b>to-direction</b>:
+        <div class="code small">to = (90° − atan2(v, u)×180/π) mod 360</div>
+        - <b>from-direction</b>:
+        <div class="code small">from = (to + 180°) mod 360</div>
+      </div>
 
       <h3>빠른 검증 (사분면 체크)</h3>
       <table class="table small">
-        <thead><tr><th>(u, v)</th><th>풍향</th><th>해석</th></tr></thead>
+        <thead><tr><th>(u, v)</th><th>to-direction</th><th>from-direction</th><th>해석</th></tr></thead>
         <tbody>
-          <tr><td>(+1, 0)</td><td>90°</td><td>동(E)으로 불어감</td></tr>
-          <tr><td>(0, +1)</td><td>0°</td><td>북(N)으로 불어감</td></tr>
-          <tr><td>(−1, 0)</td><td>270°</td><td>서(W)으로 불어감</td></tr>
-          <tr><td>(0, −1)</td><td>180°</td><td>남(S)으로 불어감</td></tr>
-          <tr><td>(+1, +1)</td><td>45°</td><td>북동(NE)으로 불어감</td></tr>
+          <tr><td>(+1, 0)</td><td>90°</td><td>270°</td><td>동쪽으로 “불어감”(to=E), 서풍(from=W)</td></tr>
+          <tr><td>(0, +1)</td><td>0°</td><td>180°</td><td>북쪽으로 “불어감”(to=N), 남풍(from=S)</td></tr>
+          <tr><td>(−1, 0)</td><td>270°</td><td>90°</td><td>서쪽으로 “불어감”(to=W), 동풍(from=E)</td></tr>
+          <tr><td>(0, −1)</td><td>180°</td><td>0°</td><td>남쪽으로 “불어감”(to=S), 북풍(from=N)</td></tr>
+          <tr><td>(+1, +1)</td><td>45°</td><td>225°</td><td>북동으로 “불어감”(to=NE), 남서풍(from=SW)</td></tr>
         </tbody>
       </table>
+
+      <div class="danger small">
+        ❗ 흔한 혼동 포인트<br/>
+        “북풍/남풍/동풍/서풍” 같은 용어는 대부분 <b>from-direction</b>을 말합니다.
+        (예: 북풍 = 북쪽에서 불어옴 = from=0°)
+      </div>
     </section>
 
     <!-- API -->
@@ -249,23 +327,32 @@
 
       <h3>요청 예시</h3>
       <div class="code">
-GET /api/griddata?variable=northward_wind&amp;forecast_datetime=2024-08-05T00:00:00Z&amp;source=cmems&amp;bbox=128&amp;bbox=34&amp;bbox=130&amp;bbox=36
+GET /api/griddata?source=ecmwf&amp;variable=10v&amp;run_time_utc=2025-12-24T12:00:00Z&amp;step_hours=6&amp;bbox=128&amp;bbox=34&amp;bbox=130&amp;bbox=36
+      </div>
+
+      <h3>파생 변수 요청 예시</h3>
+      <div class="code">
+GET /api/griddata?source=ecmwf&amp;variable=wind_speed&amp;run_time_utc=2025-12-24T12:00:00Z&amp;step_hours=6&amp;bbox=128&amp;bbox=34&amp;bbox=130&amp;bbox=36
+
+GET /api/griddata?source=ecmwf&amp;variable=wind_direction_from&amp;run_time_utc=2025-12-24T12:00:00Z&amp;step_hours=6&amp;bbox=128&amp;bbox=34&amp;bbox=130&amp;bbox=36
+
+GET /api/griddata?source=ecmwf&amp;variable=wind_direction_to&amp;run_time_utc=2025-12-24T12:00:00Z&amp;step_hours=6&amp;bbox=128&amp;bbox=34&amp;bbox=130&amp;bbox=36
       </div>
 
       <h3>응답 예시 (발췌)</h3>
       <div class="code small">
 {
-  "timestamp": "2024-08-05T00:00:00Z",
-  "variable": "northward_wind",
-  "unit": "m/s",
-  "name_en": "10 m northward wind (V)",
-  "standard_name": null,
+  "timestamp": "2025-12-24T18:00:00Z",
+  "source": "ecmwf",
+  "variable": "wind_direction_from",
+  "unit": "degree",
+  "name_en": "10 m wind direction (from)",
   "bbox": [128, 34, 130, 36],
-  "resolution": [0.125, 0.125],
-  "shape": [16, 16],
+  "resolution": [0.25, 0.25],
+  "shape": [9, 9],
   "indexOrder": "row-major-bottom-up",
   "valueEncoding": {"type": "float32", "scale": 1, "offset": 0, "nodata": null},
-  "data": [-2.28999996185303, -2.39000010490418, ...]
+  "data": [225.0, 223.7, ...]
 }
       </div>
 
@@ -314,7 +401,7 @@ arr_for_canvas = np.flipud(arr)                               # 필요 시 상�
       </div>
 
       <div class="code small">
-// JS 인덱싱
+// JS indexing
 function valueAt(data, rows, cols, row, col){
   return data[row * cols + col]; // 남쪽 row=0, 서쪽 col=0
 }
@@ -327,7 +414,7 @@ function valueAt(data, rows, cols, row, col){
       <h2 class="h2-highlight">Contact / 문의</h2>
       <p>
         블루맵 <b>Kim (Hyunju Kim)</b><br>
-        ✉️ <a href="mailto:hjk@bluemap.dev">hjk@bluemap.dev</a>
+        ✉️ <a class="link" href="mailto:hjk@bluemap.dev">hjk@bluemap.dev</a>
       </p>
       <p class="muted">파트너 전용 문의(테스트베드, 데이터 범위 확장, 표준 적합성)는 메일로 연락 주세요.</p>
     </section>
