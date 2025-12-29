@@ -1,30 +1,32 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
-import argparse
-import json
+from ecmwf.opendata import Client
+import boto3
+from pymongo import MongoClient, ASCENDING
 import os
 import sys
 import time
-
-import boto3
-from ecmwf.opendata import Client
-from pymongo import ASCENDING, MongoClient
+import argparse
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 # --------------------- 사용자 설정 ---------------------
 SOURCE_REAL = "aws"
 SOURCE = "ecmwf"
-MODEL = "ifs"
-RESOL = "0p25"
+MODEL  = "ifs"
+RESOL  = "0p25"
 
-PRODUCT_CODE = "original"  # (= dataset_code for raw)
-TYPE_CODE = "fc"           # forecast (ECMWF request value)
-ASSET_TYPE = "forecast"    # raw/forecast metadata type
+PRODUCT_CODE = "original"
 
-# ✅ 변수별 stream + product_code
+# 다운로드 파라미터(ECMWF 내부 코드)
+TYPE_CODE = "fc"  # forecast (ECMWF request value)
+
+# ✅ 메타데이터에는 사람이 읽기 쉬운 값으로
+ASSET_TYPE = "forecast"  # (raw/forecast 데이터용)
+
+# ✅ 변수별로 stream 지정
 PARAMS = {
     "10u":  {"unit": "m/s", "name_en": "Eastward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
     "10v":  {"unit": "m/s", "name_en": "Northward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
@@ -33,7 +35,7 @@ PARAMS = {
     "mwp":  {"unit": "s",   "name_en": "Mean wave period", "stream": "wave", "product_code": "original"},
 }
 
-# ✅ 파생 변수(바람) 메타데이터 "미리" 생성용
+# ✅ 파생 변수(바람) 메타데이터 "미리" 생성용(파일 없이도 메타 생성)
 DERIVED_VARS = {
     "wind_speed_10m": {
         "unit": "m/s",
@@ -52,46 +54,37 @@ DERIVED_VARS = {
     },
 }
 
+DEFAULT_MAX_STEP = 360
 UTC = timezone.utc
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_ROOT = SCRIPT_DIR / "ecmwf" / MODEL / TYPE_CODE  # 로컬 저장 루트
+
+# ✅ 저장 루트(원본 폴더 구조 유지)
+DATA_ROOT = SCRIPT_DIR / "ecmwf" / MODEL / TYPE_CODE
 
 # --------------------- S3 설정 ---------------------
 BUCKET = os.getenv("S3_BUCKET", "optimal-loads")
 REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 S3_PREFIX_ROOT = f"ecmwf/{MODEL}/{TYPE_CODE}"
 
+# 로컬 파일 업로드 후 지울지
 DELETE_LOCAL_AFTER_UPLOAD = True
 
 # --------------------- Mongo 설정 ---------------------
 MONGO_URI = os.getenv("MONGO_URI", "")
-MONGO_DB = os.getenv("MONGO_DB", "optimal_loads")
+MONGO_DB  = os.getenv("MONGO_DB", "optimal_loads")
 MONGO_COL = os.getenv("MONGO_COL", "assets_metadata")
-DIR_COL_NAME = os.getenv("MONGO_DIR_COL", "directories")
 
-mongo: Optional[MongoClient] = None
+mongo = None
 col = None
-dir_col = None
-
-# directories 구성 범위(루트). 여기 아래만 directories에 생성/갱신.
-ROOT_DIR = f"{SOURCE}/{MODEL}/"  # ecmwf/ifs/
-
 if MONGO_URI:
     mongo = MongoClient(MONGO_URI)
     col = mongo[MONGO_DB][MONGO_COL]
-    dir_col = mongo[MONGO_DB][DIR_COL_NAME]
     try:
-        # assets_metadata
         col.create_index([("natural_key", ASCENDING)], unique=True)
         col.create_index([("valid_time_utc", ASCENDING)])
         col.create_index([("run_time_utc", ASCENDING)])
         col.create_index([("valid_key", ASCENDING)])
-        col.create_index([("inventory_directory", ASCENDING), ("name", ASCENDING)])
-
-        # directories
-        dir_col.create_index([("parent", ASCENDING), ("name", ASCENDING)])
-        dir_col.create_index([("last_modified", ASCENDING)])
     except Exception:
         pass
 else:
@@ -109,8 +102,8 @@ def parse_utc(s: str) -> datetime:
 def iso_z(dt: datetime) -> str:
     return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-def utc_now() -> datetime:
-    return datetime.now(UTC)
+def iso_z_now() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 def parse_run_hours(s: str) -> set[int]:
     out: set[int] = set()
@@ -145,12 +138,12 @@ def build_ifs_steps(run_hour: int, max_step: int) -> list[int]:
 
     return sorted(set(steps))
 
-# --------------------- 로컬 폴더 구조 (참고용) ---------------------
+# --------------------- ✅ 폴더 구조 생성 (원본 유지) ---------------------
 def get_run_set_dir(run_dt: datetime) -> Path:
     yyyy = run_dt.strftime("%Y")
-    mm = run_dt.strftime("%m")
-    dd = run_dt.strftime("%d")
-    hhZ = f"{run_dt:%H}Z"
+    mm   = run_dt.strftime("%m")
+    dd   = run_dt.strftime("%d")
+    hhZ  = f"{run_dt:%H}Z"
     return DATA_ROOT / yyyy / mm / dd / hhZ
 
 def get_out_path(run_set_dir: Path, stream: str, param: str, filename: str) -> Path:
@@ -162,9 +155,9 @@ def ensure_dirs(path: Path) -> None:
 # --------------------- S3 업로드 ---------------------
 def build_s3_key(run_dt: datetime, product_code: str, param: str, filename: str) -> str:
     yyyy = run_dt.strftime("%Y")
-    mm = run_dt.strftime("%m")
-    dd = run_dt.strftime("%d")
-    hhZ = f"{run_dt:%H}Z"
+    mm   = run_dt.strftime("%m")
+    dd   = run_dt.strftime("%d")
+    hhZ  = f"{run_dt:%H}Z"
     return f"{S3_PREFIX_ROOT}/{yyyy}/{mm}/{dd}/{hhZ}/{product_code}/{param}/{filename}"
 
 def upload_to_s3(s3_client, local_path: Path, s3_key: str) -> None:
@@ -175,7 +168,7 @@ def upload_to_s3(s3_client, local_path: Path, s3_key: str) -> None:
         ExtraArgs={"ContentType": "application/x-grib"},
     )
 
-# --------------------- Mongo 키 ---------------------
+# --------------------- Mongo 메타 키 ---------------------
 def build_keys(
     source: str,
     dataset_code: str,
@@ -197,114 +190,10 @@ def build_keys(
     )
     return natural_key, valid_key
 
-# --------------------- directories 유틸 ---------------------
-def _norm_dir(d: str) -> str:
-    d = (d or "").strip().lstrip("/")
-    if d and not d.endswith("/"):
-        d += "/"
-    return d
-
-def _split_dir(d: str) -> Tuple[Optional[str], str]:
-    d = _norm_dir(d)
-    if not d:
-        return None, ""
-    parts = [p for p in d.strip("/").split("/") if p]
-    if not parts:
-        return None, ""
-    name = parts[-1]
-    if len(parts) == 1:
-        return None, name
-    parent = "/".join(parts[:-1]) + "/"
-    return parent, name
-
-def upsert_directories_from_doc(doc: Dict[str, Any]) -> None:
-    """
-    assets_metadata(또는 derived planned) 문서를 기반으로
-    directories 트리를 leaf부터 ROOT_DIR까지 upsert.
-    - children_dirs 초기화와 addToSet을 같은 update에서 하지 않음(충돌 방지)
-    """
-    if dir_col is None:
-        return
-
-    inv_dir = _norm_dir(doc.get("inventory_directory", ""))
-    if not inv_dir or not inv_dir.startswith(ROOT_DIR):
-        return
-
-    lm = doc.get("created_at")
-    if not isinstance(lm, datetime):
-        try:
-            lm = parse_utc(str(lm))
-        except Exception:
-            lm = utc_now()
-
-    now = utc_now()
-    cur = inv_dir
-
-    while cur and cur.startswith(ROOT_DIR):
-        parent, name = _split_dir(cur)
-
-        # 1) 현재 디렉토리 upsert (children_dirs는 insert일 때만 생성)
-        dir_col.update_one(
-            {"_id": cur},
-            {
-                "$setOnInsert": {
-                    "dir": cur,
-                    "parent": parent,
-                    "name": name,
-                    "children_dirs": [],
-                    "created_at": now,
-                },
-                "$max": {"last_modified": lm},
-                "$set": {"updated_at": now},
-            },
-            upsert=True,
-        )
-
-        # 2) 부모 upsert (insert 보장)  → (그 다음) children add
-        if parent and parent.startswith(ROOT_DIR):
-            p_parent, p_name = _split_dir(parent)
-
-            # 2-1) 부모 문서가 없으면 생성(여기서는 children_dirs 초기화만)
-            dir_col.update_one(
-                {"_id": parent},
-                {
-                    "$setOnInsert": {
-                        "dir": parent,
-                        "parent": p_parent,
-                        "name": p_name,
-                        "children_dirs": [],
-                        "created_at": now,
-                    },
-                    "$max": {"last_modified": lm},
-                    "$set": {"updated_at": now},
-                },
-                upsert=True,
-            )
-
-            # 2-2) 이제 안전하게 children 추가 (단독 update)
-            child_name = name + "/"
-            dir_col.update_one(
-                {"_id": parent},
-                {
-                    "$addToSet": {"children_dirs": child_name},
-                    "$max": {"last_modified": lm},
-                    "$set": {"updated_at": now},
-                },
-            )
-
-        cur = parent
-
-
-# --------------------- jsonl 로그 ---------------------
+# --------------------- jsonl 메타 로그 ---------------------
 def append_metadata_to_jsonl(metadata_log_path: Path, doc: dict) -> None:
-    # datetime은 json으로 직접 덤프 안 되므로 문자열로 변환해 기록
-    def default(o):
-        if isinstance(o, datetime):
-            return iso_z(o)
-        return str(o)
-
     with open(metadata_log_path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(doc, ensure_ascii=False, default=default) + "\n")
+        f.write(json.dumps(doc, ensure_ascii=False) + "\n")
 
 # --------------------- 메타 doc 빌더 ---------------------
 def build_raw_doc(
@@ -353,7 +242,6 @@ def build_raw_doc(
 
         "resolution": {"lon_deg": 0.25, "lat_deg": 0.25},
 
-        # 표시/식별용은 문자열(기존 호환)
         "run_time_utc": iso_z(run_time),
         "step_hours": step,
         "valid_time_utc": iso_z(valid_time),
@@ -366,8 +254,7 @@ def build_raw_doc(
         "content_type": "application/x-grib",
         "size_bytes": size_bytes,
 
-        # ✅ datetime 타입으로 저장 (중요)
-        "created_at": utc_now(),
+        "created_at": iso_z_now(),
 
         "natural_key": natural_key,
         "valid_key": valid_key,
@@ -383,7 +270,7 @@ def build_raw_doc(
             }
         },
 
-        # ✅ 인벤토리 구조 (directories 구축 기준)
+        # ✅ 네가 말한 인벤토리 구조
         "inventory_directory": f"{source}/{model}/{run_time:%Y/%Y-%m/%Y-%m-%d/%H}Z/{dataset_code}/{param}/",
         "inventory_name": f"{dataset_code}_{param}_{run_time:%Y%m%d_%H}Z_step{step:03}",
     }
@@ -396,7 +283,7 @@ def build_raw_doc(
 def build_derived_doc(
     *,
     source: str,
-    dataset_code: str,  # "computed"
+    dataset_code: str,   # 보통 "computed"
     model: str,
     resol: str,
     type_code: str,
@@ -442,8 +329,7 @@ def build_derived_doc(
         "year": int(valid_time.strftime("%Y")),
         "month": int(valid_time.strftime("%m")),
 
-        # ✅ datetime 타입으로 저장
-        "created_at": utc_now(),
+        "created_at": iso_z_now(),
 
         "natural_key": natural_key,
         "valid_key": valid_key,
@@ -483,9 +369,6 @@ def upsert_mongo(doc: dict) -> None:
     col.update_one({"natural_key": nk}, {"$setOnInsert": doc}, upsert=True)
     print(f"🧾 mongo upsert: {nk}")
 
-    # ✅ directories도 같이 갱신
-    upsert_directories_from_doc(doc)
-
 # --------------------- run 리스트 생성 ---------------------
 def build_run_list(
     *,
@@ -494,16 +377,16 @@ def build_run_list(
     end_utc: Optional[str],
     run_hours: set[int],
 ) -> List[datetime]:
-    # (1) 단일 RUN
+    # (1) 단일 RUN 모드
     if run_utc:
         return [parse_utc(run_utc)]
 
-    # (2) 기간
+    # (2) 기간 모드
     if not start_utc or not end_utc:
         raise SystemExit("❌ 기간 모드면 --start_utc, --end_utc 둘 다 필요해요. 또는 RUN_UTC 하나를 주면 됩니다.")
 
     start_dt = parse_utc(start_utc)
-    end_dt = parse_utc(end_utc)
+    end_dt   = parse_utc(end_utc)
 
     runs: List[datetime] = []
     t = start_dt
@@ -516,30 +399,35 @@ def build_run_list(
 
 def main():
     ap = argparse.ArgumentParser(
-        description="ECMWF IFS → GRIB2 + S3 + Mongo metadata (+ derived planned metadata) + directories"
+        description="ECMWF IFS → run-based folder structure + GRIB2 + S3 + Mongo metadata (+ derived planned metadata)"
     )
 
+    # ✅ 기존 단일 RUN 유지 (positional)
     ap.add_argument("RUN_UTC", nargs="?", help="런 시각 예: 2025-12-16T00:00:00Z")
+
+    # ✅ 기간 모드
     ap.add_argument("--start_utc", help="기간 시작(UTC) 예: 2025-07-01T00:00:00Z")
     ap.add_argument("--end_utc", help="기간 끝(UTC) 예: 2025-11-30T18:00:00Z")
     ap.add_argument("--run_hours", default="0,6,12,18",
                     help="실행할 런 시각(UTC hour) 콤마구분. 예: 0,12 또는 6,18 또는 0,6,12,18")
 
+    # ✅ 런별 max_step 자동 (기간모드에서 편함)
     ap.add_argument("--max_step_long", type=int, default=360, help="00/12 런 max_step (기본 360)")
     ap.add_argument("--max_step_short", type=int, default=144, help="06/18 런 max_step (기본 144)")
+
+    # ✅ 기존 단일 RUN용 max_step도 유지
     ap.add_argument("--max_step", type=int, default=None, help="단일 RUN에서 max_step 강제 (기존 호환)")
 
     ap.add_argument("--sleep", type=float, default=0.2, help="요청 간 sleep(초)")
     ap.add_argument("--no_s3", action="store_true", help="S3 업로드 비활성화")
-    ap.add_argument("--no_mongo", action="store_true", help="Mongo 메타 저장 비활성화(assets+directories 모두)")
+    ap.add_argument("--no_mongo", action="store_true", help="Mongo 메타 저장 비활성화")
     ap.add_argument("--no_jsonl", action="store_true", help="jsonl 메타 로그 비활성화")
     args = ap.parse_args()
 
-    # ✅ no_mongo면 assets + directories 모두 비활성화
-    global col, dir_col
+    # no_mongo면 전역 col을 비활성화
+    global col
     if args.no_mongo:
         col = None
-        dir_col = None
 
     run_hours = parse_run_hours(args.run_hours)
     run_list = build_run_list(
@@ -562,7 +450,7 @@ def main():
     total_downloaded = total_existed = total_uploaded = total_mongo = total_jsonl = total_failed = 0
 
     for run_dt in run_list:
-        # 런별 max_step 결정
+        # ✅ 런별 max_step 결정
         if args.max_step is not None:
             max_step = args.max_step
         else:
@@ -572,6 +460,7 @@ def main():
 
         run_set_dir = get_run_set_dir(run_dt)
         ensure_dirs(run_set_dir)
+
         metadata_log_path = run_set_dir / "metadata_log.jsonl"
 
         print(f"▶ ECMWF RUN : {run_dt.isoformat()}")
@@ -587,7 +476,7 @@ def main():
 
         downloaded = existed = uploaded = mongo_written = jsonl_written = failed = 0
 
-        # derived 메타는 (run, step)당 1번만 생성하기 위한 가드
+        # ✅ derived 메타는 (run, step)당 1번만 생성하기 위한 가드
         derived_written_steps: set[tuple[str, int]] = set()
 
         for param, meta in PARAMS.items():
@@ -669,7 +558,7 @@ def main():
                         print(f"  ❌ jsonl write failed: {e}")
                         failed += 1
 
-                # 3b) Mongo upsert (raw) + directories
+                # 3b) Mongo upsert (raw)
                 if col is not None:
                     try:
                         upsert_mongo(raw_doc)
@@ -678,7 +567,7 @@ def main():
                         print(f"  ❌ mongo upsert failed: {e}")
                         failed += 1
 
-                # 3.5) 파생(바람) planned 메타 (run+step 당 1번)
+                # 3.5) 파생(바람) 메타 planned (run+step 당 1번)
                 if stream == "oper" and param in ("10u", "10v"):
                     step_key = (iso_z(run_dt), step)
                     if step_key not in derived_written_steps:
@@ -707,7 +596,7 @@ def main():
 
                             if col is not None:
                                 try:
-                                    upsert_mongo(ddoc)  # directories도 같이 갱신
+                                    upsert_mongo(ddoc)
                                     mongo_written += 1
                                 except Exception as e:
                                     print(f"  ❌ derived mongo upsert failed: {e}")

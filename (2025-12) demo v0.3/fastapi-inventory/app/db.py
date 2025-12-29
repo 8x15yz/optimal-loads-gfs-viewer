@@ -1,22 +1,17 @@
+# app/db.py
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
-from typing import Optional
 
-load_dotenv()
+_MONGO_URI = os.getenv("MONGO_URI")
+_MONGO_DB  = os.getenv("MONGO_DB", "optimal_loads")
+_ASSET_COL = os.getenv("MONGO_COL", "assets_metadata")
+_DIR_COL   = os.getenv("MONGO_DIR_COL", "directories")
 
-MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME   = os.getenv("MONGO_DB", "yourdb")
-COLL_NAME = os.getenv("MONGO_COLL", "inventory")
+_client = AsyncIOMotorClient(_MONGO_URI)
+_db = _client[_MONGO_DB]
 
-_client: Optional[AsyncIOMotorClient] = None
+async def get_assets_collection():
+    return _db[_ASSET_COL]
 
-async def get_client() -> AsyncIOMotorClient:
-    global _client
-    if _client is None:
-        _client = AsyncIOMotorClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-    return _client
-
-async def get_collection():
-    client = await get_client()
-    return client[DB_NAME][COLL_NAME]
+async def get_directories_collection():
+    return _db[_DIR_COL]

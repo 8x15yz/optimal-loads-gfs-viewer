@@ -35,7 +35,7 @@
   {% endif %}
 
   <div style="margin-bottom:12px;">
-    <a class="btn mono" href="/inventory?path=/{{ inventory_directory }}">← Back to directory</a>
+    <a class="btn mono" href="/inventory?path={{ ("/" ~ inventory_directory)|urlencode }}">← Back to directory</a>
   </div>
 
   <table class="mono">
