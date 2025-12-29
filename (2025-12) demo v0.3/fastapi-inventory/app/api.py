@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Query, HTTPException
-from typing import Optional, List, Union, Tuple
+from typing import Optional, List, Union
 from datetime import datetime, timezone, timedelta
 
 from app.models import GridDataResponse
@@ -32,7 +32,6 @@ router = APIRouter(prefix="/api", tags=["grid"])
     description="Reads a GRIB2/NetCDF from S3 (by forecast run+step) and returns encoded grid values."
 )
 async def get_griddata(
-    type_ = "forecast",
     # ---- forecast identity (필수) ----
     source: str = Query(..., example="ecmwf"),
     dataset_code: str = Query(..., example="original"),
@@ -54,6 +53,9 @@ async def get_griddata(
         description="(optional) depth in meters or 'surface', e.g., 0.5, 10, 'surface'"
     )
 ) -> GridDataResponse:
+    # ✅ Mongo 문서에는 forecast만 있다고 했으니 고정
+    type_ = "forecast"
+
     # ---- 변수 정규화 (별칭 허용) ----
     norm_var = _norm_var(variable)
 
@@ -69,10 +71,11 @@ async def get_griddata(
     valid_dt = run_dt + timedelta(hours=int(step_hours))
     valid_time_utc = _to_z(valid_dt)
 
-    # ---- computed wind은 U/V 원본을 같은 run+step으로 찾고 계산 ----
+    # ---- computed wind: U/V(10u/10v) 원본을 같은 run+step으로 찾고 계산 ----
     if norm_var in ("wind_speed_10m", "wind_dir_10m"):
         coll = await get_assets_collection()
 
+        # ✅ 재료는 original에서 찾는 게 일반적 (computed 요청이어도)
         doc_u = await _find_by_natural_key(
             coll,
             source=source,
@@ -85,8 +88,8 @@ async def get_griddata(
         )
         doc_v = await _find_by_natural_key(
             coll,
-            source=source, 
-            dataset_code="original", 
+            source=source,
+            dataset_code="original",
             model=model,
             type_=type_,
             variable="10v",
@@ -99,9 +102,9 @@ async def get_griddata(
                 status_code=404,
                 detail={
                     "error": "Required U/V components not found for computed wind at this run+step.",
-                    "needed": ["eastward_wind", "northward_wind"],
+                    "needed": ["10u", "10v"],
                     "run_time_utc": _to_z(run_dt),
-                    "step_hours": step_hours
+                    "step_hours": int(step_hours)
                 }
             )
 
@@ -118,6 +121,12 @@ async def get_griddata(
                 }
             )
 
+        # ✅ s3 레퍼런스 방어(혹시라도 누락되면 500 대신 명확히)
+        if "s3" not in doc_u or "key" not in doc_u.get("s3", {}):
+            raise HTTPException(status_code=409, detail={"error": "10u metadata has no s3.key", "doc_keys": list(doc_u.keys())})
+        if "s3" not in doc_v or "key" not in doc_v.get("s3", {}):
+            raise HTTPException(status_code=409, detail={"error": "10v metadata has no s3.key", "doc_keys": list(doc_v.keys())})
+
         tmpu = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc_u))
         tmpv = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc_v))
         ds_u = ds_v = None
@@ -130,8 +139,9 @@ async def get_griddata(
             ds_u = _normalize_lonlat(ds_u)
             ds_v = _normalize_lonlat(ds_v)
 
-            da_u, lat_inc_u, _ = _select_da(ds_u, "eastward_wind",  bbox)
-            da_v, lat_inc_v, _ = _select_da(ds_v, "northward_wind", bbox)
+            # ✅ 여기서 eastward_wind/northward_wind 사용 금지 → 10u/10v로 통일
+            da_u, lat_inc_u, _ = _select_da(ds_u, "10u", bbox)
+            da_v, lat_inc_v, _ = _select_da(ds_v, "10v", bbox)
             da_u = _ensure_lat_lon_names(da_u)
             da_v = _ensure_lat_lon_names(da_v)
 
@@ -163,10 +173,10 @@ async def get_griddata(
             data_list = [None if np.isnan(x) else float(x) for x in arr_flat]
 
             return {
-                "timestamp": valid_time_utc,          # ✅ valid_time을 대표 timestamp로
-                "run_time_utc": _to_z(run_dt),        # ✅ 추가 메타
-                "step_hours": int(step_hours),        # ✅ 추가 메타
-                "valid_time_utc": valid_time_utc,     # ✅ 추가 메타
+                "timestamp": valid_time_utc,
+                "run_time_utc": _to_z(run_dt),
+                "step_hours": int(step_hours),
+                "valid_time_utc": valid_time_utc,
 
                 "variable": norm_var,
                 "unit": unit_meta,
@@ -197,7 +207,10 @@ async def get_griddata(
 
     doc = await _find_by_natural_key(
         coll,
-        source=source, dataset_code=dataset_code, model=model, type_=type_, 
+        source=source,
+        dataset_code=dataset_code,
+        model=model,
+        type_=type_,
         variable=norm_var,
         run_time_utc=_to_z(run_dt),
         step_hours=step_hours
@@ -217,7 +230,6 @@ async def get_griddata(
             }
         )
 
-    # bbox cell budget (doc 해상도 우선)
     est = _estimate_cells_from_doc_or_assume(effective_bbox, doc)
     if est > MAX_CELLS:
         raise HTTPException(
@@ -228,6 +240,12 @@ async def get_griddata(
                 "estimated_cells": est,
                 "limit": MAX_CELLS,
             }
+        )
+
+    if "s3" not in doc or "key" not in doc.get("s3", {}):
+        raise HTTPException(
+            status_code=409,
+            detail={"error": "This metadata record has no s3.key", "doc_keys": list(doc.keys())}
         )
 
     s3_key = doc["s3"]["key"]
@@ -243,11 +261,10 @@ async def get_griddata(
 
         da, lat_inc, _ = _select_da(ds, norm_var, bbox)
         da = _ensure_lat_lon_names(da)
-        da, chosen_depth = _select_depth_if_present(da, depth)
+        da, _chosen_depth = _select_depth_if_present(da, depth)
 
         arr2, dlon, dlat, width, height = _prepare_array_for_response(da, lat_inc)
 
-        # 메타는 doc 우선
         unit_meta = doc.get("unit")
         name_en_meta = doc.get("name_en")
         std_name_meta = doc.get("standard_name")
@@ -256,10 +273,10 @@ async def get_griddata(
         data_list = [None if np.isnan(x) else float(x) for x in arr_flat]
 
         return {
-            "timestamp": valid_time_utc,          # ✅ valid_time을 대표 timestamp로
-            "run_time_utc": _to_z(run_dt),        # ✅ 추가 메타
-            "step_hours": int(step_hours),        # ✅ 추가 메타
-            "valid_time_utc": valid_time_utc,     # ✅ 추가 메타
+            "timestamp": valid_time_utc,
+            "run_time_utc": _to_z(run_dt),
+            "step_hours": int(step_hours),
+            "valid_time_utc": valid_time_utc,
 
             "variable": norm_var,
             "unit": unit_meta,
@@ -292,9 +309,8 @@ def resolve_var(ds, var: str) -> str:
     for name in candidates:
         if name in ds.data_vars:
             return name
-    raise KeyError(
-        f"Variable '{var}' not found. Available: {list(ds.data_vars)}"
-    )
+    raise KeyError(f"Variable '{var}' not found. Available: {list(ds.data_vars)}")
+
 
 def _parse_utc(dt_str: str) -> datetime:
     s = dt_str.strip()
@@ -302,24 +318,10 @@ def _parse_utc(dt_str: str) -> datetime:
         s = s[:-1] + "+00:00"
     return datetime.fromisoformat(s).astimezone(timezone.utc)
 
+
 def _to_z(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
-def _build_natural_key(
-    source: str,
-    dataset_code: str,
-    model: str,
-    type_: str,
-    stream: str,
-    variable: str,
-    run_time_utc: str,
-    step_hours: int
-) -> str:
-    # ✅ Mongo에 저장된 순서대로!
-    return (
-        f"{dataset_code}|{source}|{model}|{type_}|{stream}|{variable}"
-        f"|run={run_time_utc}|step={int(step_hours)}"
-    )
 
 async def _find_by_natural_key(
     coll,
@@ -332,14 +334,11 @@ async def _find_by_natural_key(
     run_time_utc: str,
     step_hours: int,
 ):
-    """
-    API 조회용: stream 없이 Mongo 메타데이터 기준으로 찾는다.
-    """
     return await coll.find_one({
         "source": source,
         "dataset_code": dataset_code,
         "model": model,
-        "type": type_, 
+        "type": type_,
         "variable": variable,
         "run_time_utc": run_time_utc,
         "step_hours": int(step_hours),
@@ -357,15 +356,16 @@ def _tmp_suffix_from_doc(doc: dict) -> str:
         return ".nc"
     return ".bin"
 
+
 def _open_dataset_safely(path: str) -> xr.Dataset:
     last_err = None
-    # GRIB2: cfgrib / NetCDF: h5netcdf (환경에 따라 netcdf4 추가 가능)
     for engine in ("cfgrib", "h5netcdf"):
         try:
             return xr.open_dataset(path, engine=engine)
         except Exception as e:
             last_err = e
     raise RuntimeError(f"Failed to open dataset: {last_err}")
+
 
 def _norm_var(v: str) -> str:
     low = v.strip().lower()
@@ -376,10 +376,10 @@ def _norm_var(v: str) -> str:
     if low in ("wind_dir_10m", "wdir", "wdir10", "dir", "wd"):
         return "wind_dir_10m"
 
-    # U/V 성분(옛 이름 -> shortName)
-    if low in ("eastward_wind", "u10", "10u"):
+    # U/V 성분
+    if low in ("u10", "10u"):
         return "10u"
-    if low in ("northward_wind", "v10", "10v"):
+    if low in ("v10", "10v"):
         return "10v"
 
     return v.strip()
@@ -393,25 +393,22 @@ def _normalize_lonlat(ds: xr.Dataset) -> xr.Dataset:
         rename_map["latitude"] = "lat"
     return ds.rename(rename_map) if rename_map else ds
 
+
 def _ensure_lon_range(lon_vals: np.ndarray, x: float) -> float:
-    # dataset이 0..360이면 음수 lon을 +360으로 보정
     if lon_vals.max() > 180 and x < 0:
         return x + 360.0
     return x
 
+
 def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]]):
     ds = _normalize_lonlat(ds)
 
-    # ✅ alias 먼저 해결
     var2 = resolve_var(ds, var)
-
     da = ds[var2]
 
-    # 단일 time 축 제거
     if "time" in da.dims and da.sizes.get("time", 1) == 1:
         da = da.isel(time=0)
 
-    # subset
     if bbox and len(bbox) == 4:
         min_lon, min_lat, max_lon, max_lat = map(float, bbox)
         lon_vals = ds["lon"].values
@@ -438,9 +435,12 @@ def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]]):
 
 def _ensure_lat_lon_names(da: xr.DataArray) -> xr.DataArray:
     rename_map = {}
-    if "latitude" in da.dims: rename_map["latitude"] = "lat"
-    if "longitude" in da.dims: rename_map["longitude"] = "lon"
+    if "latitude" in da.dims:
+        rename_map["latitude"] = "lat"
+    if "longitude" in da.dims:
+        rename_map["longitude"] = "lon"
     return da.rename(rename_map) if rename_map else da
+
 
 def _select_depth_if_present(da: xr.DataArray, depth_param):
     if "depth" not in da.dims:
@@ -457,13 +457,13 @@ def _select_depth_if_present(da: xr.DataArray, depth_param):
     except Exception:
         raise HTTPException(status_code=422, detail="Invalid depth parameter. Use a number (meters) or 'surface'.")
 
+
 def _prepare_array_for_response(da: xr.DataArray, lat_inc: bool):
     da2 = da.transpose("lat", "lon")
     lat_vals = da2["lat"].values
     lon_vals = da2["lon"].values
     arr2 = da2.values
 
-    # indexOrder="row-major-bottom-up" 유지: lat가 감소 방향이면 뒤집기
     if not lat_inc:
         arr2 = arr2[::-1, :]
         lat_vals = lat_vals[::-1]
@@ -477,7 +477,6 @@ def _prepare_array_for_response(da: xr.DataArray, lat_inc: bool):
 # =============================================================================
 # bbox limits & cell budget
 # =============================================================================
-
 BBOX_LIMITS = {
     "min_lon": -118.8389887,
     "min_lat":  -52.3232408,
@@ -486,9 +485,9 @@ BBOX_LIMITS = {
 }
 MAX_CELLS = 5_250_000
 
-# fallback: 보수적으로 촘촘한 해상도 가정 (CMEMS 1/12° 같은 경우)
 ASSUMED_DLON = 0.083
 ASSUMED_DLAT = 0.083
+
 
 def _validate_bbox_limits_raw(bbox: Optional[List[float]]):
     if not bbox:
@@ -497,8 +496,10 @@ def _validate_bbox_limits_raw(bbox: Optional[List[float]]):
         raise HTTPException(status_code=422, detail="bbox must be [minLon, minLat, maxLon, maxLat]")
     min_lon, min_lat, max_lon, max_lat = map(float, bbox)
     lim = BBOX_LIMITS
-    if (min_lon < lim["min_lon"] or max_lon > lim["max_lon"] or
-        min_lat < lim["min_lat"] or max_lat > lim["max_lat"]):
+    if (
+        min_lon < lim["min_lon"] or max_lon > lim["max_lon"] or
+        min_lat < lim["min_lat"] or max_lat > lim["max_lat"]
+    ):
         raise HTTPException(
             status_code=422,
             detail={
@@ -508,29 +509,24 @@ def _validate_bbox_limits_raw(bbox: Optional[List[float]]):
             }
         )
 
+
 def _estimate_cells_from_doc_or_assume(bbox: List[float], doc: dict) -> int:
     res = (doc or {}).get("resolution") or {}
     dlon = float(res.get("lon_deg") or ASSUMED_DLON)
     dlat = float(res.get("lat_deg") or ASSUMED_DLAT)
     return _estimate_cells_assuming_resolution(bbox, dlon=dlon, dlat=dlat)
 
+
 def _estimate_cells_assuming_resolution(bbox: List[float], dlon=ASSUMED_DLON, dlat=ASSUMED_DLAT) -> int:
-    """DS를 열지 않고 해상도 기준으로 픽셀 수 추정.
-       dateline crossing(0~360 도메인)도 지원.
-    """
     min_lon, min_lat, max_lon, max_lat = map(float, bbox)
 
     def to0360(x: float) -> float:
         return x + 360.0 if x < 0 else x
 
     a, b = to0360(min_lon), to0360(max_lon)
-    if a > b:
-        lon_span = (360.0 - a) + b
-    else:
-        lon_span = b - a
-
+    lon_span = (360.0 - a) + b if a > b else (b - a)
     lat_span = abs(max_lat - min_lat)
 
-    width  = int(np.floor(lon_span / dlon)) + 1
+    width = int(np.floor(lon_span / dlon)) + 1
     height = int(np.floor(lat_span / dlat)) + 1
     return max(0, width) * max(0, height)
