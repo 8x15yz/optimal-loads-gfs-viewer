@@ -32,6 +32,7 @@ router = APIRouter(prefix="/api", tags=["grid"])
     description="Reads a GRIB2/NetCDF from S3 (by forecast run+step) and returns encoded grid values."
 )
 async def get_griddata(
+    type_ = "forecast",
     # ---- forecast identity (필수) ----
     source: str = Query(..., example="ecmwf"),
     dataset_code: str = Query(..., example="original"),
@@ -74,15 +75,21 @@ async def get_griddata(
 
         doc_u = await _find_by_natural_key(
             coll,
-            source=source, dataset_code=dataset_code, model=model,
-            variable="eastward_wind",
+            source=source,
+            dataset_code="original",
+            model=model,
+            type_=type_,
+            variable="10u",
             run_time_utc=_to_z(run_dt),
             step_hours=step_hours
         )
         doc_v = await _find_by_natural_key(
             coll,
-            source=source, dataset_code=dataset_code, model=model,
-            variable="northward_wind",
+            source=source, 
+            dataset_code="original", 
+            model=model,
+            type_=type_,
+            variable="10v",
             run_time_utc=_to_z(run_dt),
             step_hours=step_hours
         )
@@ -190,7 +197,7 @@ async def get_griddata(
 
     doc = await _find_by_natural_key(
         coll,
-        source=source, dataset_code=dataset_code, model=model, type_=type,
+        source=source, dataset_code=dataset_code, model=model, type_=type_, 
         variable=norm_var,
         run_time_utc=_to_z(run_dt),
         step_hours=step_hours
@@ -203,7 +210,7 @@ async def get_griddata(
                 "source": source,
                 "dataset_code": dataset_code,
                 "model": model,
-                "type": type,
+                "type": type_,
                 "variable": norm_var,
                 "run_time_utc": _to_z(run_dt),
                 "step_hours": int(step_hours),
@@ -332,6 +339,7 @@ async def _find_by_natural_key(
         "source": source,
         "dataset_code": dataset_code,
         "model": model,
+        "type": type_, 
         "variable": variable,
         "run_time_utc": run_time_utc,
         "step_hours": int(step_hours),
