@@ -26,11 +26,11 @@ ASSET_TYPE = "forecast"    # raw/forecast metadata type
 
 # ✅ 변수별 stream + product_code
 PARAMS = {
-    "10u":  {"unit": "m/s", "name_en": "Eastward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
-    "10v":  {"unit": "m/s", "name_en": "Northward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
-    "swh":  {"unit": "m",   "name_en": "Significant height of combined wind waves and swell", "stream": "wave", "product_code": "original"},
-    "pp1d": {"unit": "s",   "name_en": "Peak wave period", "stream": "wave", "product_code": "original"},
-    "mwp":  {"unit": "s",   "name_en": "Mean wave period", "stream": "wave", "product_code": "original"},
+    # "10u":  {"unit": "m/s", "name_en": "Eastward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
+    # "10v":  {"unit": "m/s", "name_en": "Northward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
+    # "swh":  {"unit": "m",   "name_en": "Significant height of combined wind waves and swell", "stream": "wave", "product_code": "original"},
+    # "mwp":  {"unit": "s",   "name_en": "Mean wave period", "stream": "wave", "product_code": "original"},
+    "mwd":  {"unit": "degree", "name_en": "Mean wave direction", "stream": "wave", "product_code": "original"},
 }
 
 # ✅ 파생 변수(바람) 메타데이터 "미리" 생성용
