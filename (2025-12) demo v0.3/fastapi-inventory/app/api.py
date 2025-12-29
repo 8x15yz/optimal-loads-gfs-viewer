@@ -37,7 +37,7 @@ async def get_griddata(
     dataset_code: str = Query(..., example="original"),
     model: str = Query(..., example="ifs"),
     variable: str = Query(..., example="swh"),
-    run_time_utc: str = Query(..., example="2025-12-16T00:00:00Z"),
+    run_time_utc: str = Query(..., example="2025-07-16T00:00:00Z"),
     step_hours: int = Query(..., ge=0, le=360, example=24),
 
     # ---- spatial ----
@@ -48,10 +48,10 @@ async def get_griddata(
     ),
 
     # ---- optional vertical ----
-    depth: Optional[Union[float, str]] = Query(
-        default=None,
-        description="(optional) depth in meters or 'surface', e.g., 0.5, 10, 'surface'"
-    )
+    # depth: Optional[Union[float, str]] = Query(
+    #     default=None,
+    #     description="(optional) depth in meters or 'surface', e.g., 0.5, 10, 'surface'"
+    # )
 ) -> GridDataResponse:
     # ✅ Mongo 문서에는 forecast만 있다고 했으니 고정
     type_ = "forecast"
@@ -145,9 +145,9 @@ async def get_griddata(
             da_u = _ensure_lat_lon_names(da_u)
             da_v = _ensure_lat_lon_names(da_v)
 
-            # depth (있으면 선택)
-            da_u, _ = _select_depth_if_present(da_u, depth)
-            da_v, _ = _select_depth_if_present(da_v, depth)
+            # # depth (있으면 선택)
+            # da_u, _ = _select_depth_if_present(da_u, depth)
+            # da_v, _ = _select_depth_if_present(da_v, depth)
 
             # 좌표 정합
             da_u, da_v = xr.align(da_u, da_v, join="inner")
@@ -261,7 +261,7 @@ async def get_griddata(
 
         da, lat_inc, _ = _select_da(ds, norm_var, bbox)
         da = _ensure_lat_lon_names(da)
-        da, _chosen_depth = _select_depth_if_present(da, depth)
+        # da, _chosen_depth = _select_depth_if_present(da, depth)
 
         arr2, dlon, dlat, width, height = _prepare_array_for_response(da, lat_inc)
 
@@ -442,20 +442,20 @@ def _ensure_lat_lon_names(da: xr.DataArray) -> xr.DataArray:
     return da.rename(rename_map) if rename_map else da
 
 
-def _select_depth_if_present(da: xr.DataArray, depth_param):
-    if "depth" not in da.dims:
-        return da, None
-    zvals = da["depth"].values
-    if depth_param is None or (isinstance(depth_param, str) and depth_param.lower() == "surface"):
-        return da.isel(depth=0), float(zvals[0])
-    try:
-        target = float(depth_param)
-        da2 = da.sel(depth=target, method="nearest")
-        if "depth" in da2.dims and da2.sizes["depth"] == 1:
-            da2 = da2.isel(depth=0)
-        return da2, float(da2.coords["depth"].values)
-    except Exception:
-        raise HTTPException(status_code=422, detail="Invalid depth parameter. Use a number (meters) or 'surface'.")
+# def _select_depth_if_present(da: xr.DataArray, depth_param):
+#     if "depth" not in da.dims:
+#         return da, None
+#     zvals = da["depth"].values
+#     if depth_param is None or (isinstance(depth_param, str) and depth_param.lower() == "surface"):
+#         return da.isel(depth=0), float(zvals[0])
+#     try:
+#         target = float(depth_param)
+#         da2 = da.sel(depth=target, method="nearest")
+#         if "depth" in da2.dims and da2.sizes["depth"] == 1:
+#             da2 = da2.isel(depth=0)
+#         return da2, float(da2.coords["depth"].values)
+#     except Exception:
+#         raise HTTPException(status_code=422, detail="Invalid depth parameter. Use a number (meters) or 'surface'.")
 
 
 def _prepare_array_for_response(da: xr.DataArray, lat_inc: bool):
