@@ -5,7 +5,7 @@ from typing import Optional, List, Union, Tuple
 from datetime import datetime, timezone, timedelta
 
 from app.models import GridDataResponse
-from app.db import get_collection
+from app.db import get_assets_collection
 
 import numpy as np
 import xarray as xr
@@ -70,7 +70,7 @@ async def get_griddata(
 
     # ---- computed wind은 U/V 원본을 같은 run+step으로 찾고 계산 ----
     if norm_var in ("wind_speed", "wind_dir"):
-        coll = await get_collection()
+        coll = await get_assets_collection()
 
         doc_u = await _find_by_natural_key(
             coll,
@@ -186,7 +186,7 @@ async def get_griddata(
                 ds_v and ds_v.close()
 
     # ========== original variable (S3 GRIB2/NC) ==========
-    coll = await get_collection()
+    coll = await get_assets_collection()
 
     doc = await _find_by_natural_key(
         coll,
