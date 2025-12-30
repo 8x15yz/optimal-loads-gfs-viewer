@@ -363,10 +363,10 @@
           </div>
           <div class="card-pad">
             <div class="note">
-              <b>본 서비스의 기본(Primary) 데이터원은 ECMWF Open Data 입니다.</b><br />
+              <b>본 서비스는 ECMWF Open Data를 사용합니다.</b><br />
               데이터셋 소개 및 정책은 아래 공식 페이지를 기준으로 합니다:
               <a class="link" href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">
-                https://www.ecmwf.int/en/forecasts/datasets/open-data
+                ecmwf open data 페이지
               </a>
             </div>
 
@@ -416,8 +416,8 @@
             </ul>
 
             <div class="note">
-              <b>⇒ Valid time</b>: <code>run time + step_hours</code> 로 계산되는 실제 예측 시각이 계산을 하는거다.<br />
-              <span class="muted small">- 이거는 api에서는 나타나지 않고, 계산하면 나온다는걸 명시하기</span>
+              <b>⇒ Valid time</b>은 <code>run time + step_hours</code> 로 계산되는 실제 예측 시각이다.<br />
+              <span class="muted small">Valid time은 API 파라미터로 직접 제공되지 않으며, 사용자가 run time과 step을 기반으로 계산하여 도출한다.</span>
             </div>
 
             <p><b>예시</b>:</p>
@@ -425,7 +425,7 @@
               <li><code>run_time_utc = 2025-07-16T00:00:00Z</code></li>
               <li><code>step_hours = 24</code></li>
             </ul>
-            <p>→ valid time인 <strong>2025-07-17 00:00 (UTC)</strong> 시점의 예측값을 의미하는 것이다</p>
+            <p>→ valid time인 <strong>2025-07-17 00:00 (UTC)</strong> 시점의 예측값을 의미한다.</p>
 
           </div>
         </section>
@@ -441,9 +441,9 @@
           </div>
           <div class="card-pad">
             <ul>
-              <li>원천 데이터: <strong>ECMWF Open Data</strong> :
+              <li>소스 데이터: <strong>ECMWF Open Data</strong> :
                 <a class="link" href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">
-                  https://www.ecmwf.int/en/forecasts/datasets/open-data
+                  ecmwf open data 페이지
                 </a>
               </li>
               <li>예측 모델:
@@ -454,12 +454,12 @@
               </li>
               <li>wave model (모델 설명 원문 파일) :
                 <a class="link" href="https://www.ecmwf.int/sites/default/files/elibrary/112024/81629-ifs-documentation-cy49r1-part-vii-ecmwf-wave-model.pdf" target="_blank" rel="noopener">
-                  https://www.ecmwf.int/sites/default/files/elibrary/112024/81629-ifs-documentation-cy49r1-part-vii-ecmwf-wave-model.pdf
+                  ecmwf-wave-model.pdf
                 </a>
               </li>
               <li>atmosphere model (모델 설명 원문 파일) :
                 <a class="link" href="https://www.ecmwf.int/sites/default/files/elibrary/112024/81626-ifs-documentation-cy49r1-part-iv-physical-processes.pdf" target="_blank" rel="noopener">
-                  https://www.ecmwf.int/sites/default/files/elibrary/112024/81626-ifs-documentation-cy49r1-part-iv-physical-processes.pdf
+                  ecmwf-atmosphere-model.pdf
                 </a>
               </li>
             </ul>
@@ -505,7 +505,7 @@
             <p class="small">
               (공식 배포 일정: ECMWF Dissemination Schedule) :
               <a class="link" href="https://confluence.ecmwf.int/display/DAC/Dissemination+schedule" target="_blank" rel="noopener">
-                https://confluence.ecmwf.int/display/DAC/Dissemination+schedule
+                배포 일정 확인
               </a>
             </p>
 
@@ -622,7 +622,6 @@ dataset_code
               </div>
             </div>
 
-            <p>이와 같은 구분을 통해 원본 데이터와 파생 데이터의 출처 및 계산 관계를 명확히 관리한다.</p>
 
             <h3 id="sec-4-4">4.4 파일 명명 규칙</h3>
             <p>모든 데이터 파일은 다음과 같은 명명 규칙을 따른다.</p>
@@ -960,7 +959,7 @@ direc = (90.0 - np.degrees(np.arctan2(da_v.values, da_u.values))) %360.0
           <div class="card-head">
             <div class="kicker">Appendix</div>
             <div class="h2-row">
-              <h2 style="margin:0;">[부록] 풍속·풍향 계산식 선정 및 타당성 설명</h2>
+              <h2 style="margin:0;">[부록] 풍속·풍향 계산식 선정 이유</h2>
               <span class="h2-pill">Appendix</span>
             </div>
           </div>
