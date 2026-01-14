@@ -26,11 +26,11 @@ ASSET_TYPE = "forecast"    # raw/forecast metadata type
 
 # ✅ 변수별 stream + product_code
 PARAMS = {
-    # "10u":  {"unit": "m/s", "name_en": "Eastward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
-    # "10v":  {"unit": "m/s", "name_en": "Northward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
+    "10u":  {"unit": "m/s", "name_en": "Eastward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
+    "10v":  {"unit": "m/s", "name_en": "Northward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
     # "swh":  {"unit": "m",   "name_en": "Significant height of combined wind waves and swell", "stream": "wave", "product_code": "original"},
     # "mwp":  {"unit": "s",   "name_en": "Mean wave period", "stream": "wave", "product_code": "original"},
-    "mwd":  {"unit": "degree", "name_en": "Mean wave direction", "stream": "wave", "product_code": "original"},
+    # "mwd":  {"unit": "degree", "name_en": "Mean wave direction", "stream": "wave", "product_code": "original"},
 }
 
 # ✅ 파생 변수(바람) 메타데이터 "미리" 생성용
@@ -60,13 +60,13 @@ DATA_ROOT = SCRIPT_DIR / "ecmwf" / MODEL / TYPE_CODE  # 로컬 저장 루트
 # --------------------- S3 설정 ---------------------
 BUCKET = os.getenv("S3_BUCKET", "optimal-loads")
 REGION = os.getenv("AWS_REGION", "ap-northeast-2")
-S3_PREFIX_ROOT = f"ecmwf/{MODEL}/{TYPE_CODE}"
+S3_PREFIX_ROOT = f"ecmwf_test/{MODEL}/{TYPE_CODE}"
 
 DELETE_LOCAL_AFTER_UPLOAD = True
 
 # --------------------- Mongo 설정 ---------------------
 MONGO_URI = os.getenv("MONGO_URI", "")
-MONGO_DB = os.getenv("MONGO_DB", "optimal_loads")
+MONGO_DB = os.getenv("MONGO_DB", "optimal_loads_test")
 MONGO_COL = os.getenv("MONGO_COL", "assets_metadata")
 DIR_COL_NAME = os.getenv("MONGO_DIR_COL", "directories")
 
