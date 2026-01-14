@@ -29,7 +29,7 @@ jobs:
             git checkout demo-v0.4
             git pull
 
-            cd "(2026-01) demo v0.4"
+            cd "(2026-01) demo v0.4/services/fastapi-inventory"
 
             docker ps -q --filter "name=demo-v0-4-api" | grep -q . && docker stop demo-v0-4-api || true
             docker rm demo-v0-4-api || true
