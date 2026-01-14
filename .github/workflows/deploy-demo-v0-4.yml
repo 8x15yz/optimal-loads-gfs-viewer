@@ -40,3 +40,43 @@ jobs:
               -p 80:8000 \
               --env-file ../../.env_04 \
               demo-v0-4-api
+            # -------------------------------
+            # Deploy Airflow (demo v0.4)
+            # -------------------------------
+            cd ~/optimal-loads-gfs-viewer/"(2026-01) demo v0.4/orchestration/airflow"
+
+            docker ps -q --filter "name=demo-v0-4-airflow-web" | grep -q . && docker stop demo-v0-4-airflow-web || true
+            docker rm demo-v0-4-airflow-web || true
+
+            docker ps -q --filter "name=demo-v0-4-airflow-scheduler" | grep -q . && docker stop demo-v0-4-airflow-scheduler || true
+            docker rm demo-v0-4-airflow-scheduler || true
+
+            docker build -t demo-v0-4-airflow .
+
+            # DB init (idempotent)
+            docker run --rm \
+              --env-file ../../../.env_04 \
+              demo-v0-4-airflow airflow db init
+
+            docker run --rm \
+              --env-file ../../../.env_04 \
+              demo-v0-4-airflow airflow users create \
+                --username admin \
+                --password admin \
+                --firstname admin \
+                --lastname admin \
+                --role Admin \
+                --email admin@example.com || true
+
+            # scheduler
+            docker run -d \
+              --name demo-v0-4-airflow-scheduler \
+              --env-file ../../../.env_04 \
+              demo-v0-4-airflow scheduler
+
+            # webserver
+            docker run -d \
+              --name demo-v0-4-airflow-web \
+              -p 8080:8080 \
+              --env-file ../../../.env_04 \
+              demo-v0-4-airflow webserver
