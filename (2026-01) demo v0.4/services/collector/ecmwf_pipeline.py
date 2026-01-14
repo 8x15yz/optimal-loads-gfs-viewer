@@ -58,15 +58,16 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_ROOT = SCRIPT_DIR / "ecmwf" / MODEL / TYPE_CODE  # 로컬 저장 루트
 
 # --------------------- S3 설정 ---------------------
-BUCKET = os.getenv("S3_BUCKET", "optimal-loads")
+# BUCKET = os.getenv("S3_BUCKET", "optimal-loads")
+BUCKET = os.getenv("S3_BUCKET", "optimal-loads-test") # 테스트용
 REGION = os.getenv("AWS_REGION", "ap-northeast-2")
-S3_PREFIX_ROOT = f"ecmwf_test/{MODEL}/{TYPE_CODE}"
+S3_PREFIX_ROOT = f"ecmwf/{MODEL}/{TYPE_CODE}"
 
 DELETE_LOCAL_AFTER_UPLOAD = True
 
 # --------------------- Mongo 설정 ---------------------
 MONGO_URI = os.getenv("MONGO_URI", "")
-MONGO_DB = os.getenv("MONGO_DB", "optimal_loads_test")
+MONGO_DB = os.getenv("MONGO_DB", "optimal_loads")
 MONGO_COL = os.getenv("MONGO_COL", "assets_metadata")
 DIR_COL_NAME = os.getenv("MONGO_DIR_COL", "directories")
 
