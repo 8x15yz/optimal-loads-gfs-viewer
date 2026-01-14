@@ -33,7 +33,7 @@ router = APIRouter(prefix="/api", tags=["grid"])
 )
 async def get_griddata(
     # ---- forecast identity (필수) ----
-    source: str = Query(..., example="ecmwf_test"),
+    source: str = Query(..., example="ecmwf"),
     dataset_code: str = Query(..., example="original"),
     model: str = Query(..., example="ifs"),
     variable: str = Query(..., example="swh"),
