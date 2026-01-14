@@ -38,5 +38,5 @@ jobs:
             docker run -d \
               --name demo-v0-4-api \
               -p 80:8000 \
-              --env-file ../.env_04 \
+              --env-file ../../.env_04
               demo-v0-4-api
