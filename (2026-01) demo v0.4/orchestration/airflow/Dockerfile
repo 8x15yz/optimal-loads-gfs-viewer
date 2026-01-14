@@ -8,10 +8,13 @@ RUN apt-get update && apt-get install -y \
 
 USER airflow
 
-COPY requirements.txt /requirements.txt
+
+COPY orchestration/airflow/requirements.txt /requirements.txt
 RUN pip install --no-cache-dir -r /requirements.txt
 
-COPY dags /opt/airflow/dags
+
+COPY orchestration/airflow/dags /opt/airflow/dags
+
 
 COPY orchestration /opt/airflow/orchestration
 COPY services /opt/airflow/services
