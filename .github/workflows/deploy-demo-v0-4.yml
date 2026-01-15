@@ -25,6 +25,11 @@ jobs:
           port: 22
           script: |
             set -e
+
+            mkdir -p ~/airflow-data/{dags,logs,plugins}
+            sudo chown -R 50000:0 ~/airflow-data
+
+            
             cd ~/optimal-loads-gfs-viewer
             git checkout demo-v0.4
             git pull
