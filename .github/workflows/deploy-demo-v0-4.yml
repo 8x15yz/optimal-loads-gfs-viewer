@@ -39,7 +39,7 @@ jobs:
             git checkout demo-v0.4
             git pull
 
-            # -------------------------------
+            # ------------------------------
             # Deploy FastAPI
             # -------------------------------
             cd "$DEMO_DIR/services/fastapi-inventory"
