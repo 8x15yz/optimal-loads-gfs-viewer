@@ -81,7 +81,7 @@ jobs:
             docker run --rm \
               -v "$AIRFLOW_DATA:/opt/airflow" \
               --env-file "$DEMO_DIR/.env_04" \
-              demo-v0-4-airflow airflow db init
+              demo-v0-4-airflow env | grep AIRFLOW_HOME
 
             docker run --rm \
               -v "$AIRFLOW_DATA:/opt/airflow" \
@@ -96,18 +96,14 @@ jobs:
 
               docker run -d \
                 --name demo-v0-4-airflow-scheduler \
-                -v "$AIRFLOW_DATA/dags:/opt/airflow/dags" \
-                -v "$AIRFLOW_DATA/logs:/opt/airflow/logs" \
-                -v "$AIRFLOW_DATA/plugins:/opt/airflow/plugins" \
+                -v "$AIRFLOW_DATA:/opt/airflow" \
                 --env-file "$DEMO_DIR/.env_04" \
                 demo-v0-4-airflow scheduler
 
               docker run -d \
                 --name demo-v0-4-airflow-web \
                 -p 8080:8080 \
-                -v "$AIRFLOW_DATA/dags:/opt/airflow/dags" \
-                -v "$AIRFLOW_DATA/logs:/opt/airflow/logs" \
-                -v "$AIRFLOW_DATA/plugins:/opt/airflow/plugins" \
+                -v "$AIRFLOW_DATA:/opt/airflow" \
                 --env-file "$DEMO_DIR/.env_04" \
                 demo-v0-4-airflow webserver
 
