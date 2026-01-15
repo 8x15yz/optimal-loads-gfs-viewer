@@ -29,7 +29,8 @@ jobs:
             PROJECT_ROOT="$HOME/optimal-loads-gfs-viewer"
             DEMO_DIR="$PROJECT_ROOT/(2026-01) demo v0.4"
             AIRFLOW_DATA="$HOME/airflow-data"
-            ENV_FILE="$PROJECT_ROOT/demo-v0-4/.env_04"
+            ENV_FILE="$PROJECT_ROOT/(2026-01) demo v0.4/.env_04"
+
 
             # -------------------------------
             # Update code
