@@ -26,7 +26,14 @@ jobs:
           script: |
             set -e
 
+            # Airflow data dirs
             mkdir -p ~/airflow-data/{dags,logs,plugins}
+
+            # DAG 복사 (ec2-user 권한일 때)
+            cp orchestration/airflow/dags/*.py \
+              ~/airflow-data/dags/
+
+            # 그 다음 Airflow용 권한 변경
             sudo chown -R 50000:0 ~/airflow-data
 
 
