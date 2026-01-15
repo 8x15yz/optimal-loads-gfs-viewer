@@ -1,7 +1,7 @@
 FROM apache/airflow:2.8.1-python3.11
 
 # -------------------------------
-# System deps
+# System deps (root)
 # -------------------------------
 USER root
 
@@ -10,20 +10,20 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 # -------------------------------
-# Python deps
+# Python deps (airflow user)
 # -------------------------------
+USER airflow
+
 COPY orchestration/airflow/requirements.txt /requirements.txt
 RUN pip install --no-cache-dir -r /requirements.txt
 
 # -------------------------------
-# Project code (IMPORTANT)
+# Project code (root)
 # -------------------------------
+USER root
+
 COPY orchestration /opt/airflow/orchestration
 COPY services /opt/airflow/services
-
-# -------------------------------
-# DAGs
-# -------------------------------
 COPY orchestration/airflow/dags /opt/airflow/dags
 
 # -------------------------------
