@@ -3,9 +3,10 @@
 ├── services
 │   ├── collector
 │   │   ├── ecmwf
-│   │   │   ├── fetch.py          ← 🔹 “한 run/step/param 수집 함수”
-│   │   │   ├── metadata.py       ← 🔹 raw / derived doc builder
-│   │   │   ├── storage.py        ← 🔹 S3 / Mongo 저장
+│   │   │   ├── fetch.py        
+│   │   │   ├── metadata.py     
+│   │   │   ├── storage.py      
+│   │   │   ├── directories.py     
 │   │   │   └── __init__.py
 │   │   └── __init__.py
 │   │
@@ -15,14 +16,14 @@
 ├── orchestration
 │   ├── airflow
 │   │   └── dags
-│   │       └── ecmwf_ifs_demo.py  ← ✅ DAG (1분마다, 06Z 고정)
+│   │       └── ecmwf_ifs_demo.py 
 │   │
 │   ├── kafka
-│   │   ├── producer.py           ← ✅ 알림 전용
+│   │   ├── producer.py 
 │   │   ├── topics.py
 │   │   └── schemas.py
 │   │
 │   └── runners
-│       └── ecmwf_task.py          ← 🔥 Airflow가 호출하는 “조립 코드”
+│       └── ecmwf_task.py 
 │
 └── README.md
