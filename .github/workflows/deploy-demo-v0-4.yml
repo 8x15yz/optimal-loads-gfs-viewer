@@ -57,7 +57,7 @@ jobs:
             # -------------------------------
             # Deploy Airflow
             # -------------------------------
-            mkdir -p "$AIRFLOW_DATA"/{dags,logs,plugins,orchestration,services}
+            mkdir -p "$AIRFLOW_DATA"/{dags,logs,plugins}
 
             # 🔹 DAG copy (ONLY ONCE, correct location)
 
