@@ -58,10 +58,14 @@ jobs:
             mkdir -p "$AIRFLOW_DATA"/{dags,logs,plugins}
 
             # 🔹 DAG copy (ONLY ONCE, correct location)
+
+            sudo chown -R ec2-user:ec2-user "$AIRFLOW_DATA"
+
             cp "$DEMO_DIR/orchestration/airflow/dags/"*.py \
               "$AIRFLOW_DATA/dags/"
 
             # 🔹 Airflow UID permission
+            
             sudo chown -R 50000:0 "$AIRFLOW_DATA"
 
             cd "$DEMO_DIR"
