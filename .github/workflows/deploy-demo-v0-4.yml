@@ -70,7 +70,7 @@ jobs:
 
             cd "$DEMO_DIR"
 
-            docker build -t demo-v0-4-airflow -f orchestration/airflow/Dockerfile "(2026-01) demo v0.4"
+            docker build -t demo-v0-4-airflow -f orchestration/airflow/Dockerfile .
 
             docker ps -q --filter "name=demo-v0-4-airflow-web" | grep -q . && docker stop demo-v0-4-airflow-web || true
             docker rm demo-v0-4-airflow-web || true
