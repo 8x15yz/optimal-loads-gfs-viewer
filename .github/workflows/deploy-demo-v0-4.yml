@@ -26,22 +26,21 @@ jobs:
           script: |
             set -e
 
-            # Airflow data dirs
-            mkdir -p ~/airflow-data/{dags,logs,plugins}
+            PROJECT_ROOT="$HOME/optimal-loads-gfs-viewer"
+            DEMO_DIR="$PROJECT_ROOT/(2026-01) demo v0.4"
+            AIRFLOW_DATA="$HOME/airflow-data"
 
-            # DAG 복사 (ec2-user 권한일 때)
-            cp orchestration/airflow/dags/*.py \
-              ~/airflow-data/dags/
-
-            # 그 다음 Airflow용 권한 변경
-            sudo chown -R 50000:0 ~/airflow-data
-
-
-            cd ~/optimal-loads-gfs-viewer
+            # -------------------------------
+            # Update code
+            # -------------------------------
+            cd "$PROJECT_ROOT"
             git checkout demo-v0.4
             git pull
 
-            cd "(2026-01) demo v0.4/services/fastapi-inventory"
+            # -------------------------------
+            # Deploy FastAPI
+            # -------------------------------
+            cd "$DEMO_DIR/services/fastapi-inventory"
 
             docker ps -q --filter "name=demo-v0-4-api" | grep -q . && docker stop demo-v0-4-api || true
             docker rm demo-v0-4-api || true
@@ -50,25 +49,22 @@ jobs:
             docker run -d \
               --name demo-v0-4-api \
               -p 80:8000 \
-              --env-file ../../.env_04 \
+              --env-file "$DEMO_DIR/.env_04" \
               demo-v0-4-api
+
             # -------------------------------
-            # Deploy Airflow (demo v0.4)
+            # Deploy Airflow
             # -------------------------------
-            cd ~/optimal-loads-gfs-viewer/"(2026-01) demo v0.4"
+            mkdir -p "$AIRFLOW_DATA"/{dags,logs,plugins}
 
-            # 🔹 Airflow data dirs (host)
-            mkdir -p ~/airflow-data/{dags,logs,plugins}
+            # 🔹 DAG copy (ONLY ONCE, correct location)
+            cp "$DEMO_DIR/orchestration/airflow/dags/"*.py \
+              "$AIRFLOW_DATA/dags/"
 
-            # 🔹 DAG 파일 배포 (Git → Airflow volume)
-            cp orchestration/airflow/dags/*.py \
-               ~/airflow-data/dags/
+            # 🔹 Airflow UID permission
+            sudo chown -R 50000:0 "$AIRFLOW_DATA"
 
-            # 🔹 Airflow 권한 맞추기 (필수)
-            sudo chown -R 50000:0 ~/airflow-data
-
-            # Airflow data volume (host)
-            mkdir -p ~/airflow-data
+            cd "$DEMO_DIR"
 
             docker build -t demo-v0-4-airflow -f orchestration/airflow/Dockerfile .
 
@@ -78,15 +74,14 @@ jobs:
             docker ps -q --filter "name=demo-v0-4-airflow-scheduler" | grep -q . && docker stop demo-v0-4-airflow-scheduler || true
             docker rm demo-v0-4-airflow-scheduler || true
 
-            # DB init (idempotent, shared volume)
             docker run --rm \
-              -v ~/airflow-data:/opt/airflow \
-              --env-file ./.env_04 \
+              -v "$AIRFLOW_DATA:/opt/airflow" \
+              --env-file "$DEMO_DIR/.env_04" \
               demo-v0-4-airflow airflow db init
 
             docker run --rm \
-              -v ~/airflow-data:/opt/airflow \
-              --env-file ./.env_04 \
+              -v "$AIRFLOW_DATA:/opt/airflow" \
+              --env-file "$DEMO_DIR/.env_04" \
               demo-v0-4-airflow airflow users create \
                 --username admin \
                 --password admin \
@@ -95,17 +90,15 @@ jobs:
                 --role Admin \
                 --email admin@example.com || true
 
-            # scheduler
             docker run -d \
               --name demo-v0-4-airflow-scheduler \
-              -v ~/airflow-data:/opt/airflow \
-              --env-file ./.env_04 \
+              -v "$AIRFLOW_DATA:/opt/airflow" \
+              --env-file "$DEMO_DIR/.env_04" \
               demo-v0-4-airflow scheduler
 
-            # webserver
             docker run -d \
               --name demo-v0-4-airflow-web \
               -p 8080:8080 \
-              -v ~/airflow-data:/opt/airflow \
-              --env-file ./.env_04 \
+              -v "$AIRFLOW_DATA:/opt/airflow" \
+              --env-file "$DEMO_DIR/.env_04" \
               demo-v0-4-airflow webserver
