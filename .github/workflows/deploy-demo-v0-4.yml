@@ -25,10 +25,11 @@ jobs:
           port: 22
           script: |
             set -e
-
+            
             PROJECT_ROOT="$HOME/optimal-loads-gfs-viewer"
             DEMO_DIR="$PROJECT_ROOT/(2026-01) demo v0.4"
             AIRFLOW_DATA="$HOME/airflow-data"
+            ENV_FILE="$PROJECT_ROOT/(2026-01) demo v0.4/.env_04"
 
             # -------------------------------
             # Update code
@@ -49,7 +50,7 @@ jobs:
             docker run -d \
               --name demo-v0-4-api \
               -p 80:8000 \
-              --env-file "$DEMO_DIR/.env_04" \
+              --env-file "$$ENV_FILE" \
               demo-v0-4-api
 
             # -------------------------------
@@ -87,7 +88,7 @@ jobs:
 
             docker run --rm \
               -v "$AIRFLOW_DATA:/opt/airflow" \
-              --env-file "$DEMO_DIR/.env_04" \
+              --env-file "$$ENV_FILE" \
               demo-v0-4-airflow airflow users create \
                 --username admin \
                 --password admin \
@@ -99,14 +100,14 @@ jobs:
               docker run -d \
                 --name demo-v0-4-airflow-scheduler \
                 -v "$AIRFLOW_DATA:/opt/airflow" \
-                --env-file "$DEMO_DIR/.env_04" \
+                --env-file "$$ENV_FILE" \
                 demo-v0-4-airflow scheduler
 
               docker run -d \
                 --name demo-v0-4-airflow-web \
                 -p 8080:8080 \
                 -v "$AIRFLOW_DATA:/opt/airflow" \
-                --env-file "$DEMO_DIR/.env_04" \
+                --env-file "$$ENV_FILE" \
                 demo-v0-4-airflow webserver
 
 
