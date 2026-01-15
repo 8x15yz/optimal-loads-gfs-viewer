@@ -26,27 +26,15 @@ jobs:
           script: |
             set -e
 
-            BASE=~/optimal-loads-gfs-viewer
-            DEMO="$BASE/(2026-01) demo v0.4"
-            AIRFLOW_DATA=~/airflow-data
+            mkdir -p ~/airflow-data/{dags,logs,plugins}
+            sudo chown -R 50000:0 ~/airflow-data
 
-            # -------------------------------
-            # Airflow host volume (once)
-            # -------------------------------
-            mkdir -p $AIRFLOW_DATA/{dags,logs,plugins}
-            sudo chown -R 50000:0 $AIRFLOW_DATA
 
-            # -------------------------------
-            # Git update
-            # -------------------------------
-            cd $BASE
-            git checkout demo-v0-4
+            cd ~/optimal-loads-gfs-viewer
+            git checkout demo-v0.4
             git pull
 
-            # -------------------------------
-            # FastAPI deploy
-            # -------------------------------
-            cd "$DEMO/services/fastapi-inventory"
+            cd "(2026-01) demo v0.4/services/fastapi-inventory"
 
             docker ps -q --filter "name=demo-v0-4-api" | grep -q . && docker stop demo-v0-4-api || true
             docker rm demo-v0-4-api || true
@@ -57,13 +45,23 @@ jobs:
               -p 80:8000 \
               --env-file ../../.env_04 \
               demo-v0-4-api
-
             # -------------------------------
-            # Airflow deploy
+            # Deploy Airflow (demo v0.4)
             # -------------------------------
-            cd "$DEMO"
+            cd ~/optimal-loads-gfs-viewer/"(2026-01) demo v0.4"
 
-            cp orchestration/airflow/dags/*.py $AIRFLOW_DATA/dags/
+            # 🔹 Airflow data dirs (host)
+            mkdir -p ~/airflow-data/{dags,logs,plugins}
+
+            # 🔹 DAG 파일 배포 (Git → Airflow volume)
+            cp orchestration/airflow/dags/*.py \
+               ~/airflow-data/dags/
+
+            # 🔹 Airflow 권한 맞추기 (필수)
+            sudo chown -R 50000:0 ~/airflow-data
+
+            # Airflow data volume (host)
+            mkdir -p ~/airflow-data
 
             docker build -t demo-v0-4-airflow -f orchestration/airflow/Dockerfile .
 
@@ -73,15 +71,34 @@ jobs:
             docker ps -q --filter "name=demo-v0-4-airflow-scheduler" | grep -q . && docker stop demo-v0-4-airflow-scheduler || true
             docker rm demo-v0-4-airflow-scheduler || true
 
+            # DB init (idempotent, shared volume)
+            docker run --rm \
+              -v ~/airflow-data:/opt/airflow \
+              --env-file ./.env_04 \
+              demo-v0-4-airflow airflow db init
+
+            docker run --rm \
+              -v ~/airflow-data:/opt/airflow \
+              --env-file ./.env_04 \
+              demo-v0-4-airflow airflow users create \
+                --username admin \
+                --password admin \
+                --firstname admin \
+                --lastname admin \
+                --role Admin \
+                --email admin@example.com || true
+
+            # scheduler
             docker run -d \
               --name demo-v0-4-airflow-scheduler \
-              -v $AIRFLOW_DATA:/opt/airflow \
+              -v ~/airflow-data:/opt/airflow \
               --env-file ./.env_04 \
               demo-v0-4-airflow scheduler
 
+            # webserver
             docker run -d \
               --name demo-v0-4-airflow-web \
               -p 8080:8080 \
-              -v $AIRFLOW_DATA:/opt/airflow \
+              -v ~/airflow-data:/opt/airflow \
               --env-file ./.env_04 \
               demo-v0-4-airflow webserver
