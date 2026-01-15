@@ -79,9 +79,11 @@ jobs:
             docker rm demo-v0-4-airflow-scheduler || true
 
             docker run --rm \
-              -v "$AIRFLOW_DATA:/opt/airflow" \
-              --env-file "$DEMO_DIR/.env_04" \
-              demo-v0-4-airflow env | grep AIRFLOW_HOME
+              -v "$HOME/airflow-data:/opt/airflow" \
+              --env-file "(2026-01) demo v0.4/.env_04" \
+              demo-v0-4-airflow \
+              bash -c 'printenv | grep AIRFLOW'
+
 
             docker run --rm \
               -v "$AIRFLOW_DATA:/opt/airflow" \
