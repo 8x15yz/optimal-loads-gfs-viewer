@@ -1,12 +1,13 @@
 name: Deploy demo v0.4
 
 on:
-  push:
-    branches:
-      - demo-v0.4
-    paths:
-      - "2026-01-demo-v0.4/**"
-      - ".github/workflows/deploy-demo-v0-4.yml"
+  workflow_dispatch:
+  # push:
+  #   branches:
+  #     - demo-v0.4
+  #   paths:
+  #     - "2026-01-demo-v0.4/**"
+  #     - ".github/workflows/deploy-demo-v0-4.yml"
 
 jobs:
   deploy:

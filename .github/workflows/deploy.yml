@@ -1,10 +1,11 @@
 name: Deploy fastapi-inventory
 
 on:
-  push:
-    branches:
-      - main
-      - master
+  workflow_dispatch:
+  # push:
+  #   branches:
+  #     - main
+  #     - master
 
 jobs:
   deploy:
