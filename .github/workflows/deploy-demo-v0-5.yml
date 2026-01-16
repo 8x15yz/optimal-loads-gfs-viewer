@@ -33,9 +33,9 @@ jobs:
             # Update code
             # -------------------------------
             cd "$PROJECT_ROOT"
-            git checkout demo-v0.5
-            git pull
 
+            git fetch origin
+            git checkout -B demo-v0.5 origin/demo-v0.5
             # ------------------------------
             # Deploy FastAPI
             # -------------------------------
