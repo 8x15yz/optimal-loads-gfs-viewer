@@ -5,7 +5,7 @@ on:
     branches:
       - demo-v0.4
     paths:
-      - "(2026-01) demo v0.4/**"
+      - "2026-01-demo-v0.4/**"
       - ".github/workflows/deploy-demo-v0-4.yml"
 
 jobs:
@@ -27,9 +27,9 @@ jobs:
             set -e
             
             PROJECT_ROOT="$HOME/optimal-loads-gfs-viewer"
-            DEMO_DIR="$PROJECT_ROOT/(2026-01) demo v0.4"
+            DEMO_DIR="$PROJECT_ROOT/2026-01-demo-v0.4"
             AIRFLOW_DATA="$HOME/airflow-data"
-            ENV_FILE="$PROJECT_ROOT/(2026-01) demo v0.4/.env_04"
+            ENV_FILE="$PROJECT_ROOT/2026-01-demo-v0.4/.env_04"
 
 
             # -------------------------------

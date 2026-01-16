@@ -17,6 +17,13 @@ from services.collector.ecmwf.directories import upsert_directories
 UTC = timezone.utc
 
 
+# ----------------------------------------------------------------
+# Test: 1분마다 실행 확인용 태스크
+# ----------------------------------------------------------------
+def test_task_function(**context):
+    execution_date = context["execution_date"]
+    print(f"🕒 Execution date: {execution_date}")
+
 def run_ecmwf_ifs_task(
     dataset_code: str,
     model: str,
@@ -82,6 +89,3 @@ def run_ecmwf_ifs_task(
 
         print(f"✅ {run_time:%Y-%m-%d %HZ} / {param} / step {step:03d}")
 
-
-if __name__ == "__main__":
-    run_once()
