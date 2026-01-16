@@ -72,7 +72,8 @@ jobs:
 
             cd "$DEMO_DIR"
 
-            docker build -t demo-v0-4-airflow -f 2026-01-demo-v0.4/orchestration/airflow/Dockerfile
+            ## docker build -t <만들어질 이미지 이름> -f <도커파일 경로> <Dockerfile 위치>
+            docker build -t demo-v0-4-airflow -f 2026-01-demo-v0.4/orchestration/airflow/Dockerfile .
 
             docker ps -q --filter "name=demo-v0-4-airflow-web" | grep -q . && docker stop demo-v0-4-airflow-web || true
             docker rm demo-v0-4-airflow-web || true
