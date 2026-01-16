@@ -39,7 +39,7 @@ jobs:
             # ------------------------------
             # Deploy FastAPI
             # -------------------------------
-            cd "$DEMO_DIR/services/fastapi-inventory"
+            cd "$DEMO_DIR/fastapi-inventory"
 
             docker ps -q --filter "name=demo-v0-5-api" | grep -q . && docker stop demo-v0-5-api || true
             docker rm demo-v0-5-api || true
