@@ -6,13 +6,13 @@ import boto3
 from ecmwf.opendata import Client
 from pymongo import MongoClient
 
-from services.collector.ecmwf import (
+from orchestration.collector.ecmwf import (
     fetch_ecmwf_grib,
     build_raw_doc,
     upload_to_s3,
     upsert_mongo,
 )
-from services.collector.ecmwf.directories import upsert_directories
+from orchestration.collector.ecmwf.directories import upsert_directories
 
 UTC = timezone.utc
 

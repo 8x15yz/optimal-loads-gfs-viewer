@@ -82,14 +82,29 @@ jobs:
             docker rm demo-v0-4-airflow-scheduler || true
 
             # -------------------------------
+            # Initialize Airflow DB (if needed)
+            # -------------------------------
+            if [ ! -f "$HOME/airflow-data/airflow.db" ]; then
+              echo "🆕 airflow.db not found. Initializing Airflow DB..."
+              docker run --rm \
+                -v "$HOME/airflow-data:/opt/airflow" \
+                --env-file "$HOME/optimal-loads-gfs-viewer/2026-01-demo-v0.4/.env_04" \
+                demo-v0-4-airflow \
+                airflow db init
+            else
+              echo "✅ airflow.db already exists. Skipping init."
+            fi
+
+            # -------------------------------
             # Start scheduler
             # -------------------------------
             docker run -d \
               --name demo-v0-4-airflow-scheduler \
-                -v "$AIRFLOW_DATA/dags:/opt/airflow/dags" \
-                -v "$AIRFLOW_DATA/logs:/opt/airflow/logs" \
-                -v "$AIRFLOW_DATA/plugins:/opt/airflow/plugins" \
-              --env-file "$ENV_FILE" \
+              -v "$HOME/airflow-data/dags:/opt/airflow/dags" \
+              -v "$HOME/airflow-data/logs:/opt/airflow/logs" \
+              -v "$HOME/airflow-data/plugins:/opt/airflow/plugins" \
+              -v "$HOME/airflow-data/airflow.db:/opt/airflow/airflow.db" \
+              --env-file "$HOME/optimal-loads-gfs-viewer/2026-01-demo-v0.4/.env_04" \
               demo-v0-4-airflow scheduler
 
             # -------------------------------
@@ -98,10 +113,11 @@ jobs:
             docker run -d \
               --name demo-v0-4-airflow-web \
               -p 8080:8080 \
-              -v "$AIRFLOW_DATA/dags:/opt/airflow/dags" \
-              -v "$AIRFLOW_DATA/logs:/opt/airflow/logs" \
-              -v "$AIRFLOW_DATA/plugins:/opt/airflow/plugins" \
-              --env-file "$ENV_FILE" \
+              -v "$HOME/airflow-data/dags:/opt/airflow/dags" \
+              -v "$HOME/airflow-data/logs:/opt/airflow/logs" \
+              -v "$HOME/airflow-data/plugins:/opt/airflow/plugins" \
+              -v "$HOME/airflow-data/airflow.db:/opt/airflow/airflow.db" \
+              --env-file "$HOME/optimal-loads-gfs-viewer/2026-01-demo-v0.4/.env_04" \
               demo-v0-4-airflow webserver
 
 
