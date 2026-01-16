@@ -1,0 +1,52 @@
+name: Deploy demo v0.5
+
+on:
+  push:
+    branches:
+      - demo-v0.5
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2 (demo v0.5)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.V05_EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.V05_EC2_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            
+            PROJECT_ROOT="$HOME/optimal-loads-gfs-viewer"
+            DEMO_DIR="$PROJECT_ROOT/2026-01-demo-v0.5"
+            AIRFLOW_DATA="$HOME/airflow-data"
+            ENV_FILE="$PROJECT_ROOT/2026-01-demo-v0.5/.env_05"
+
+
+            # -------------------------------
+            # Update code
+            # -------------------------------
+            cd "$PROJECT_ROOT"
+            git checkout demo-v0.5
+            git pull
+
+            # ------------------------------
+            # Deploy FastAPI
+            # -------------------------------
+            cd "$DEMO_DIR/services/fastapi-inventory"
+
+            docker ps -q --filter "name=demo-v0-5-api" | grep -q . && docker stop demo-v0-5-api || true
+            docker rm demo-v0-5-api || true
+
+            docker build -t demo-v0-5-api .
+            docker run -d \
+              --name demo-v0-5-api \
+              -p 80:8000 \
+              --env-file "$ENV_FILE" \
+              demo-v0-5-api
