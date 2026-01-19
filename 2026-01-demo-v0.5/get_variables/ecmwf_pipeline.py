@@ -67,7 +67,7 @@ DELETE_LOCAL_AFTER_UPLOAD = True
 # --------------------- Mongo 설정 ---------------------
 MONGO_URI = os.getenv("MONGO_URI", "")
 MONGO_DB = os.getenv("MONGO_DB", "optimal_loads")
-MONGO_COL = os.getenv("MONGO_COL", "assets_metadata")
+MONGO_COLL = os.getenv("MONGO_COLL", "assets_metadata")
 DIR_COL_NAME = os.getenv("MONGO_DIR_COL", "directories")
 
 mongo: Optional[MongoClient] = None
@@ -79,7 +79,7 @@ ROOT_DIR = f"{SOURCE}/{MODEL}/"  # ecmwf/ifs/
 
 if MONGO_URI:
     mongo = MongoClient(MONGO_URI)
-    col = mongo[MONGO_DB][MONGO_COL]
+    col = mongo[MONGO_DB][MONGO_COLL]
     dir_col = mongo[MONGO_DB][DIR_COL_NAME]
     try:
         # assets_metadata
