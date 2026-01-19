@@ -26,7 +26,7 @@ from ecmwf.opendata import Client
 
 UTC = timezone.utc
 
-SOURCE_REAL = os.getenv("PROBE_SOURCE_REAL", "ifs")  # ✅ 핵심: aws가 아니라 ifs
+SOURCE_REAL = "ecmwf"  # ✅ 핵심: aws가 아니라 ifs
 SOURCE = "ecmwf"
 MODEL = "ifs"
 RESOL = "0p25"
