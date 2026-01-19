@@ -146,7 +146,6 @@ from fastapi.responses import HTMLResponse
 from app.db import get_ingestion_when_collection
 from datetime import datetime, timezone
 
-router = APIRouter()  # 이미 있다면 재사용
 
 def _fmt_dt(v):
     if v is None:
