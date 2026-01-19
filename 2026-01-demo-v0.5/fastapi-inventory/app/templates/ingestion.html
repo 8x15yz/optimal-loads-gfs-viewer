@@ -1,0 +1,104 @@
+{# app/templates/ingestion.html #}
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Ingestion</h2>
+
+<div style="padding:12px; border:1px solid #ddd; border-radius:8px; margin-bottom:16px;">
+  <div><b>enabled</b>: {{ control.enabled }}</div>
+  <div><b>running</b>: {{ control.running }}</div>
+  <div><b>status</b>: {{ control.status }}</div>
+  <div><b>last_started_at</b>: {{ control.last_started_at }}</div>
+  <div><b>last_finished_at</b>: {{ control.last_finished_at }}</div>
+  <div><b>last_heartbeat_at</b>: {{ control.last_heartbeat_at }}</div>
+  {% if control.error %}
+    <div style="color:#b00020;"><b>error</b>: {{ control.error }}</div>
+  {% endif %}
+
+  <div style="margin-top:10px;">
+    {% if control.enabled %}
+      <form method="post" action="/ingestion/pause" style="display:inline;">
+        <button type="submit">Pause</button>
+      </form>
+    {% else %}
+      <form method="post" action="/ingestion/resume" style="display:inline;">
+        <button type="submit">Resume</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<form method="get" action="/ingestion" style="margin-bottom:12px;">
+  <label>Status:</label>
+  <select name="status">
+    <option value="">(all)</option>
+    {% for s in statuses %}
+      <option value="{{ s }}" {% if filters.status==s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+
+  <label style="margin-left:10px;">Variable:</label>
+  <select name="variable">
+    <option value="">(all)</option>
+    {% for v in vars %}
+      <option value="{{ v }}" {% if filters.variable==v %}selected{% endif %}>{{ v }}</option>
+    {% endfor %}
+  </select>
+
+  <label style="margin-left:10px;">Stream:</label>
+  <select name="stream">
+    <option value="">(all)</option>
+    {% for s in streams %}
+      <option value="{{ s }}" {% if filters.stream==s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+
+  <label style="margin-left:10px;">Limit:</label>
+  <input name="limit" value="{{ filters.limit }}" style="width:70px;" />
+
+  <button type="submit" style="margin-left:10px;">Apply</button>
+</form>
+
+<table style="width:100%; border-collapse:collapse;">
+  <thead>
+    <tr>
+      <th align="left">run_time_utc</th>
+      <th align="left">stream</th>
+      <th align="left">variable</th>
+      <th align="left">status</th>
+      <th align="left">started_at</th>
+      <th align="left">finished_at</th>
+      <th align="left">downloaded</th>
+      <th align="left">uploaded</th>
+      <th align="left">mongo</th>
+      <th align="left">failed</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in runs %}
+    <tr style="border-top:1px solid #eee;">
+      <td>{{ r.run_time_utc }}</td>
+      <td>{{ r.stream }}</td>
+      <td>{{ r.variable }}</td>
+      <td>
+        {% if r.status == "success" %}
+          <b style="color:green;">{{ r.status }}</b>
+        {% elif r.status == "partial" %}
+          <b style="color:orange;">{{ r.status }}</b>
+        {% elif r.status == "failed" %}
+          <b style="color:#b00020;">{{ r.status }}</b>
+        {% else %}
+          <b>{{ r.status }}</b>
+        {% endif %}
+      </td>
+      <td>{{ r.started_at }}</td>
+      <td>{{ r.finished_at }}</td>
+      <td>{{ (r.counters or {}).downloaded }}</td>
+      <td>{{ (r.counters or {}).uploaded }}</td>
+      <td>{{ (r.counters or {}).mongo_written }}</td>
+      <td>{{ (r.counters or {}).failed }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

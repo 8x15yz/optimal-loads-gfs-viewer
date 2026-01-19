@@ -10,5 +10,16 @@ optimal-loads-gfs-viewer
 │   └──.env_05
 │    ├── fastapi-inventory
 │    │   └── app
+│    │       ├── templates
+│    │       │   ├── static\guide
+│    │       │   │   ├── index_en.html
+│    │       │   │   └── index_ko.html
+│    │       │   ├── base.html
+│    │       │   ├── inventory_file.html
+│    │       │   └── inventory.html
+│    │       ├── api.py
+│    │       ├── db.py
+│    │       ├── main.py
+│    │       └── models.py
 │    ├── get_variables
 │    │   └── ecmwf_ifs_ingest.py

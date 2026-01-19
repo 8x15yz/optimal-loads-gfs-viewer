@@ -1,3 +1,4 @@
+# main.py
 from __future__ import annotations
 
 import os
@@ -11,6 +12,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
+from app.ingestion import router as ingestion_router
 
 from app.db import get_assets_collection, get_directories_collection
 from app.api import router as api_router
@@ -55,6 +57,7 @@ async def root_en():
 
 
 app.include_router(api_router)
+app.include_router(ingestion_router)
 
 # ---- CORS ----
 app.add_middleware(
