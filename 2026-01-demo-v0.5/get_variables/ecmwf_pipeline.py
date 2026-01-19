@@ -26,10 +26,10 @@ ASSET_TYPE = "forecast"    # raw/forecast metadata type
 
 # ✅ 변수별 stream + product_code
 PARAMS = {
-    # "10u":  {"unit": "m/s", "name_en": "Eastward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
-    # "10v":  {"unit": "m/s", "name_en": "Northward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
-    # "swh":  {"unit": "m",   "name_en": "Significant height of combined wind waves and swell", "stream": "wave", "product_code": "original"},
-    # "mwp":  {"unit": "s",   "name_en": "Mean wave period", "stream": "wave", "product_code": "original"},
+    "10u":  {"unit": "m/s", "name_en": "Eastward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
+    "10v":  {"unit": "m/s", "name_en": "Northward velocity vector component at 10 m", "stream": "oper", "product_code": "original"},
+    "swh":  {"unit": "m",   "name_en": "Significant height of combined wind waves and swell", "stream": "wave", "product_code": "original"},
+    "mwp":  {"unit": "s",   "name_en": "Mean wave period", "stream": "wave", "product_code": "original"},
     "mwd":  {"unit": "degree", "name_en": "Mean wave direction", "stream": "wave", "product_code": "original"},
 }
 
@@ -294,18 +294,6 @@ def upsert_directories_from_doc(doc: Dict[str, Any]) -> None:
 
         cur = parent
 
-
-# --------------------- jsonl 로그 ---------------------
-def append_metadata_to_jsonl(metadata_log_path: Path, doc: dict) -> None:
-    # datetime은 json으로 직접 덤프 안 되므로 문자열로 변환해 기록
-    def default(o):
-        if isinstance(o, datetime):
-            return iso_z(o)
-        return str(o)
-
-    with open(metadata_log_path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(doc, ensure_ascii=False, default=default) + "\n")
-
 # --------------------- 메타 doc 빌더 ---------------------
 def build_raw_doc(
     *,
@@ -532,7 +520,6 @@ def main():
     ap.add_argument("--sleep", type=float, default=0.2, help="요청 간 sleep(초)")
     ap.add_argument("--no_s3", action="store_true", help="S3 업로드 비활성화")
     ap.add_argument("--no_mongo", action="store_true", help="Mongo 메타 저장 비활성화(assets+directories 모두)")
-    ap.add_argument("--no_jsonl", action="store_true", help="jsonl 메타 로그 비활성화")
     args = ap.parse_args()
 
     # ✅ no_mongo면 assets + directories 모두 비활성화
@@ -559,7 +546,7 @@ def main():
     if not args.no_s3:
         s3 = boto3.client("s3", region_name=REGION)
 
-    total_downloaded = total_existed = total_uploaded = total_mongo = total_jsonl = total_failed = 0
+    total_downloaded = total_existed = total_uploaded = total_mongo = total_failed = 0
 
     for run_dt in run_list:
         # 런별 max_step 결정
@@ -572,7 +559,6 @@ def main():
 
         run_set_dir = get_run_set_dir(run_dt)
         ensure_dirs(run_set_dir)
-        metadata_log_path = run_set_dir / "metadata_log.jsonl"
 
         print(f"▶ ECMWF RUN : {run_dt.isoformat()}")
         print(f"▶ run_hour  : {run_dt.hour}Z")
@@ -582,10 +568,9 @@ def main():
         print(f"▶ Run set   : {run_set_dir}")
         print(f"▶ S3        : {'OFF' if args.no_s3 else f's3://{BUCKET}/{S3_PREFIX_ROOT}/...'}")
         print(f"▶ Mongo     : {'OFF' if args.no_mongo else ('ON' if (MONGO_URI and col is not None) else 'OFF (no MONGO_URI)')}")
-        print(f"▶ JSONL     : {'OFF' if args.no_jsonl else f'ON ({metadata_log_path.name})'}")
         print("")
 
-        downloaded = existed = uploaded = mongo_written = jsonl_written = failed = 0
+        downloaded = existed = uploaded = mongo_written = failed = 0
 
         # derived 메타는 (run, step)당 1번만 생성하기 위한 가드
         derived_written_steps: set[tuple[str, int]] = set()
@@ -660,15 +645,6 @@ def main():
                     s3_key=s3_key,
                 )
 
-                # 3a) JSONL
-                if not args.no_jsonl:
-                    try:
-                        append_metadata_to_jsonl(metadata_log_path, raw_doc)
-                        jsonl_written += 1
-                    except Exception as e:
-                        print(f"  ❌ jsonl write failed: {e}")
-                        failed += 1
-
                 # 3b) Mongo upsert (raw) + directories
                 if col is not None:
                     try:
@@ -697,14 +673,6 @@ def main():
                                 valid_time=valid_time,
                             )
 
-                            if not args.no_jsonl:
-                                try:
-                                    append_metadata_to_jsonl(metadata_log_path, ddoc)
-                                    jsonl_written += 1
-                                except Exception as e:
-                                    print(f"  ❌ derived jsonl write failed: {e}")
-                                    failed += 1
-
                             if col is not None:
                                 try:
                                     upsert_mongo(ddoc)  # directories도 같이 갱신
@@ -725,18 +693,17 @@ def main():
                 time.sleep(args.sleep)
 
         print("")
-        print(f"✅ Done RUN={iso_z(run_dt)} downloaded={downloaded}, existed={existed}, uploaded={uploaded}, mongo={mongo_written}, jsonl={jsonl_written}, failed={failed}")
+        print(f"✅ Done RUN={iso_z(run_dt)} downloaded={downloaded}, existed={existed}, uploaded={uploaded}, mongo={mongo_written}, failed={failed}")
         print("")
 
         total_downloaded += downloaded
         total_existed += existed
         total_uploaded += uploaded
         total_mongo += mongo_written
-        total_jsonl += jsonl_written
         total_failed += failed
 
     print("========================================")
-    print(f"✅ TOTAL downloaded={total_downloaded}, existed={total_existed}, uploaded={total_uploaded}, mongo={total_mongo}, jsonl={total_jsonl}, failed={total_failed}")
+    print(f"✅ TOTAL downloaded={total_downloaded}, existed={total_existed}, uploaded={total_uploaded}, mongo={total_mongo}, failed={total_failed}")
     if total_failed > 0:
         sys.exit(2)
 
