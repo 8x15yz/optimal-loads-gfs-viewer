@@ -48,7 +48,22 @@ async def ingestion_page(
     if stream:
         q["stream"] = stream
 
-    runs = await runs_col.find(q).sort([("run_time_utc", -1), ("variable", 1)]).limit(limit).to_list(length=limit)
+    runs = await runs_col.find(
+        q,
+        {
+            "_id": 1,
+            "run_time_utc": 1,
+            "stream": 1,
+            "variable": 1,
+            "status": 1,
+            "started_at": 1,
+            "finished_at": 1,
+            "counters": 1,
+            "errors": 1,          # ✅ 추가
+            "updated_at": 1,
+            "trigger": 1,
+        }
+    ).sort([("run_time_utc", -1), ("variable", 1)]).limit(limit).to_list(length=limit)
 
     # dropdown 후보(최근 데이터 기반으로 뽑기)
     vars_ = sorted({r.get("variable") for r in runs if r.get("variable")})
@@ -70,6 +85,7 @@ async def ingestion_page(
                     **r,
                     "started_at": _fmt_dt(r.get("started_at")),
                     "finished_at": _fmt_dt(r.get("finished_at")),
+                    "errors_cnt": len(r.get("errors") or []),   # ✅
                 }
                 for r in runs
             ],

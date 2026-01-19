@@ -72,33 +72,56 @@
       <th align="left">uploaded</th>
       <th align="left">mongo</th>
       <th align="left">failed</th>
+      <th align="left">errors</th>
     </tr>
   </thead>
+
   <tbody>
     {% for r in runs %}
-    <tr style="border-top:1px solid #eee;">
+    <!-- 1) 메인 row -->
+    <tr>
       <td>{{ r.run_time_utc }}</td>
       <td>{{ r.stream }}</td>
       <td>{{ r.variable }}</td>
-      <td>
-        {% if r.status == "success" %}
-          <b style="color:green;">{{ r.status }}</b>
-        {% elif r.status == "partial" %}
-          <b style="color:orange;">{{ r.status }}</b>
-        {% elif r.status == "failed" %}
-          <b style="color:#b00020;">{{ r.status }}</b>
-        {% else %}
-          <b>{{ r.status }}</b>
-        {% endif %}
-      </td>
+      <td class="{{ r.status }}">{{ r.status }}</td>
       <td>{{ r.started_at }}</td>
       <td>{{ r.finished_at }}</td>
-      <td>{{ (r.counters or {}).downloaded }}</td>
-      <td>{{ (r.counters or {}).uploaded }}</td>
-      <td>{{ (r.counters or {}).mongo_written }}</td>
-      <td>{{ (r.counters or {}).failed }}</td>
+      <td>{{ r.counters.downloaded }}</td>
+      <td>{{ r.counters.uploaded }}</td>
+      <td>{{ r.counters.mongo_written }}</td>
+      <td>{{ r.counters.failed }}</td>
+      <td>
+        {% if r.errors_cnt > 0 %}
+          <button type="button" class="err-toggle" data-target="err-{{ loop.index }}">
+            ▼ {{ r.errors_cnt }}
+          </button>
+        {% else %}
+          -
+        {% endif %}
+      </td>
+    </tr>
+
+    <!-- 2) 에러 상세 row (숨김) -->
+    <tr id="err-{{ loop.index }}" class="err-row" style="display:none;">
+      <td colspan="11">
+        <pre class="err-box" style="margin:0; padding:10px; background:#f7f7f7; border:1px solid #eee; overflow:auto; white-space:pre-wrap;">
+{{ r.errors | tojson(indent=2) }}
+        </pre>
+      </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+
+<script>
+document.querySelectorAll(".err-toggle").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const id = btn.getAttribute("data-target");
+    const row = document.getElementById(id);
+    const open = row.style.display !== "none";
+    row.style.display = open ? "none" : "table-row";
+    btn.textContent = (open ? "▼" : "▲") + " " + btn.textContent.replace(/^[▼▲]\s*/, "");
+  });
+});
+</script>
 {% endblock %}
