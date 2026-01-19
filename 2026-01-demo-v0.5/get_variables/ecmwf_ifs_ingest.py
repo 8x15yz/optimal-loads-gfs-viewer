@@ -796,7 +796,7 @@ def main():
     )
 
     ap.add_argument("--test_mode", action="store_true", help="테스트 모드: 커서 기반으로 RUN_UTC 1개만 실행")
-    ap.add_argument("--test_cursor_start", default="2024-01-01T00:00:00Z", help="테스트 시작 RUN_UTC")
+    ap.add_argument("--test_cursor_start", default="2025-01-01T00:00:00Z", help="테스트 시작 RUN_UTC")
     ap.add_argument("--test_max_runs", type=int, default=1, help="한 번 실행에서 처리할 run 개수(기본 1)")
 
 
