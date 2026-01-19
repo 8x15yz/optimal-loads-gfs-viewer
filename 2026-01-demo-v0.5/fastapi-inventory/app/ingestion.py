@@ -135,3 +135,80 @@ async def api_ingestion_runs(
     if variable: q["variable"] = variable
     if stream: q["stream"] = stream
     return await runs_col.find(q, {"_id": 0}).sort([("run_time_utc", -1)]).limit(limit).to_list(length=limit)
+
+
+
+### 데이터 언제 들어오는지 확인하는 
+from typing import Any, Dict, Optional, List
+from fastapi import APIRouter, Request, Query
+from fastapi.responses import HTMLResponse
+
+from app.db import get_ingestion_when_collection
+from datetime import datetime, timezone
+
+router = APIRouter()  # 이미 있다면 재사용
+
+def _fmt_dt(v):
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, datetime):
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    return str(v)
+
+@router.get("/ingestion-when", response_class=HTMLResponse, include_in_schema=False)
+async def ingestion_when_page(
+    request: Request,
+    found: Optional[str] = Query(None, description="true/false"),
+    variable: Optional[str] = Query(None),
+    stream: Optional[str] = Query(None),
+    limit: int = Query(200, ge=1, le=2000),
+):
+    when_col = await get_ingestion_when_collection()
+
+    q: Dict[str, Any] = {}
+    if found in ("true", "false"):
+        q["found"] = (found == "true")
+    if variable:
+        q["variable"] = variable
+    if stream:
+        q["stream"] = stream
+
+    docs = await when_col.find(q).sort(
+        [("run_time_utc", -1), ("stream", 1), ("variable", 1), ("step_hours", 1)]
+    ).limit(limit).to_list(length=limit)
+
+    vars_ = sorted({d.get("variable") for d in docs if d.get("variable")})
+    streams_ = sorted({d.get("stream") for d in docs if d.get("stream")})
+    founds_ = ["true", "false"]
+
+    runs = []
+    for d in docs:
+        probe = d.get("probe") or {}
+        runs.append({
+            **d,
+            "checked_at": _fmt_dt(d.get("checked_at")),
+            "first_found_at": _fmt_dt(d.get("first_found_at")),
+            "created_at": _fmt_dt(d.get("created_at")),
+            "updated_at": _fmt_dt(d.get("updated_at")),
+            "probe_url": probe.get("url", ""),
+            "probe_http_status": probe.get("http_status", ""),
+            "probe_latency_ms": probe.get("latency_ms", ""),
+            "probe_method": probe.get("method", ""),
+            "errors_cnt": 1 if d.get("error") else 0,  # 토글용(여긴 error 1개라 단순)
+        })
+
+    return templates.TemplateResponse(
+        "ingestion_when.html",
+        {
+            "request": request,
+            "runs": runs,
+            "filters": {"found": found or "", "variable": variable or "", "stream": stream or "", "limit": limit},
+            "vars": vars_,
+            "streams": streams_,
+            "founds": founds_,
+        },
+    )

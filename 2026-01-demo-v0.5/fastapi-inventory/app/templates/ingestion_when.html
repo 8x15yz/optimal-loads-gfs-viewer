@@ -1,0 +1,103 @@
+{# app/templates/ingestion_when.html #}
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Ingestion When (Probe)</h2>
+
+<form method="get" action="/ingestion-when" style="margin-bottom:12px;">
+  <label>Found:</label>
+  <select name="found">
+    <option value="">(all)</option>
+    {% for f in founds %}
+      <option value="{{ f }}" {% if filters.found==f %}selected{% endif %}>{{ f }}</option>
+    {% endfor %}
+  </select>
+
+  <label style="margin-left:10px;">Variable:</label>
+  <select name="variable">
+    <option value="">(all)</option>
+    {% for v in vars %}
+      <option value="{{ v }}" {% if filters.variable==v %}selected{% endif %}>{{ v }}</option>
+    {% endfor %}
+  </select>
+
+  <label style="margin-left:10px;">Stream:</label>
+  <select name="stream">
+    <option value="">(all)</option>
+    {% for s in streams %}
+      <option value="{{ s }}" {% if filters.stream==s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+
+  <label style="margin-left:10px;">Limit:</label>
+  <input name="limit" value="{{ filters.limit }}" style="width:80px;" />
+
+  <button type="submit" style="margin-left:10px;">Apply</button>
+</form>
+
+<table style="width:100%; border-collapse:collapse;">
+  <thead>
+    <tr>
+      <th align="left">run_time_utc</th>
+      <th align="left">stream</th>
+      <th align="left">variable</th>
+      <th align="left">step</th>
+      <th align="left">found</th>
+      <th align="left">checked_at</th>
+      <th align="left">first_found_at</th>
+      <th align="left">http</th>
+      <th align="left">latency_ms</th>
+      <th align="left">detail</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% for r in runs %}
+    <tr>
+      <td>{{ r.run_time_utc }}</td>
+      <td>{{ r.stream }}</td>
+      <td>{{ r.variable }}</td>
+      <td>{{ r.step_hours }}</td>
+      <td>
+        {% if r.found %}
+          <span style="color:green; font-weight:bold;">true</span>
+        {% else %}
+          <span style="color:#b00020; font-weight:bold;">false</span>
+        {% endif %}
+      </td>
+      <td>{{ r.checked_at }}</td>
+      <td>{{ r.first_found_at }}</td>
+      <td>{{ r.probe_http_status }}</td>
+      <td>{{ r.probe_latency_ms }}</td>
+      <td>
+        <button type="button" class="det-toggle" data-target="det-{{ loop.index }}">
+          ▼ 보기
+        </button>
+      </td>
+    </tr>
+
+    <tr id="det-{{ loop.index }}" class="det-row" style="display:none;">
+      <td colspan="10">
+        <pre style="margin:0; padding:10px; background:#f7f7f7; border:1px solid #eee; overflow:auto; white-space:pre-wrap;">
+probe_method: {{ r.probe_method }}
+probe_url: {{ r.probe_url }}
+error: {{ r.error }}
+        </pre>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+document.querySelectorAll(".det-toggle").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const id = btn.getAttribute("data-target");
+    const row = document.getElementById(id);
+    const open = row.style.display !== "none";
+    row.style.display = open ? "none" : "table-row";
+    btn.textContent = (open ? "▼ 보기" : "▲ 닫기");
+  });
+});
+</script>
+{% endblock %}
