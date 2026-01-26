@@ -30,7 +30,7 @@ from pymongo import ASCENDING, MongoClient, ReturnDocument
 STALE_MINUTES = int(os.getenv("INGESTION_STALE_MINUTES", "30"))  # stale 기준(분)
 
 # --------------------- 사용자 설정 ---------------------
-SOURCE_REAL = "aws"
+SOURCE_REAL = "ecmwf"
 SOURCE = "ecmwf"
 MODEL = "ifs"
 RESOL = "0p25"
