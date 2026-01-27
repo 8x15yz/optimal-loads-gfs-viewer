@@ -4,6 +4,78 @@
 {% block content %}
 <h2>Ingestion</h2>
 
+
+<style>
+  .tz-board {
+    display: grid;
+    grid-template-columns: repeat(9, minmax(140px, 1fr));
+    gap: 10px;
+    margin: 12px 0 16px 0;
+  }
+  .tz-card {
+    border: 1px solid #e6e6e6;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fafafa;
+  }
+  .tz-name {
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .tz-time {
+    margin-top: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+  .tz-offset {
+    font-size: 12px;
+    color: #999;
+    white-space: nowrap;
+  }
+
+  .time-matrix {
+    display: grid;
+    grid-template-columns: 120px repeat(9, minmax(140px, 1fr));
+    gap: 6px 10px;
+    align-items: center;
+    margin-top: 8px;
+  }
+  .time-matrix .hdr {
+    font-size: 11px;
+    color: #666;
+    font-weight: 700;
+  }
+  .time-matrix .rowlbl {
+    font-size: 12px;
+    color: #333;
+    font-weight: 700;
+  }
+  .time-matrix .cell {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 12px;
+    padding: 6px 8px;
+    border: 1px solid #efefef;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sticky-head thead th {
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 2;
+    border-bottom: 1px solid #ddd;
+  }
+</style>
+
 <div style="padding:12px; border:1px solid #ddd; border-radius:8px; margin-bottom:16px;">
   <div><b>enabled</b>: {{ control.enabled }}</div>
   <div><b>running</b>: {{ control.running }}</div>
