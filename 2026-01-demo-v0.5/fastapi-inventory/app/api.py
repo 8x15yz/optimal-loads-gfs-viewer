@@ -15,7 +15,7 @@ import tempfile, os, contextlib, boto3
 
 # ---- env / S3 ----
 AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
-S3_BUCKET  = os.getenv("S3_BUCKET", "optimal-loads-test")
+S3_BUCKET  = os.getenv("S3_BUCKET", "optimal-loads")
 s3 = boto3.client("s3", region_name=AWS_REGION)
 
 ALIASES = {

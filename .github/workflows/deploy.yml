@@ -1,11 +1,9 @@
 name: Deploy fastapi-inventory
 
 on:
-  workflow_dispatch:
-  # push:
-  #   branches:
-  #     - main
-  #     - master
+  push:
+    branches: 
+      - main
 
 jobs:
   deploy:
@@ -21,9 +19,13 @@ jobs:
           script: |
             set -e
 
-            cd "${{ secrets.EC2_PATH }}"
+            PROJECT_ROOT="$HOME/optimal-loads-gfs-viewer"
+            DEMO_DIR="$PROJECT_ROOT/2026-01-demo-v0.5"
+            ENV_FILE= ${{ secrets.ENV_05_DEPLOY }}
 
-            git pull
+            cd "$PROJECT_ROOT"
+            git pull 
+            cd "$DEMO_DIR/fastapi-inventory"
 
             sudo docker rm -f fastapi-inventory 2>/dev/null || true
             sudo docker image rm -f fastapi-inventory:latest 2>/dev/null || true
@@ -33,6 +35,6 @@ jobs:
             sudo docker build --no-cache -t fastapi-inventory:latest .
             sudo docker run -d --name fastapi-inventory \
               --restart=always \
-              --env-file .env \
+              --env-file "$ENV_FILE" \
               -p 80:8000 \
               fastapi-inventory:latest

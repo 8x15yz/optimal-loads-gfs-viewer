@@ -1,9 +1,11 @@
 name: Deploy demo v0.5
 
 on:
-  push:
-    branches:
-      - demo-v0.5
+  workflow_dispatch:
+# on:
+#   push:
+#     branches:
+#       - demo-v0.5
 
 jobs:
   deploy:
