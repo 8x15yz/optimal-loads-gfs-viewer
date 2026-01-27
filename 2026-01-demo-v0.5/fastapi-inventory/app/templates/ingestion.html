@@ -27,132 +27,14 @@
     {% endif %}
   </div> -->
   
-{# -------------------------------
-   ✅ 상단: 타임존 현재시각 보드
-   ------------------------------- #} 
-<div class="tz-board" id="tz-board">
-  {# JS가 채움 #}
 </div>
 
-<table class="sticky-head" style="width:100%; border-collapse:collapse;">
-  <thead>
-    <tr>
-      <th align="left">run_time_utc</th>
-      <th align="left">stream</th>
-      <th align="left">variable</th>
-      <th align="left">step</th>
-      <th align="left">found</th>
-      <th align="left">checked_at</th>
-      <th align="left">first_found_at</th>
-      <th align="left">http</th>
-      <th align="left">latency_ms</th>
-      <th align="left">times(9 TZ)</th>
-      <th align="left">detail</th>
-    </tr>
-  </thead>
-
-  <tbody>
-    {% for r in runs %}
-    <tr>
-      <td class="iso" data-iso="{{ r.run_time_utc }}">{{ r.run_time_utc }}</td>
-      <td>{{ r.stream }}</td>
-      <td>{{ r.variable }}</td>
-      <td>{{ r.step_hours }}</td>
-      <td>
-        {% if r.found %}
-          <span style="color:green; font-weight:bold;">true</span>
-        {% else %}
-          <span style="color:#b00020; font-weight:bold;">false</span>
-        {% endif %}
-      </td>
-      <td class="iso" data-iso="{{ r.checked_at }}">{{ r.checked_at }}</td>
-      <td class="iso" data-iso="{{ r.first_found_at }}">{{ r.first_found_at }}</td>
-      <td>{{ r.probe_http_status }}</td>
-      <td>{{ r.probe_latency_ms }}</td>
-
-      {# ✅ 새로 추가: 9개 타임존 변환 미니 보드 #}
-      <td>
-        <button type="button" class="tz-toggle" data-target="tz-{{ loop.index }}">
-          🕒 보기
-        </button>
-      </td>
-
-      <td>
-        <button type="button" class="det-toggle" data-target="det-{{ loop.index }}">
-          ▼ 보기
-        </button>
-      </td>
-    </tr>
-
-    {# ✅ 9개 타임존 보드 펼침 row #}
-    <tr id="tz-{{ loop.index }}" class="tz-row" style="display:none;">
-      <td colspan="11">
-        <div
-          class="time-matrix"
-          data-run="{{ r.run_time_utc }}"
-          data-checked="{{ r.checked_at }}"
-          data-first="{{ r.first_found_at }}"
-        >
-          <div></div>
-          <div class="hdr">UTC</div>
-          <div class="hdr">DE (Bonn)</div>
-          <div class="hdr">IT (Bologna)</div>
-          <div class="hdr">PT (Porto)</div>
-          <div class="hdr">NO (Oslo)</div>
-          <div class="hdr">SG</div>
-          <div class="hdr">TR</div>
-          <div class="hdr">DK</div>
-          <div class="hdr">KR</div>
-
-          <div class="rowlbl">run_time</div>
-          <div class="cell" data-k="run" data-tz="UTC"></div>
-          <div class="cell" data-k="run" data-tz="Europe/Berlin"></div>
-          <div class="cell" data-k="run" data-tz="Europe/Rome"></div>
-          <div class="cell" data-k="run" data-tz="Europe/Lisbon"></div>
-          <div class="cell" data-k="run" data-tz="Europe/Oslo"></div>
-          <div class="cell" data-k="run" data-tz="Asia/Singapore"></div>
-          <div class="cell" data-k="run" data-tz="Europe/Istanbul"></div>
-          <div class="cell" data-k="run" data-tz="Europe/Copenhagen"></div>
-          <div class="cell" data-k="run" data-tz="Asia/Seoul"></div>
-
-          <div class="rowlbl">checked_at</div>
-          <div class="cell" data-k="checked" data-tz="UTC"></div>
-          <div class="cell" data-k="checked" data-tz="Europe/Berlin"></div>
-          <div class="cell" data-k="checked" data-tz="Europe/Rome"></div>
-          <div class="cell" data-k="checked" data-tz="Europe/Lisbon"></div>
-          <div class="cell" data-k="checked" data-tz="Europe/Oslo"></div>
-          <div class="cell" data-k="checked" data-tz="Asia/Singapore"></div>
-          <div class="cell" data-k="checked" data-tz="Europe/Istanbul"></div>
-          <div class="cell" data-k="checked" data-tz="Europe/Copenhagen"></div>
-          <div class="cell" data-k="checked" data-tz="Asia/Seoul"></div>
-
-          <div class="rowlbl">first_found</div>
-          <div class="cell" data-k="first" data-tz="UTC"></div>
-          <div class="cell" data-k="first" data-tz="Europe/Berlin"></div>
-          <div class="cell" data-k="first" data-tz="Europe/Rome"></div>
-          <div class="cell" data-k="first" data-tz="Europe/Lisbon"></div>
-          <div class="cell" data-k="first" data-tz="Europe/Oslo"></div>
-          <div class="cell" data-k="first" data-tz="Asia/Singapore"></div>
-          <div class="cell" data-k="first" data-tz="Europe/Istanbul"></div>
-          <div class="cell" data-k="first" data-tz="Europe/Copenhagen"></div>
-          <div class="cell" data-k="first" data-tz="Asia/Seoul"></div>
-        </div>
-      </td>
-    </tr>
-
-    <tr id="det-{{ loop.index }}" class="det-row" style="display:none;">
-      <td colspan="11">
-        <pre style="margin:0; padding:10px; background:#f7f7f7; border:1px solid #eee; overflow:auto; white-space:pre-wrap;">
-probe_method: {{ r.probe_method }}
-probe_url: {{ r.probe_url }}
-error: {{ r.error }}
-        </pre>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
+  {# -------------------------------
+    ✅ 상단: 타임존 현재시각 보드
+    ------------------------------- #} 
+  <div class="tz-board" id="tz-board">
+    {# JS가 채움 #}
+  </div>
 
 <form method="get" action="/ingestion" style="margin-bottom:12px;">
   <label>Status:</label>
