@@ -23,26 +23,21 @@ jobs:
             DEMO_DIR="$PROJECT_ROOT/2026-01-demo-v0.5"
             ENV_PATH="$DEMO_DIR/.env_runtime"
 
-            # ✅ Secret(멀티라인 env 내용) -> 서버에 파일로 생성
-            cat > "$ENV_PATH" <<'EOF'
-            ${{ secrets.ENV_05_DEPLOY }}
-            EOF
-            chmod 600 "$ENV_PATH"
-
             cd "$PROJECT_ROOT"
             git fetch origin
             git checkout main
             git reset --hard origin/main
             git clean -fd
 
+            # ✅ clean 이후에 env 파일 생성 (안 지워짐)
+            cat > "$ENV_PATH" <<'EOF'
+            ${{ secrets.ENV_05_DEPLOY }}
+            EOF
+            chmod 600 "$ENV_PATH"
+
             cd "$DEMO_DIR/fastapi-inventory"
 
             sudo docker rm -f fastapi-inventory 2>/dev/null || true
-
-            # (선택) prune은 일단 빼는 걸 추천. 다른 이미지까지 날릴 수 있음.
-            # sudo docker image prune -f
-            # sudo docker builder prune -f
-
             sudo docker build --no-cache -t fastapi-inventory:latest .
 
             sudo docker run -d --name fastapi-inventory \
@@ -50,3 +45,4 @@ jobs:
               --env-file "$ENV_PATH" \
               -p 80:8000 \
               fastapi-inventory:latest
+
