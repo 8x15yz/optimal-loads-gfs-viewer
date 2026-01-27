@@ -74,6 +74,49 @@
     z-index: 2;
     border-bottom: 1px solid #ddd;
   }
+  
+
+  .toggle-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 10px;
+    border:1px solid #e2e2e2;
+    border-radius:999px;
+    background:#fff;
+    color:#222;
+    font-size:12px;
+    line-height:1;
+    cursor:pointer;
+    user-select:none;
+    transition:transform .06s ease, background .15s ease, border-color .15s ease;
+  }
+  .toggle-btn:hover{ background:#f6f6f6; border-color:#d6d6d6; }
+  .toggle-btn:active{ transform:translateY(1px); }
+  .toggle-btn:focus-visible{
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0,0,0,.08);
+  }
+
+  .toggle-btn .chev{
+    display:inline-block;
+    width:14px;
+    text-align:center;
+    transition:transform .15s ease;
+    opacity:.75;
+  }
+  .toggle-btn[aria-expanded="true"] .chev{
+    transform:rotate(90deg);
+    opacity:1;
+  }
+  .toggle-btn .cnt{
+    font-variant-numeric: tabular-nums;
+    font-weight:700;
+  }
+
+  /* 에러(빨간 계열) 토글은 약간만 다르게 */
+  .toggle-btn.danger{ border-color:#f0d6d6; }
+  .toggle-btn.danger:hover{ background:#fff5f5; border-color:#e8bcbc; }
 </style>
 
 <div style="padding:12px; border:1px solid #ddd; border-radius:8px; margin-bottom:16px;">
@@ -196,9 +239,14 @@
 
         <td>
           {% if has_attempts %}
-            <button type="button" class="att-toggle" data-target="att-{{ run_idx }}">
-              ▶ {{ attempts_cnt }}
-            </button>
+            <button type="button"
+                  class="toggle-btn js-toggle"
+                  data-target="att-{{ run_idx }}"
+                  aria-expanded="false">
+            <span class="chev">▸</span>
+            <span class="cnt">{{ attempts_cnt }}</span>
+          </button>
+
           {% else %}
             -
           {% endif %}
@@ -206,9 +254,13 @@
 
         <td>
           {% if r.errors_cnt is defined and r.errors_cnt > 0 %}
-            <button type="button" class="err-toggle" data-target="err-{{ run_idx }}">
-              ▼ {{ r.errors_cnt }}
-            </button>
+            <button type="button"
+                  class="toggle-btn danger js-toggle"
+                  data-target="err-{{ run_idx }}"
+                  aria-expanded="false">
+            <span class="chev">▸</span>
+            <span class="cnt">{{ r.errors_cnt }}</span>
+          </button>
           {% else %}
             -
           {% endif %}
@@ -217,7 +269,7 @@
 
       <!-- 2) attempts 상세 row (숨김) -->
       {% if has_attempts %}
-      <tr id="att-{{ run_idx }}" class="att-row" style="display:none;">
+      <tr id="att-{{ run_idx }}" class="att-row" hidden>
         <td colspan="12" style="padding:10px; background:#fcfcfc; border-top:1px solid #eee;">
           <div style="font-weight:700; margin-bottom:8px;">
             Attempts ({{ attempts_cnt }})
@@ -265,9 +317,11 @@
                   <td>
                     {% if a_err_cnt > 0 %}
                       <button type="button"
-                              class="att-err-toggle"
-                              data-target="att-err-{{ run_idx }}-{{ loop.index }}">
-                        ▼ {{ a_err_cnt }}
+                              class="toggle-btn danger js-toggle"
+                              data-target="att-err-{{ run_idx }}-{{ loop.index }}"
+                              aria-expanded="false">
+                        <span class="chev">▸</span>
+                        <span class="cnt">{{ a_err_cnt }}</span>
                       </button>
                     {% else %}
                       -
@@ -276,7 +330,7 @@
                 </tr>
 
                 <!-- attempt 에러 상세 row (숨김) -->
-                <tr id="att-err-{{ run_idx }}-{{ loop.index }}" style="display:none;">
+                <tr id="att-err-{{ run_idx }}-{{ loop.index }}" hidden>
                   <td colspan="13">
                     <pre style="margin:0; padding:10px; background:#f7f7f7; border:1px solid #eee; overflow:auto; white-space:pre-wrap;">{{ a.errors | tojson(indent=2) }}</pre>
                   </td>
@@ -289,7 +343,7 @@
       {% endif %}
 
       <!-- 3) 기존 에러 상세 row (숨김) -->
-      <tr id="err-{{ run_idx }}" class="err-row" style="display:none;">
+      <tr id="err-{{ run_idx }}" class="err-row" hidden>
         <td colspan="12">
           <pre class="err-box" style="margin:0; padding:10px; background:#f7f7f7; border:1px solid #eee; overflow:auto; white-space:pre-wrap;">
 {{ r.errors | tojson(indent=2) }}
@@ -302,38 +356,55 @@
 </table>
 
 <script>
-  // top-level error toggle
-  document.querySelectorAll(".err-toggle").forEach(btn => {
+  // 모든 토글(에러/attempt/attempt-err) 공통 처리
+  document.querySelectorAll(".js-toggle").forEach(btn => {
     btn.addEventListener("click", () => {
       const id = btn.getAttribute("data-target");
       const row = document.getElementById(id);
-      const open = row.style.display !== "none";
-      row.style.display = open ? "none" : "table-row";
-      btn.textContent = (open ? "▼" : "▲") + " " + btn.textContent.replace(/^[▼▲]\s*/, "");
+      if (!row) return;
+
+      const willOpen = row.hidden;   // hidden이면 열어야 함
+      row.hidden = !willOpen;
+      btn.setAttribute("aria-expanded", willOpen ? "true" : "false");
     });
   });
 
-  // attempts toggle
-  document.querySelectorAll(".att-toggle").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-target");
-      const row = document.getElementById(id);
-      const open = row.style.display !== "none";
-      row.style.display = open ? "none" : "table-row";
-      btn.textContent = (open ? "▶" : "▼") + " " + btn.textContent.replace(/^[▶▼]\s*/, "");
-    });
-  });
+    // ✅ 상단 현재시각 보드
+  function renderBoard() {
+    const el = document.getElementById("tz-board");
+    el.innerHTML = "";
+    TZS.forEach(z => {
+      const card = document.createElement("div");
+      card.className = "tz-card";
 
-  // attempt errors toggle
-  document.querySelectorAll(".att-err-toggle").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-target");
-      const row = document.getElementById(id);
-      const open = row.style.display !== "none";
-      row.style.display = open ? "none" : "table-row";
-      btn.textContent = (open ? "▼" : "▲") + " " + btn.textContent.replace(/^[▼▲]\s*/, "");
+      const name = document.createElement("div");
+      name.className = "tz-name";
+      name.innerHTML = `<span>${z.label}</span><span class="tz-offset">${offsetLabel(z.tz)}</span>`;
+
+      const time = document.createElement("div");
+      time.className = "tz-time";
+      time.setAttribute("data-tz", z.tz);
+
+      card.appendChild(name);
+      card.appendChild(time);
+      el.appendChild(card);
     });
-  });
+
+    tickBoard();
+    setInterval(tickBoard, 1000);
+  }
+
+  function tickBoard() {
+    document.querySelectorAll(".tz-time[data-tz]").forEach(node => {
+      const tz = node.getAttribute("data-tz");
+      node.textContent = fmt(new Date().toISOString(), tz);
+    });
+  }
+
+  
+  // init
+  renderBoard();
 </script>
+
 
 {% endblock %}
