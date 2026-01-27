@@ -1025,8 +1025,9 @@ def main():
                 product_code = meta.get("product_code", PRODUCT_CODE)
 
                 # ✅ (추가) 이미 성공한 변수-run이면 스킵
+                now = utc_now()
                 if is_already_success(run_dt, stream, param):
-                    print(f"⏭️ SKIP (already success): {param} ({stream}) run={iso_z(run_dt)}")
+                    print(f"⏭️ SKIP (already success): {param} ({stream}) run={iso_z(run_dt)} at {now.isoformat()}")
                     summary_vars_success += 1
                     if not args.no_mongo:
                         heartbeat(f"skip var={param} already_success run={iso_z(run_dt)}")
