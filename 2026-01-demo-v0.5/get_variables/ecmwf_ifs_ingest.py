@@ -643,20 +643,27 @@ def heartbeat(note: Optional[str] = None) -> None:
         {"$set": set_doc},
     )
 
-
 # --------------------- ingestion_runs (변수별 run 로그) ---------------------
 MAX_ERRORS = 20
 
 def run_doc_id(run_dt: datetime, stream: str, var: str) -> str:
     return f"{SOURCE}|{MODEL}|{TYPE_CODE}|{stream}|{var}|run={iso_z(run_dt)}"
 
+def make_attempt_id(now: datetime) -> str:
+    # 배열 마지막 원소를 찍을 때 안전하게 쓰려고, attempt_id를 "고유값"으로 만들어둠
+    # (uuid 써도 되는데 외부 의존 없애려고 iso+ms 정도로)
+    return now.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
 def is_already_success(run_dt: datetime, stream: str, var: str) -> bool:
+    """
+    A안: status가 success면 이미 완료로 판단.
+    (partial/failed이면 재시도 허용)
+    """
     if runs_col is None:
         return False
     _id = run_doc_id(run_dt, stream, var)
     doc = runs_col.find_one({"_id": _id}, {"status": 1})
     return bool(doc and doc.get("status") == "success")
-
 
 def start_var_run_log(
     *,
@@ -667,14 +674,39 @@ def start_var_run_log(
     max_step: int,
     steps: list[int],
     trigger: str,
-) -> str:
-    """변수별 run 로그 1건 시작(status=running)."""
+) -> tuple[str, str, datetime]:
+    """
+    변수별 run 로그 attempt 시작.
+    반환: (_id, attempt_id, started_at)
+    """
     if runs_col is None:
-        return run_doc_id(run_dt, stream, var)
+        now = utc_now()
+        return run_doc_id(run_dt, stream, var), make_attempt_id(now), now
 
     now = utc_now()
     _id = run_doc_id(run_dt, stream, var)
-    runs_col.update_one(
+    attempt_id = make_attempt_id(now)
+
+    zero_counters = {"downloaded": 0, "existed": 0, "uploaded": 0, "mongo_written": 0, "failed": 0}
+    zero_notes = {"derived_planned_written": 0}
+
+    attempt_doc = {
+        "attempt_no": None,  # 나중에 attempts_cnt 기반으로 셋(원하면 아래에서 넣어도 됨)
+        "attempt_id": attempt_id,
+        "trigger": trigger,
+        "status": "running",
+        "started_at": now,
+        "finished_at": None,
+        "duration_sec": None,
+        "counters": dict(zero_counters),
+        "errors": [],
+        "notes": dict(zero_notes),
+    }
+
+    # attempts_cnt를 안전하게 증가시키고, 증가된 값으로 attempt_no 부여하려면
+    # find_one_and_update로 attempts_cnt를 먼저 올리고 attempt_no 계산하는 방식이 깔끔함.
+    # (문서 수 적으니 간단히 2-step 해도 되지만, 원자적으로 하려고 여기서 처리)
+    doc_after = runs_col.find_one_and_update(
         {"_id": _id},
         {
             "$setOnInsert": {
@@ -686,59 +718,90 @@ def start_var_run_log(
                 "stream": stream,
                 "variable": var,
                 "run_time_utc": iso_z(run_dt),
-                "trigger": trigger,
                 "created_at": now,
+                "attempts": [],
+                "attempts_cnt": 0,
+                "counters_total": {"downloaded": 0, "existed": 0, "uploaded": 0, "mongo_written": 0, "failed": 0},
             },
+            "$inc": {"attempts_cnt": 1},
             "$set": {
+                "running": True,
                 "status": "running",
-                "started_at": now,
-                "finished_at": None,
-                "duration_sec": None,
-                "schedule": {
-                    "max_step": max_step,
-                    "steps_cnt": len(steps),
-                    # steps는 길면 부담이어서 필요할 때만 남겨도 됨
-                    # "steps": steps,
-                },
-                "counters": {
-                    "downloaded": 0,
-                    "existed": 0,
-                    "uploaded": 0,
-                    "mongo_written": 0,
-                    "failed": 0,
-                },
-                "errors": [],
-                "notes": {"derived_planned_written": 0},
+                "trigger_last": trigger,
+                "schedule": {"max_step": max_step, "steps_cnt": len(steps)},
+                "started_at_last": now,
+                "finished_at_last": None,
+                "duration_sec_last": None,
+                "counters_last": dict(zero_counters),
+                "notes_last": dict(zero_notes),
                 "updated_at": now,
-            }
+            },
         },
         upsert=True,
+        return_document=ReturnDocument.AFTER,
     )
-    return _id
+
+    attempt_no = int((doc_after or {}).get("attempts_cnt") or 1)
+    attempt_doc["attempt_no"] = attempt_no
+
+    # 이제 attempt push
+    runs_col.update_one(
+        {"_id": _id},
+        {
+            "$push": {"attempts": attempt_doc},
+            "$set": {"updated_at": now},
+        },
+    )
+
+    return _id, attempt_id, now
 
 def update_var_run_log(
     _id: str,
+    attempt_id: str,
     *,
     counters: Optional[dict] = None,
     add_error: Optional[dict] = None,
     inc_notes: Optional[dict] = None,
 ) -> None:
-    """진행 중 카운터/에러/노트 업데이트(너무 자주 호출하지 말 것)."""
+    """
+    진행 중 카운터/에러/노트 업데이트.
+    - counters_last 갱신
+    - attempts 내 attempt_id 매칭 원소도 갱신
+    """
     if runs_col is None:
         return
+
     now = utc_now()
     upd: dict = {"$set": {"updated_at": now}}
+
+    array_updates: dict = {}
     if counters is not None:
-        upd["$set"]["counters"] = counters
+        upd["$set"]["counters_last"] = counters
+        array_updates["attempts.$[a].counters"] = counters
+
     if inc_notes is not None:
-        upd.setdefault("$inc", {}).update({f"notes.{k}": v for k, v in inc_notes.items()})
+        # last는 누적 업데이트(inc)
+        upd.setdefault("$inc", {}).update({f"notes_last.{k}": v for k, v in inc_notes.items()})
+        # attempt notes도 누적
+        upd.setdefault("$inc", {}).update({f"attempts.$[a].notes.{k}": v for k, v in inc_notes.items()})
+
     if add_error is not None:
-        # errors는 상위 N개만 유지: 간단히 push + slice
-        upd.setdefault("$push", {})["errors"] = {"$each": [add_error], "$slice": -MAX_ERRORS}
-    runs_col.update_one({"_id": _id}, upd)
+        # 문서 상단엔 최근 에러만 남길 수도 있지만,
+        # 일단 last_errors 같은 건 안 두고 attempt.errors만 유지하자.
+        upd.setdefault("$push", {})["attempts.$[a].errors"] = {"$each": [add_error], "$slice": -MAX_ERRORS}
+
+    if array_updates:
+        upd["$set"].update(array_updates)
+
+    runs_col.update_one(
+        {"_id": _id},
+        upd,
+        array_filters=[{"a.attempt_id": attempt_id}],
+    )
 
 def finish_var_run_log(
     _id: str,
+    attempt_id: str,
     *,
     started_at: datetime,
     status: str,
@@ -746,23 +809,61 @@ def finish_var_run_log(
     errors: list[dict],
     notes: dict,
 ) -> None:
-    """변수별 run 로그 종료(status 확정)."""
+    """
+    attempt 종료 + 문서 top-level last_* 갱신.
+    - counters_total은 "시도 누적"으로 더함(원하면 나중에 정책 바꿔도 됨)
+    """
     if runs_col is None:
         return
+
     now = utc_now()
     dur = int((now - started_at).total_seconds())
+
+    # status가 success/partial/failed로 최종 확정
+    # 문서 top-level status는 "마지막 실행 결과"로 두되,
+    # success면 앞으로 is_already_success에서 스킵되도록 유지.
+    upd = {
+        "$set": {
+            "running": False,
+            "status": status,
+            "updated_at": now,
+
+            "finished_at_last": now,
+            "duration_sec_last": dur,
+            "counters_last": counters,
+            "notes_last": notes,
+
+            # 참고용: 마지막 시도 트리거, started는 start에서 이미 set
+        },
+        "$inc": {
+            "counters_total.downloaded": counters.get("downloaded", 0),
+            "counters_total.existed": counters.get("existed", 0),
+            "counters_total.uploaded": counters.get("uploaded", 0),
+            "counters_total.mongo_written": counters.get("mongo_written", 0),
+            "counters_total.failed": counters.get("failed", 0),
+        },
+        "$setOnInsert": {
+            "created_at": now,
+        },
+    }
+
+    # attempts 내 해당 attempt 마무리
+    upd["$set"].update({
+        "attempts.$[a].status": status,
+        "attempts.$[a].finished_at": now,
+        "attempts.$[a].duration_sec": dur,
+        "attempts.$[a].counters": counters,
+        "attempts.$[a].notes": notes,
+        "attempts.$[a].errors": errors[-MAX_ERRORS:],
+    })
+
     runs_col.update_one(
         {"_id": _id},
-        {"$set": {
-            "status": status,
-            "counters": counters,
-            "errors": errors[-MAX_ERRORS:],
-            "notes": notes,
-            "finished_at": now,
-            "duration_sec": dur,
-            "updated_at": now,
-        }}
+        upd,
+        array_filters=[{"a.attempt_id": attempt_id}],
+        upsert=True,
     )
+
 
 
 # --------------------- run 리스트 생성 ---------------------
@@ -936,7 +1037,7 @@ def main():
                     heartbeat(f"start var={param} run={iso_z(run_dt)}")
 
                 # ✅ 변수별 로그 시작
-                log_id = start_var_run_log(
+                log_id, attempt_id, started_at = start_var_run_log(
                     run_dt=run_dt,
                     stream=stream,
                     var=param,
@@ -945,7 +1046,7 @@ def main():
                     steps=steps,
                     trigger=args.trigger,
                 )
-                started_at = utc_now()
+
 
                 counters = {"downloaded": 0, "existed": 0, "uploaded": 0, "mongo_written": 0, "failed": 0}
                 errors: list[dict] = []
@@ -1070,6 +1171,7 @@ def main():
 
                 finish_var_run_log(
                     log_id,
+                    attempt_id,
                     started_at=started_at,
                     status=var_status,
                     counters=counters,
