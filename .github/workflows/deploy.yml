@@ -35,6 +35,14 @@ jobs:
             EOF
             chmod 600 "$ENV_PATH"
 
+            # ✅ host venv 재생성 (cron용)
+            cd "$DEMO_DIR"
+            rm -rf .venv
+            python3 -m venv .venv
+            ./.venv/bin/python -m pip install -U pip wheel setuptools
+            ./.venv/bin/python -m pip install -r get_variables/requirements.txt
+
+             # ✅ fastapi는 docker
             cd "$DEMO_DIR/fastapi-inventory"
 
             sudo docker rm -f fastapi-inventory 2>/dev/null || true
