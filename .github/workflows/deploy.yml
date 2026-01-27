@@ -40,7 +40,7 @@ jobs:
             rm -rf .venv
             python3 -m venv .venv
             ./.venv/bin/python -m pip install -U pip wheel setuptools
-            ./.venv/bin/python -m pip install -r get_variables/requirements.txt
+            ./.venv/bin/python -m pip install -r fastapi-inventory/requirements.txt
 
              # ✅ fastapi는 docker
             cd "$DEMO_DIR/fastapi-inventory"
