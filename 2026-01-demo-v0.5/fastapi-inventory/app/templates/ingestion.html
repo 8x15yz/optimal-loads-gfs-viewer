@@ -369,7 +369,61 @@
     });
   });
 
-    // ✅ 상단 현재시각 보드
+  const TZS = [
+    { key: "UTC", label: "UTC💥", tz: "UTC" },
+    { key: "PT", label: "포르투갈(포르토)", tz: "Europe/Lisbon" },
+    { key: "DE", label: "독일(본)", tz: "Europe/Berlin" },
+    { key: "IT", label: "이탈리아(볼로냐)", tz: "Europe/Rome" },
+    { key: "DK", label: "덴마크", tz: "Europe/Copenhagen" },
+    { key: "NO", label: "노르웨이(오슬로)", tz: "Europe/Oslo" },
+    { key: "TR", label: "튀르키예", tz: "Europe/Istanbul" },
+    { key: "SG", label: "싱가포르", tz: "Asia/Singapore" },
+    { key: "KR", label: "한국", tz: "Asia/Seoul" },
+  ];
+
+  function safeDate(iso) {
+    if (!iso) return null;
+    // Jinja가 datetime을 "2026-01-19 00:00:00+00:00"처럼 찍는 경우를 대비해서 살짝 보정
+    const s = String(iso).trim().replace(" ", "T");
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function fmt(iso, tz) {
+    const d = safeDate(iso);
+    if (!d) return "-";
+    const f = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    // sv-SE: 2026-01-19 09:00:00 형태로 고정돼서 보기 좋음
+    return f.format(d).replace(" ", " ");
+  }
+
+  function offsetLabel(tz) {
+    try {
+      const d = new Date();
+      const parts = new Intl.DateTimeFormat("en", {
+        timeZone: tz,
+        timeZoneName: "shortOffset",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }).formatToParts(d);
+      const p = parts.find(x => x.type === "timeZoneName");
+      return p ? p.value : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  // ✅ 상단 현재시각 보드
   function renderBoard() {
     const el = document.getElementById("tz-board");
     el.innerHTML = "";
@@ -400,7 +454,6 @@
       node.textContent = fmt(new Date().toISOString(), tz);
     });
   }
-
   
   // init
   renderBoard();
