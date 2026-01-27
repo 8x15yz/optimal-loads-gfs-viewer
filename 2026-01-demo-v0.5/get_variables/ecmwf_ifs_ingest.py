@@ -979,7 +979,7 @@ def main():
             )
 
         if not run_list:
-            print("⚠️ 실행할 RUN이 0개입니다. (--run_hours / start~end 범위 확인)")
+            print("⚠️ 실행할 RUN이 0개입니다.  (--run_hours / start~end 범위 확인)")
             return
 
         client = Client(source=SOURCE_REAL, model=MODEL, resol=RESOL)
