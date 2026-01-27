@@ -720,10 +720,10 @@ def start_var_run_log(
                 "run_time_utc": iso_z(run_dt),
                 "created_at": now,
                 "attempts": [],
-                "attempts_cnt": 0,
+                # ❌ "attempts_cnt": 0  <-- 이 줄 제거
                 "counters_total": {"downloaded": 0, "existed": 0, "uploaded": 0, "mongo_written": 0, "failed": 0},
             },
-            "$inc": {"attempts_cnt": 1},
+            "$inc": {"attempts_cnt": 1},   # ✅ 이거 하나로 충분
             "$set": {
                 "running": True,
                 "status": "running",
@@ -740,8 +740,8 @@ def start_var_run_log(
         upsert=True,
         return_document=ReturnDocument.AFTER,
     )
-
     attempt_no = int((doc_after or {}).get("attempts_cnt") or 1)
+
     attempt_doc["attempt_no"] = attempt_no
 
     # 이제 attempt push
