@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # 수동 실행도 가능하게 유지
+  workflow_dispatch: 
 
 jobs:
   deploy:
