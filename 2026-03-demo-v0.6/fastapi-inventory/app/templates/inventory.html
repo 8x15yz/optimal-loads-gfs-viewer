@@ -23,11 +23,8 @@
     <a href="/inventory?path=/">/</a>
     {%- set parts = current_path.strip('/').split('/') -%}
     {%- for part in parts -%}
-        {{ loop.index0 }}  {# 0부터 시작 #}
-        {{ loop.index }}   {# 1부터 시작 #}
-    {%- endfor -%}
       {%- if part -%}
-        {%- set path_so_far = '/' + parts[:i+1]|join('/') + '/' -%}
+        {%- set path_so_far = '/' + parts[:loop.index]|join('/') + '/' -%}
         <a href="/inventory?path={{ path_so_far|urlencode }}">
           {%- if '-' in part and part[0:4].isdigit() -%}
             {{ part.split('-')[-1] }}
