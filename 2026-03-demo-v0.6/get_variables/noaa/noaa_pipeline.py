@@ -50,8 +50,8 @@ DELETE_LOCAL_AFTER_UPLOAD = True
 SRC_BUCKET = os.getenv("NOAA_GFS_BUCKET", "noaa-gfs-bdp-pds")
 SRC_REGION = os.getenv("NOAA_GFS_REGION", "us-east-1")
 
-# wave 파일명 도메인: 스샷 기준 gsouth
-WAVE_DOMAIN = os.getenv("NOAA_GFS_WAVE_DOMAIN", "gsouth")
+# wave 파일명 도메인: 스샷 기준 global
+WAVE_DOMAIN = os.getenv("NOAA_GFS_WAVE_DOMAIN", "global")
 
 # idx 매칭 레벨
 IDX_LEVEL_HINT = os.getenv("NOAA_GFS_LEVEL_HINT", "surface")
