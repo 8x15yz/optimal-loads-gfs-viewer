@@ -170,7 +170,14 @@ def _build_grid_response(
     """Build standardized grid data response"""
     arr2, dlon, dlat, width, height = _prepare_array_for_response(da, lat_inc)
     arr_flat = arr2.astype(np.float32).flatten()
-    data_list = [None if np.isnan(x) else float(x) for x in arr_flat]
+    
+    # ✅ JSON 안전하게 변환 (nan, inf 처리 포함)
+    data_list = []
+    for x in arr_flat:
+        if np.isnan(x) or np.isinf(x):
+            data_list.append(None)
+        else:
+            data_list.append(float(x))  # numpy float → Python float
     
     # Safe bbox calculation
     if bbox is None:
@@ -180,24 +187,26 @@ def _build_grid_response(
             float(np.nanmax(da["lon"].values)),
             float(np.nanmax(da["lat"].values))
         ]
+    else:
+        # ✅ bbox도 Python float로 변환
+        bbox = [float(x) for x in bbox]
     
     return {
         "timestamp": valid_time_utc,
         "run_time_utc": _to_z(run_dt),
-        "step_hours": int(step_hours),
+        "step_hours": int(step_hours),  # ✅ Python int로
         "valid_time_utc": valid_time_utc,
         "variable": variable,
         "unit": unit,
         "name_en": name_en,
         "standard_name": std_name,
         "bbox": bbox,
-        "resolution": [dlon, dlat],
-        "shape": [width, height],
+        "resolution": [float(dlon), float(dlat)],  # ✅ Python float로
+        "shape": [int(width), int(height)],  # ✅ Python int로
         "indexOrder": "row-major-bottom-up",
         "valueEncoding": {"type": "float32", "scale": 1.0, "offset": 0.0, "nodata": None},
         "data": data_list
     }
-
 
 # Helper functions
 async def _find_wind_components(coll, source, model, type_, run_dt, step_hours):
