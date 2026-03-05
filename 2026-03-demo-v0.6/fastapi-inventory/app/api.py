@@ -280,6 +280,35 @@ async def _download_and_open_single(doc):
             tmp.close()
             os.unlink(tmp.name)
 
+def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]]):
+    """Select DataArray from dataset and apply bbox filtering"""
+    # 변수 해석
+    actual_var = resolve_var(ds, var)
+    da = ds[actual_var]
+    
+    # lat 증가 방향 체크
+    if "lat" in da.coords:
+        lat_vals = da["lat"].values
+        lat_inc = len(lat_vals) > 1 and lat_vals[1] > lat_vals[0]
+    else:
+        lat_inc = True
+    
+    # bbox 적용
+    if bbox is not None:
+        min_lon, min_lat, max_lon, max_lat = bbox
+        lon_vals = da["lon"].values
+        
+        # 경도 범위 조정
+        min_lon = _ensure_lon_range(lon_vals, min_lon)
+        max_lon = _ensure_lon_range(lon_vals, max_lon)
+        
+        da = da.sel(
+            lon=slice(min_lon, max_lon),
+            lat=slice(min(min_lat, max_lat), max(min_lat, max_lat))
+        )
+    
+    return da, lat_inc, actual_var
+
 # async def get_griddata(
 #     # ---- forecast identity (필수) ----
 #     source: str = Query(..., example="ecmwf"),
