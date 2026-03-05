@@ -14,18 +14,28 @@
   .muted { color:#666; }
   .btn { padding:2px 8px; border:1px solid #ddd; border-radius:6px; background:#fff; cursor:pointer; }
   .btn:hover { background:#f7f7f7; }
+  .breadcrumb { display: flex; align-items: center; gap: 4px; }
 </style>
 
 <h2 class="mono">
   <div>Index of</div>
-  {%- for part in current_path.strip('/').split('/') -%}
-    /
-    {%- if '-' in part and part[0:4].isdigit() -%}
-      {{ part.split('-')[-1] }}
-    {%- else -%}
-      {{ part }}
-    {%- endif -%}
-  {%- endfor -%}
+  <div class="breadcrumb">
+    <a href="/inventory?path=/">/</a>
+    {%- set parts = current_path.strip('/').split('/') -%}
+    {%- for i, part in enumerate(parts) -%}
+      {%- if part -%}
+        {%- set path_so_far = '/' + parts[:i+1]|join('/') + '/' -%}
+        <a href="/inventory?path={{ path_so_far|urlencode }}">
+          {%- if '-' in part and part[0:4].isdigit() -%}
+            {{ part.split('-')[-1] }}
+          {%- else -%}
+            {{ part }}
+          {%- endif -%}
+        </a>
+        {%- if not loop.last -%}/<wbr>{%- endif -%}
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
 </h2>
 
 
