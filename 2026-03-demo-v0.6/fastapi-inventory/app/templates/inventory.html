@@ -3,9 +3,123 @@
 {% block content %}
 
 <style>
+  :root {
+    --bg: #fafafa;
+    --text: #0f172a;
+    --muted: #475569;
+    --brand: #0284c7;
+    --border: #e2e8f0;
+    --card: #f8fafc;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-hover: 0 4px 12px rgba(0,0,0,0.1);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  
+  * { box-sizing: border-box; }
+  
   body { 
-    background: #fafafa;
+    background: var(--bg);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    margin: 0;
+    line-height: 1.6;
+  }
+  
+  /* Topbar - 두 번째 파일 스타일 적용 */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(12px) saturate(180%);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  
+  .topbar-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  
+  .brandline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0284c7, #0ea5e9);
+    box-shadow: 0 0 0 4px rgba(2,132,199,0.15);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  
+  .brandline .title {
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+  }
+  
+  .btn:hover {
+    background: var(--card);
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  
+  .btn:active {
+    transform: translateY(0);
+  }
+  
+  .btn-outline {
+    border-color: rgba(2,132,199,0.3);
+    color: var(--brand);
+    background: rgba(2,132,199,0.05);
+  }
+  
+  .btn-outline:hover {
+    background: rgba(2,132,199,0.1);
+    border-color: var(--brand);
   }
   
   .container {
@@ -26,7 +140,7 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   }
   
-  .title {
+  .page-title {
     font-size: 18px;
     font-weight: 600;
     color: #1a1a1a;
@@ -151,31 +265,6 @@
     font-style: italic;
   }
   
-  .btn { 
-    padding: 6px 12px;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    background: white;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    color: #475569;
-    transition: all 0.15s;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-  
-  .btn:hover { 
-    background: #f1f5f9;
-    border-color: #cbd5e1;
-    color: #1e293b;
-  }
-  
-  .btn:active {
-    transform: scale(0.98);
-  }
-  
   .btn.copied {
     background: #dcfce7;
     border-color: #86efac;
@@ -198,6 +287,10 @@
       padding: 16px;
     }
     
+    .topbar-inner {
+      padding: 12px 16px;
+    }
+    
     th, td {
       padding: 10px 12px;
     }
@@ -208,9 +301,23 @@
   }
 </style>
 
+<!-- Sticky topbar -->
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brandline" title="Weather API Inventory Browser">
+      <span class="dot" aria-hidden="true"></span>
+      <div class="title">Weather API Inventory Browser</div>
+    </div>
+    <div class="toolbar">
+      <a class="btn btn-outline" href="/" aria-label="Return to Home">Home</a>
+      <a class="btn btn-outline" href="/docs" aria-label="Open API Documentation">API Documentation</a>
+    </div>
+  </div>
+</div>
+
 <div class="container">
   <div class="header">
-    <h1 class="title">Weather API Inventory Browser</h1>
+    <h1 class="page-title">Directory Browser</h1>
     <div class="breadcrumb mono">
       <a href="/inventory?path=/">🏠</a>
       {%- set parts = current_path.strip('/').split('/') -%}
