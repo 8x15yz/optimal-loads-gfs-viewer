@@ -21,6 +21,13 @@ s3 = boto3.client("s3", region_name=AWS_REGION)
 ALIASES = {
     "10u": ["10u", "u10"],
     "10v": ["10v", "v10"],
+    'WIND': ['ws', 'WIND'],
+    'WDIR': ['wdir', 'WDIR'],
+    'UGRD': ['u', 'UGRD'],
+    'VGRD': ['v', 'VGRD'],
+    'HTSGW': ['swh', 'HTSGW'],
+    'PERPW': ['perpw', 'PERPW'],
+    'DIRPW': ['dirpw', 'DIRPW'],
 }
 
 router = APIRouter(prefix="/api", tags=["grid"])
