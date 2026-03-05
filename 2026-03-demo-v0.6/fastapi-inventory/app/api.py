@@ -40,278 +40,485 @@ router = APIRouter(prefix="/api", tags=["grid"])
     description="Reads a GRIB2/NetCDF from S3 (by forecast run+step) and returns encoded grid values."
 )
 async def get_griddata(
-    # ---- forecast identity (필수) ----
     source: str = Query(..., example="ecmwf"),
     dataset_code: str = Query(..., example="original"),
     model: str = Query(..., example="ifs"),
     variable: str = Query(..., example="swh"),
     run_time_utc: str = Query(..., example="2025-07-16T00:00:00Z"),
     step_hours: int = Query(..., ge=0, le=360, example=24),
-
-    # ---- spatial ----
-    bbox: Optional[List[float]] = Query(
-        default=None,
-        description="[minLon, minLat, maxLon, maxLat] (optional)",
-        example=[128.0, 34.0, 130.0, 36.0]
-    ),
-
-    # ---- optional vertical ----
-    # depth: Optional[Union[float, str]] = Query(
-    #     default=None,
-    #     description="(optional) depth in meters or 'surface', e.g., 0.5, 10, 'surface'"
-    # )
+    bbox: Optional[List[float]] = Query(default=None, description="[minLon, minLat, maxLon, maxLat]"),
 ) -> GridDataResponse:
-    # ✅ Mongo 문서에는 forecast만 있다고 했으니 고정
+    """Main endpoint - delegates to specialized handlers"""
+    
+    # 공통 전처리
     type_ = "forecast"
-
-    # ---- 변수 정규화 (별칭 허용) ----
     norm_var = _norm_var(variable)
-
-    # ---- bbox 선검증 (없으면 전역 허용범위 적용) ----
-    effective_bbox = bbox or [
-        BBOX_LIMITS["min_lon"], BBOX_LIMITS["min_lat"],
-        BBOX_LIMITS["max_lon"], BBOX_LIMITS["max_lat"],
-    ]
+    effective_bbox = bbox or [BBOX_LIMITS["min_lon"], BBOX_LIMITS["min_lat"], 
+                               BBOX_LIMITS["max_lon"], BBOX_LIMITS["max_lat"]]
     _validate_bbox_limits_raw(effective_bbox)
-
-    # ---- valid_time 계산 (응답용) ----
+    
     run_dt = _parse_utc(run_time_utc)
     valid_dt = run_dt + timedelta(hours=int(step_hours))
     valid_time_utc = _to_z(valid_dt)
-
-    # ---- computed wind: U/V(10u/10v) 원본을 같은 run+step으로 찾고 계산 ----
+    
+    # 변수 타입에 따라 분기
     if norm_var in ("wind_speed_10m", "wind_dir_10m"):
-        coll = await get_assets_collection()
-
-        # ✅ 재료는 original에서 찾는 게 일반적 (computed 요청이어도)
-        doc_u = await _find_by_natural_key(
-            coll,
-            source=source,
-            dataset_code="original",
-            model=model,
-            type_=type_,
-            variable="10u",
-            run_time_utc=_to_z(run_dt),
-            step_hours=step_hours
+        return await _handle_computed_wind(
+            source, model, type_, norm_var, run_dt, step_hours, 
+            bbox, effective_bbox, valid_time_utc
         )
-        doc_v = await _find_by_natural_key(
-            coll,
-            source=source,
-            dataset_code="original",
-            model=model,
-            type_=type_,
-            variable="10v",
-            run_time_utc=_to_z(run_dt),
-            step_hours=step_hours
+    else:
+        return await _handle_original_variable(
+            source, dataset_code, model, type_, norm_var, run_dt, step_hours,
+            bbox, effective_bbox, valid_time_utc
         )
 
-        if not (doc_u and doc_v):
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "error": "Required U/V components not found for computed wind at this run+step.",
-                    "needed": ["10u", "10v"],
-                    "run_time_utc": _to_z(run_dt),
-                    "step_hours": int(step_hours)
-                }
-            )
 
-        # bbox cell budget (doc 해상도 우선)
-        est = _estimate_cells_from_doc_or_assume(effective_bbox, doc_u)  # U 기준(보통 동일)
-        if est > MAX_CELLS:
-            raise HTTPException(
-                status_code=413,
-                detail={
-                    "error": "Requested bbox is too large for this dataset resolution.",
-                    "requested_bbox": effective_bbox,
-                    "estimated_cells": est,
-                    "limit": MAX_CELLS,
-                }
-            )
-
-        # ✅ s3 레퍼런스 방어(혹시라도 누락되면 500 대신 명확히)
-        if "s3" not in doc_u or "key" not in doc_u.get("s3", {}):
-            raise HTTPException(status_code=409, detail={"error": "10u metadata has no s3.key", "doc_keys": list(doc_u.keys())})
-        if "s3" not in doc_v or "key" not in doc_v.get("s3", {}):
-            raise HTTPException(status_code=409, detail={"error": "10v metadata has no s3.key", "doc_keys": list(doc_v.keys())})
-
-        tmpu = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc_u))
-        tmpv = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc_v))
-        ds_u = ds_v = None
-        try:
-            s3.download_file(S3_BUCKET, doc_u["s3"]["key"], tmpu.name)
-            s3.download_file(S3_BUCKET, doc_v["s3"]["key"], tmpv.name)
-            ds_u = _open_dataset_safely(tmpu.name)
-            ds_v = _open_dataset_safely(tmpv.name)
-
-            ds_u = _normalize_lonlat(ds_u)
-            ds_v = _normalize_lonlat(ds_v)
-
-            # ✅ 여기서 eastward_wind/northward_wind 사용 금지 → 10u/10v로 통일
-            da_u, lat_inc_u, _ = _select_da(ds_u, "10u", bbox)
-            da_v, lat_inc_v, _ = _select_da(ds_v, "10v", bbox)
-            da_u = _ensure_lat_lon_names(da_u)
-            da_v = _ensure_lat_lon_names(da_v)
-
-            # # depth (있으면 선택)
-            # da_u, _ = _select_depth_if_present(da_u, depth)
-            # da_v, _ = _select_depth_if_present(da_v, depth)
-
-            # 좌표 정합
-            da_u, da_v = xr.align(da_u, da_v, join="inner")
-
-            # 계산 (meteorological FROM-direction)
-            speed = np.hypot(da_u.values, da_v.values)
-            direc = (90.0 - np.degrees(np.arctan2(da_v.values, da_u.values))) % 360.0
-
-            target = speed if norm_var == "wind_speed_10m" else direc
-            da_like = da_u  # 좌표/차원 템플릿
-
-            arr2, dlon, dlat, width, height = _prepare_array_for_response(
-                xr.DataArray(target, coords=da_like.coords, dims=da_like.dims),
-                lat_inc_u
-            )
-
-            if norm_var == "wind_speed_10m":
-                unit_meta, name_en_meta, std_name_meta = "m s-1", "10 m wind speed", "wind_speed_10m"
-            else:
-                unit_meta, name_en_meta, std_name_meta = "degree", "10 m wind direction (from)", "wind_from_direction"
-
-            arr_flat = arr2.astype(np.float32).flatten()
-            data_list = [None if np.isnan(x) else float(x) for x in arr_flat]
-
-            return {
-                "timestamp": valid_time_utc,
-                "run_time_utc": _to_z(run_dt),
-                "step_hours": int(step_hours),
-                "valid_time_utc": valid_time_utc,
-
-                "variable": norm_var,
-                "unit": unit_meta,
-                "name_en": name_en_meta,
-                "standard_name": std_name_meta,
-
-                "bbox": bbox if bbox else [
-                    float(da_like["lon"].values.min()),
-                    float(da_like["lat"].values.min()),
-                    float(da_like["lon"].values.max()),
-                    float(da_like["lat"].values.max()),
-                ],
-                "resolution": [dlon, dlat],
-                "shape": [width, height],
-                "indexOrder": "row-major-bottom-up",
-                "valueEncoding": {"type": "float32", "scale": 1.0, "offset": 0.0, "nodata": None},
-                "data": data_list,
-            }
-        finally:
-            with contextlib.suppress(Exception):
-                tmpu.close(); os.unlink(tmpu.name)
-                tmpv.close(); os.unlink(tmpv.name)
-                ds_u and ds_u.close()
-                ds_v and ds_v.close()
-
-    # ========== original variable (S3 GRIB2/NC) ==========
+async def _handle_computed_wind(
+    source: str, model: str, type_: str, norm_var: str,
+    run_dt, step_hours: int, bbox, effective_bbox, valid_time_utc: str
+):
+    """Handle computed wind variables (speed/direction from U/V components)"""
     coll = await get_assets_collection()
+    
+    # Find U and V components
+    doc_u, doc_v = await _find_wind_components(coll, source, model, type_, run_dt, step_hours)
+    
+    # Validate size
+    est = _estimate_cells_from_doc_or_assume(effective_bbox, doc_u)
+    if est > MAX_CELLS:
+        raise HTTPException(status_code=413, detail={
+            "error": "Requested bbox is too large",
+            "estimated_cells": est, "limit": MAX_CELLS
+        })
+    
+    # Download and process
+    ds_u, ds_v = await _download_and_open_pair(doc_u, doc_v)
+    
+    try:
+        # Extract and align
+        da_u, lat_inc_u = _extract_and_prepare_da(ds_u, "10u", bbox)
+        da_v, _ = _extract_and_prepare_da(ds_v, "10v", bbox)
+        da_u, da_v = xr.align(da_u, da_v, join="inner")
+        
+        # Compute wind speed or direction
+        if norm_var == "wind_speed_10m":
+            values = np.hypot(da_u.values, da_v.values)
+            unit, name_en, std_name = "m s-1", "10 m wind speed", "wind_speed_10m"
+        else:
+            values = (90.0 - np.degrees(np.arctan2(da_v.values, da_u.values))) % 360.0
+            unit, name_en, std_name = "degree", "10 m wind direction (from)", "wind_from_direction"
+        
+        da_result = xr.DataArray(values, coords=da_u.coords, dims=da_u.dims)
+        
+        return _build_grid_response(
+            da_result, lat_inc_u, norm_var, unit, name_en, std_name,
+            run_dt, step_hours, valid_time_utc, bbox
+        )
+    finally:
+        _cleanup_datasets([ds_u, ds_v])
 
+
+async def _handle_original_variable(
+    source: str, dataset_code: str, model: str, type_: str, norm_var: str,
+    run_dt, step_hours: int, bbox, effective_bbox, valid_time_utc: str
+):
+    """Handle original variables from single GRIB/NetCDF file"""
+    coll = await get_assets_collection()
+    
+    # Find document
     doc = await _find_by_natural_key(
-        coll,
-        source=source,
-        dataset_code=dataset_code,
-        model=model,
-        type_=type_,
-        variable=norm_var,
-        run_time_utc=_to_z(run_dt),
-        step_hours=step_hours
+        coll, source=source, dataset_code=dataset_code, model=model,
+        type_=type_, variable=norm_var, run_time_utc=_to_z(run_dt), step_hours=step_hours
     )
     if not doc:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": "No matching dataset found for this run+step.",
-                "source": source,
-                "dataset_code": dataset_code,
-                "model": model,
-                "type": type_,
-                "variable": norm_var,
-                "run_time_utc": _to_z(run_dt),
-                "step_hours": int(step_hours),
-            }
-        )
-
+        raise HTTPException(status_code=404, detail={
+            "error": "No matching dataset found", "variable": norm_var,
+            "run_time_utc": _to_z(run_dt), "step_hours": step_hours
+        })
+    
+    # Validate size
     est = _estimate_cells_from_doc_or_assume(effective_bbox, doc)
     if est > MAX_CELLS:
-        raise HTTPException(
-            status_code=413,
-            detail={
-                "error": "Requested bbox is too large for this dataset resolution.",
-                "requested_bbox": effective_bbox,
-                "estimated_cells": est,
-                "limit": MAX_CELLS,
-            }
-        )
-
-    if "s3" not in doc or "key" not in doc.get("s3", {}):
-        raise HTTPException(
-            status_code=409,
-            detail={"error": "This metadata record has no s3.key", "doc_keys": list(doc.keys())}
-        )
-
-    s3_key = doc["s3"]["key"]
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc))
-    ds = None
+        raise HTTPException(status_code=413, detail={
+            "error": "Requested bbox is too large",
+            "estimated_cells": est, "limit": MAX_CELLS
+        })
+    
+    # Download and process
+    ds = await _download_and_open_single(doc)
+    
     try:
-        s3.download_file(S3_BUCKET, s3_key, tmp.name)
-        ds = _open_dataset_safely(tmp.name)
-        ds = _normalize_lonlat(ds)
-
-        if bbox is not None and len(bbox) != 4:
-            raise HTTPException(status_code=422, detail="bbox must have 4 numbers: [minLon, minLat, maxLon, maxLat]")
-
-        da, lat_inc, _ = _select_da(ds, norm_var, bbox)
-        da = _ensure_lat_lon_names(da)
-        # da, _chosen_depth = _select_depth_if_present(da, depth)
-
-        arr2, dlon, dlat, width, height = _prepare_array_for_response(da, lat_inc)
-
-        unit_meta = doc.get("unit")
-        name_en_meta = doc.get("name_en")
-        std_name_meta = doc.get("standard_name")
-
-        arr_flat = arr2.astype(np.float32).flatten()
-        data_list = [None if np.isnan(x) else float(x) for x in arr_flat]
-
-        return {
-            "timestamp": valid_time_utc,
-            "run_time_utc": _to_z(run_dt),
-            "step_hours": int(step_hours),
-            "valid_time_utc": valid_time_utc,
-
-            "variable": norm_var,
-            "unit": unit_meta,
-            "name_en": name_en_meta,
-            "standard_name": std_name_meta,
-
-            "bbox": bbox if bbox else [
-                float(da["lon"].values.min()),
-                float(da["lat"].values.min()),
-                float(da["lon"].values.max()),
-                float(da["lat"].values.max())
-            ],
-            "resolution": [dlon, dlat],
-            "shape": [width, height],
-            "indexOrder": "row-major-bottom-up",
-            "valueEncoding": {"type": "float32", "scale": 1.0, "offset": 0.0, "nodata": None},
-            "data": data_list
-        }
+        da, lat_inc = _extract_and_prepare_da(ds, norm_var, bbox)
+        
+        return _build_grid_response(
+            da, lat_inc, norm_var, 
+            doc.get("unit"), doc.get("name_en"), doc.get("standard_name"),
+            run_dt, step_hours, valid_time_utc, bbox
+        )
     finally:
-        with contextlib.suppress(Exception):
-            tmp.close(); os.unlink(tmp.name)
-            ds and ds.close()
+        _cleanup_datasets([ds])
+
+
+def _build_grid_response(
+    da, lat_inc: bool, variable: str, unit: str, name_en: str, std_name: str,
+    run_dt, step_hours: int, valid_time_utc: str, bbox
+):
+    """Build standardized grid data response"""
+    arr2, dlon, dlat, width, height = _prepare_array_for_response(da, lat_inc)
+    arr_flat = arr2.astype(np.float32).flatten()
+    data_list = [None if np.isnan(x) else float(x) for x in arr_flat]
+    
+    # Safe bbox calculation
+    if bbox is None:
+        bbox = [
+            float(np.nanmin(da["lon"].values)),
+            float(np.nanmin(da["lat"].values)),
+            float(np.nanmax(da["lon"].values)),
+            float(np.nanmax(da["lat"].values))
+        ]
+    
+    return {
+        "timestamp": valid_time_utc,
+        "run_time_utc": _to_z(run_dt),
+        "step_hours": int(step_hours),
+        "valid_time_utc": valid_time_utc,
+        "variable": variable,
+        "unit": unit,
+        "name_en": name_en,
+        "standard_name": std_name,
+        "bbox": bbox,
+        "resolution": [dlon, dlat],
+        "shape": [width, height],
+        "indexOrder": "row-major-bottom-up",
+        "valueEncoding": {"type": "float32", "scale": 1.0, "offset": 0.0, "nodata": None},
+        "data": data_list
+    }
+
+
+# Helper functions
+async def _find_wind_components(coll, source, model, type_, run_dt, step_hours):
+    """Find both U and V wind components"""
+    doc_u = await _find_by_natural_key(
+        coll, source=source, dataset_code="original", model=model, type_=type_,
+        variable="10u", run_time_utc=_to_z(run_dt), step_hours=step_hours
+    )
+    doc_v = await _find_by_natural_key(
+        coll, source=source, dataset_code="original", model=model, type_=type_,
+        variable="10v", run_time_utc=_to_z(run_dt), step_hours=step_hours
+    )
+    
+    if not (doc_u and doc_v):
+        raise HTTPException(status_code=404, detail={
+            "error": "Required U/V components not found",
+            "needed": ["10u", "10v"]
+        })
+    
+    return doc_u, doc_v
+
+
+def _extract_and_prepare_da(ds, var: str, bbox):
+    """Extract DataArray and prepare for response"""
+    da, lat_inc, _ = _select_da(ds, var, bbox)
+    da = _ensure_lat_lon_names(da)
+    return da, lat_inc
+
+
+def _cleanup_datasets(datasets):
+    """Safely close datasets"""
+    for ds in datasets:
+        if ds:
+            with contextlib.suppress(Exception):
+                ds.close()
+
+
+
+# async def get_griddata(
+#     # ---- forecast identity (필수) ----
+#     source: str = Query(..., example="ecmwf"),
+#     dataset_code: str = Query(..., example="original"),
+#     model: str = Query(..., example="ifs"),
+#     variable: str = Query(..., example="swh"),
+#     run_time_utc: str = Query(..., example="2025-07-16T00:00:00Z"),
+#     step_hours: int = Query(..., ge=0, le=360, example=24),
+
+#     # ---- spatial ----
+#     bbox: Optional[List[float]] = Query(
+#         default=None,
+#         description="[minLon, minLat, maxLon, maxLat] (optional)",
+#         example=[128.0, 34.0, 130.0, 36.0]
+#     ),
+
+#     # ---- optional vertical ----
+#     # depth: Optional[Union[float, str]] = Query(
+#     #     default=None,
+#     #     description="(optional) depth in meters or 'surface', e.g., 0.5, 10, 'surface'"
+#     # )
+# ) -> GridDataResponse:
+#     # ✅ Mongo 문서에는 forecast만 있다고 했으니 고정
+#     type_ = "forecast"
+
+#     # ---- 변수 정규화 (별칭 허용) ----
+#     norm_var = _norm_var(variable)
+
+#     # ---- bbox 선검증 (없으면 전역 허용범위 적용) ----
+#     effective_bbox = bbox or [
+#         BBOX_LIMITS["min_lon"], BBOX_LIMITS["min_lat"],
+#         BBOX_LIMITS["max_lon"], BBOX_LIMITS["max_lat"],
+#     ]
+#     _validate_bbox_limits_raw(effective_bbox)
+
+#     # ---- valid_time 계산 (응답용) ----
+#     run_dt = _parse_utc(run_time_utc)
+#     valid_dt = run_dt + timedelta(hours=int(step_hours))
+#     valid_time_utc = _to_z(valid_dt)
+
+#     # ---- computed wind: U/V(10u/10v) 원본을 같은 run+step으로 찾고 계산 ----
+#     if norm_var in ("wind_speed_10m", "wind_dir_10m"):
+#         coll = await get_assets_collection()
+
+#         # ✅ 재료는 original에서 찾는 게 일반적 (computed 요청이어도)
+#         doc_u = await _find_by_natural_key(
+#             coll,
+#             source=source,
+#             dataset_code="original",
+#             model=model,
+#             type_=type_,
+#             variable="10u",
+#             run_time_utc=_to_z(run_dt),
+#             step_hours=step_hours
+#         )
+#         doc_v = await _find_by_natural_key(
+#             coll,
+#             source=source,
+#             dataset_code="original",
+#             model=model,
+#             type_=type_,
+#             variable="10v",
+#             run_time_utc=_to_z(run_dt),
+#             step_hours=step_hours
+#         )
+
+#         if not (doc_u and doc_v):
+#             raise HTTPException(
+#                 status_code=404,
+#                 detail={
+#                     "error": "Required U/V components not found for computed wind at this run+step.",
+#                     "needed": ["10u", "10v"],
+#                     "run_time_utc": _to_z(run_dt),
+#                     "step_hours": int(step_hours)
+#                 }
+#             )
+
+#         # bbox cell budget (doc 해상도 우선)
+#         est = _estimate_cells_from_doc_or_assume(effective_bbox, doc_u)  # U 기준(보통 동일)
+#         if est > MAX_CELLS:
+#             raise HTTPException(
+#                 status_code=413,
+#                 detail={
+#                     "error": "Requested bbox is too large for this dataset resolution.",
+#                     "requested_bbox": effective_bbox,
+#                     "estimated_cells": est,
+#                     "limit": MAX_CELLS,
+#                 }
+#             )
+
+#         # ✅ s3 레퍼런스 방어(혹시라도 누락되면 500 대신 명확히)
+#         if "s3" not in doc_u or "key" not in doc_u.get("s3", {}):
+#             raise HTTPException(status_code=409, detail={"error": "10u metadata has no s3.key", "doc_keys": list(doc_u.keys())})
+#         if "s3" not in doc_v or "key" not in doc_v.get("s3", {}):
+#             raise HTTPException(status_code=409, detail={"error": "10v metadata has no s3.key", "doc_keys": list(doc_v.keys())})
+
+#         tmpu = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc_u))
+#         tmpv = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc_v))
+#         ds_u = ds_v = None
+#         try:
+#             s3.download_file(S3_BUCKET, doc_u["s3"]["key"], tmpu.name)
+#             s3.download_file(S3_BUCKET, doc_v["s3"]["key"], tmpv.name)
+#             ds_u = _open_dataset_safely(tmpu.name)
+#             ds_v = _open_dataset_safely(tmpv.name)
+
+#             ds_u = _normalize_lonlat(ds_u)
+#             ds_v = _normalize_lonlat(ds_v)
+
+#             # ✅ 여기서 eastward_wind/northward_wind 사용 금지 → 10u/10v로 통일
+#             da_u, lat_inc_u, _ = _select_da(ds_u, "10u", bbox)
+#             da_v, lat_inc_v, _ = _select_da(ds_v, "10v", bbox)
+#             da_u = _ensure_lat_lon_names(da_u)
+#             da_v = _ensure_lat_lon_names(da_v)
+
+#             # # depth (있으면 선택)
+#             # da_u, _ = _select_depth_if_present(da_u, depth)
+#             # da_v, _ = _select_depth_if_present(da_v, depth)
+
+#             # 좌표 정합
+#             da_u, da_v = xr.align(da_u, da_v, join="inner")
+
+#             # 계산 (meteorological FROM-direction)
+#             speed = np.hypot(da_u.values, da_v.values)
+#             direc = (90.0 - np.degrees(np.arctan2(da_v.values, da_u.values))) % 360.0
+
+#             target = speed if norm_var == "wind_speed_10m" else direc
+#             da_like = da_u  # 좌표/차원 템플릿
+
+#             arr2, dlon, dlat, width, height = _prepare_array_for_response(
+#                 xr.DataArray(target, coords=da_like.coords, dims=da_like.dims),
+#                 lat_inc_u
+#             )
+
+#             if norm_var == "wind_speed_10m":
+#                 unit_meta, name_en_meta, std_name_meta = "m s-1", "10 m wind speed", "wind_speed_10m"
+#             else:
+#                 unit_meta, name_en_meta, std_name_meta = "degree", "10 m wind direction (from)", "wind_from_direction"
+
+#             arr_flat = arr2.astype(np.float32).flatten()
+#             data_list = [None if np.isnan(x) else float(x) for x in arr_flat]
+
+#             return {
+#                 "timestamp": valid_time_utc,
+#                 "run_time_utc": _to_z(run_dt),
+#                 "step_hours": int(step_hours),
+#                 "valid_time_utc": valid_time_utc,
+
+#                 "variable": norm_var,
+#                 "unit": unit_meta,
+#                 "name_en": name_en_meta,
+#                 "standard_name": std_name_meta,
+
+#                 "bbox": bbox if bbox else [
+#                     float(da_like["lon"].values.min()),
+#                     float(da_like["lat"].values.min()),
+#                     float(da_like["lon"].values.max()),
+#                     float(da_like["lat"].values.max()),
+#                 ],
+#                 "resolution": [dlon, dlat],
+#                 "shape": [width, height],
+#                 "indexOrder": "row-major-bottom-up",
+#                 "valueEncoding": {"type": "float32", "scale": 1.0, "offset": 0.0, "nodata": None},
+#                 "data": data_list,
+#             }
+#         finally:
+#             with contextlib.suppress(Exception):
+#                 tmpu.close(); os.unlink(tmpu.name)
+#                 tmpv.close(); os.unlink(tmpv.name)
+#                 ds_u and ds_u.close()
+#                 ds_v and ds_v.close()
+
+#     # ========== original variable (S3 GRIB2/NC) ==========
+#     coll = await get_assets_collection()
+
+#     doc = await _find_by_natural_key(
+#         coll,
+#         source=source,
+#         dataset_code=dataset_code,
+#         model=model,
+#         type_=type_,
+#         variable=norm_var,
+#         run_time_utc=_to_z(run_dt),
+#         step_hours=step_hours
+#     )
+#     if not doc:
+#         raise HTTPException(
+#             status_code=404,
+#             detail={
+#                 "error": "No matching dataset found for this run+step.",
+#                 "source": source,
+#                 "dataset_code": dataset_code,
+#                 "model": model,
+#                 "type": type_,
+#                 "variable": norm_var,
+#                 "run_time_utc": _to_z(run_dt),
+#                 "step_hours": int(step_hours),
+#             }
+#         )
+
+#     est = _estimate_cells_from_doc_or_assume(effective_bbox, doc)
+#     if est > MAX_CELLS:
+#         raise HTTPException(
+#             status_code=413,
+#             detail={
+#                 "error": "Requested bbox is too large for this dataset resolution.",
+#                 "requested_bbox": effective_bbox,
+#                 "estimated_cells": est,
+#                 "limit": MAX_CELLS,
+#             }
+#         )
+
+#     if "s3" not in doc or "key" not in doc.get("s3", {}):
+#         raise HTTPException(
+#             status_code=409,
+#             detail={"error": "This metadata record has no s3.key", "doc_keys": list(doc.keys())}
+#         )
+
+#     s3_key = doc["s3"]["key"]
+#     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc))
+#     ds = None
+#     try:
+#         s3.download_file(S3_BUCKET, s3_key, tmp.name)
+#         ds = _open_dataset_safely(tmp.name)
+#         ds = _normalize_lonlat(ds)
+
+#         if bbox is not None and len(bbox) != 4:
+#             raise HTTPException(status_code=422, detail="bbox must have 4 numbers: [minLon, minLat, maxLon, maxLat]")
+
+#         da, lat_inc, _ = _select_da(ds, norm_var, bbox)
+#         da = _ensure_lat_lon_names(da)
+#         # da, _chosen_depth = _select_depth_if_present(da, depth)
+
+#         arr2, dlon, dlat, width, height = _prepare_array_for_response(da, lat_inc)
+
+#         unit_meta = doc.get("unit")
+#         name_en_meta = doc.get("name_en")
+#         std_name_meta = doc.get("standard_name")
+
+#         arr_flat = arr2.astype(np.float32).flatten()
+#         data_list = [None if np.isnan(x) else float(x) for x in arr_flat]
+
+#         return {
+#             "timestamp": valid_time_utc,
+#             "run_time_utc": _to_z(run_dt),
+#             "step_hours": int(step_hours),
+#             "valid_time_utc": valid_time_utc,
+
+#             "variable": norm_var,
+#             "unit": unit_meta,
+#             "name_en": name_en_meta,
+#             "standard_name": std_name_meta,
+
+#             "bbox": bbox if bbox else [
+#                 float(da["lon"].values.min()),
+#                 float(da["lat"].values.min()),
+#                 float(da["lon"].values.max()),
+#                 float(da["lat"].values.max())
+#             ],
+#             "resolution": [dlon, dlat],
+#             "shape": [width, height],
+#             "indexOrder": "row-major-bottom-up",
+#             "valueEncoding": {"type": "float32", "scale": 1.0, "offset": 0.0, "nodata": None},
+#             "data": data_list
+#         }
+#     finally:
+#         with contextlib.suppress(Exception):
+#             tmp.close(); os.unlink(tmp.name)
+#             ds and ds.close()
 
 
 # =============================================================================
 # Helpers
 # =============================================================================
+def _safe_float(value):
+    """Convert value to JSON-safe float or None"""
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        return [_safe_float(v) for v in value]
+    try:
+        if np.isnan(value) or np.isinf(value):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return value
+
 def resolve_var(ds, var: str) -> str:
     candidates = ALIASES.get(var, [var])
     for name in candidates:
