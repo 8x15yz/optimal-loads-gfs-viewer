@@ -99,31 +99,31 @@ async def get_griddata(
     # ---- bbox 선검증 ----
     if lat is not None and lon is not None and buffer_km is not None:
         if buffer_km == 0:
-            # ✅ 단일 포인트 조회: 최소 격자 간격 사용
-            buffer_deg_lat = 0.125  # 0.25° / 2
-            buffer_deg_lon = 0.125 / np.cos(np.radians(lat))
+            # ✅ 단일 포인트: 가장 가까운 격자점 1개만
+            buffer_deg_lat = 0.001
+            buffer_deg_lon = 0.001
         else:
             # km → degree 변환
             buffer_deg_lat = buffer_km / 111.0
             buffer_deg_lon = buffer_km / (111.0 * np.cos(np.radians(lat)))
-        
-        # ✅ 최소 버퍼 보장 (격자 해상도의 절반 이상)
-        min_buffer_deg = 0.125  # 0.25° / 2
-        buffer_deg_lat = max(buffer_deg_lat, min_buffer_deg)
-        buffer_deg_lon = max(buffer_deg_lon, min_buffer_deg / np.cos(np.radians(lat)))
+            
+            # 최소 버퍼 보장 (buffer_km > 0일 때만)
+            min_buffer_deg = 0.125  # 0.25° / 2
+            buffer_deg_lat = max(buffer_deg_lat, min_buffer_deg)
+            buffer_deg_lon = max(buffer_deg_lon, min_buffer_deg / np.cos(np.radians(lat)))
         
         effective_bbox = [
-            lon - buffer_deg_lon,  # minLon
-            lat - buffer_deg_lat,   # minLat
-            lon + buffer_deg_lon,   # maxLon
-            lat + buffer_deg_lat    # maxLat
+            lon - buffer_deg_lon,
+            lat - buffer_deg_lat,
+            lon + buffer_deg_lon,
+            lat + buffer_deg_lat
         ]
     else:
-        # 파라미터 없으면 전역 범위
         effective_bbox = [
             BBOX_LIMITS["min_lon"], BBOX_LIMITS["min_lat"],
             BBOX_LIMITS["max_lon"], BBOX_LIMITS["max_lat"],
         ]
+
     _validate_bbox_limits_raw(effective_bbox)
     
     # ---- 변수 정규화 (소스별) ----
@@ -523,26 +523,38 @@ def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]], source: st
     if "time" in da.dims and da.sizes.get("time", 1) == 1:
         da = da.isel(time=0)
     
+    # ✅ 기본값 설정 (전체 데이터셋)
+    lon_vals = ds["lon"].values
+    lat_vals = ds["lat"].values
+    lon_inc = bool(lon_vals[1] > lon_vals[0]) if lon_vals.size > 1 else True
+    lat_inc = bool(lat_vals[1] > lat_vals[0]) if lat_vals.size > 1 else True
+    
     if bbox and len(bbox) == 4:
         min_lon, min_lat, max_lon, max_lat = map(float, bbox)
-        lon_vals = ds["lon"].values
-        lat_vals = ds["lat"].values
         
-        lon_inc = bool(lon_vals[1] > lon_vals[0]) if lon_vals.size > 1 else True
-        lat_inc = bool(lat_vals[1] > lat_vals[0]) if lat_vals.size > 1 else True
+        # ✅ bbox가 매우 작으면 (단일 포인트) nearest 사용
+        bbox_width = max_lon - min_lon
+        bbox_height = max_lat - min_lat
         
-        lon_slice = slice(min_lon, max_lon) if lon_inc else slice(max_lon, min_lon)
-        lat_slice = slice(min_lat, max_lat) if lat_inc else slice(max_lat, min_lat)
-        
-        da = da.sel(lon=lon_slice, lat=lat_slice)
-    else:
-        lon_vals = ds["lon"].values
-        lat_vals = ds["lat"].values
-        lon_inc = bool(lon_vals[1] > lon_vals[0]) if lon_vals.size > 1 else True
-        lat_inc = bool(lat_vals[1] > lat_vals[0]) if lat_vals.size > 1 else True
+        if bbox_width < 0.01 and bbox_height < 0.01:
+            # 단일 포인트: 중심점의 가장 가까운 격자 선택
+            center_lon = (min_lon + max_lon) / 2
+            center_lat = (min_lat + max_lat) / 2
+            da = da.sel(lon=center_lon, lat=center_lat, method='nearest')
+            
+            # ✅ 단일 포인트 후처리: 차원 유지
+            if 'lon' not in da.dims and 'lat' not in da.dims:
+                # 0차원 스칼라 → 1x1 배열로 변환
+                selected_lon = float(da['lon'].values)
+                selected_lat = float(da['lat'].values)
+                da = da.expand_dims({'lon': [selected_lon], 'lat': [selected_lat]})
+        else:
+            # 범위 선택
+            lon_slice = slice(min_lon, max_lon) if lon_inc else slice(max_lon, min_lon)
+            lat_slice = slice(min_lat, max_lat) if lat_inc else slice(max_lat, min_lat)
+            da = da.sel(lon=lon_slice, lat=lat_slice)
     
     return da, lat_inc, lon_inc
-
 
 def _ensure_lat_lon_names(da: xr.DataArray) -> xr.DataArray:
     """latitude/longitude → lat/lon 이름 변경"""
