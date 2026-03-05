@@ -79,7 +79,7 @@ export default function MapComponent() {
     setIsLoading(true)
     try {
       console.log(selectedDate, "!!")
-      const response = await fetch(`http://172.30.1.83:8000/api/gfs/wind-direction?date=${selectedDate}`)
+      const response = await fetch(`http://127.0.0.1:8000/api/gfs/wind-direction?date=${selectedDate}`)
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)

@@ -3,7 +3,7 @@ import requests
 import os
 
 today = datetime.utcnow().strftime("%Y%m%d")
-hour = "06"  # 00, 06, 12, 18 중에서 선택
+hour = "00"  # 00, 06, 12, 18 중에서 선택
 
 filename = f"gfswave.t{hour}z.global.0p25.f000.grib2"
 url = f"https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/v16.3/gfs.{today}/{hour}/wave/gridded/{filename}"
