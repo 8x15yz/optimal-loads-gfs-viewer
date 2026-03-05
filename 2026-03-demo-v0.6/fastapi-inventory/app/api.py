@@ -225,13 +225,60 @@ def _extract_and_prepare_da(ds, var: str, bbox):
 
 
 def _cleanup_datasets(datasets):
-    """Safely close datasets"""
+    """Safely close datasets and delete temp files"""
     for ds in datasets:
         if ds:
             with contextlib.suppress(Exception):
+                # Delete temp file if exists
+                if hasattr(ds, '_temp_file'):
+                    os.unlink(ds._temp_file)
                 ds.close()
 
 
+async def _download_and_open_pair(doc_u, doc_v):
+    """Download and open U/V component files - caller must cleanup temp files"""
+    if "s3" not in doc_u or "key" not in doc_u.get("s3", {}):
+        raise HTTPException(status_code=409, detail={"error": "10u metadata has no s3.key"})
+    if "s3" not in doc_v or "key" not in doc_v.get("s3", {}):
+        raise HTTPException(status_code=409, detail={"error": "10v metadata has no s3.key"})
+    
+    tmpu = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc_u))
+    tmpv = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc_v))
+    
+    s3.download_file(S3_BUCKET, doc_u["s3"]["key"], tmpu.name)
+    s3.download_file(S3_BUCKET, doc_v["s3"]["key"], tmpv.name)
+    
+    tmpu.close()
+    tmpv.close()
+    
+    ds_u = _open_dataset_safely(tmpu.name)
+    ds_v = _open_dataset_safely(tmpv.name)
+    
+    ds_u = _normalize_lonlat(ds_u)
+    ds_v = _normalize_lonlat(ds_v)
+    
+    # Store temp file paths for cleanup
+    ds_u._temp_file = tmpu.name
+    ds_v._temp_file = tmpv.name
+    
+    return ds_u, ds_v
+
+async def _download_and_open_single(doc):
+    """Download and open single dataset file"""
+    if "s3" not in doc or "key" not in doc.get("s3", {}):
+        raise HTTPException(status_code=409, detail={"error": "Metadata has no s3.key"})
+    
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc))
+    
+    try:
+        s3.download_file(S3_BUCKET, doc["s3"]["key"], tmp.name)
+        ds = _open_dataset_safely(tmp.name)
+        ds = _normalize_lonlat(ds)
+        return ds
+    finally:
+        with contextlib.suppress(Exception):
+            tmp.close()
+            os.unlink(tmp.name)
 
 # async def get_griddata(
 #     # ---- forecast identity (필수) ----
@@ -613,55 +660,6 @@ def _ensure_lon_range(lon_vals: np.ndarray, x: float) -> float:
     if lon_vals.max() > 180 and x < 0:
         return x + 360.0
     return x
-
-
-def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]]):
-    # 디버깅: 데이터셋 구조 확인
-    print(f"=== Dataset info for {var} ===")
-    print(f"Data vars: {list(ds.data_vars)}")
-    print(f"Coords: {list(ds.coords)}")
-    
-    var_name = resolve_var(ds, var)
-    da = ds[var_name]
-    
-    print(f"DataArray shape: {da.shape}")
-    print(f"DataArray dims: {da.dims}")
-    print(f"DataArray coords: {list(da.coords)}")
-    print(f"Value range: min={da.min().values}, max={da.max().values}")
-    print(f"NaN count: {np.isnan(da.values).sum()}")
-    print(f"Inf count: {np.isinf(da.values).sum()}")
-
-    ## 정상코드
-    ds = _normalize_lonlat(ds)
-
-    var2 = resolve_var(ds, var)
-    da = ds[var2]
-
-    if "time" in da.dims and da.sizes.get("time", 1) == 1:
-        da = da.isel(time=0)
-
-    if bbox and len(bbox) == 4:
-        min_lon, min_lat, max_lon, max_lat = map(float, bbox)
-        lon_vals = ds["lon"].values
-        lat_vals = ds["lat"].values
-
-        min_lon = _ensure_lon_range(lon_vals, min_lon)
-        max_lon = _ensure_lon_range(lon_vals, max_lon)
-
-        lon_inc = bool(lon_vals[1] > lon_vals[0]) if lon_vals.size > 1 else True
-        lat_inc = bool(lat_vals[1] > lat_vals[0]) if lat_vals.size > 1 else True
-
-        lon_slice = slice(min_lon, max_lon) if lon_inc else slice(max_lon, min_lon)
-        lat_slice = slice(min_lat, max_lat) if lat_inc else slice(max_lat, min_lat)
-
-        da = da.sel(lon=lon_slice, lat=lat_slice)
-    else:
-        lon_vals = ds["lon"].values
-        lat_vals = ds["lat"].values
-        lon_inc = bool(lon_vals[1] > lon_vals[0]) if lon_vals.size > 1 else True
-        lat_inc = bool(lat_vals[1] > lat_vals[0]) if lat_vals.size > 1 else True
-
-    return da, lat_inc, lon_inc
 
 
 def _ensure_lat_lon_names(da: xr.DataArray) -> xr.DataArray:
