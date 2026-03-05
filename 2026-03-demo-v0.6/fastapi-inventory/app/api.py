@@ -19,15 +19,22 @@ S3_BUCKET  = os.getenv("S3_BUCKET", "optimal-loads")
 s3 = boto3.client("s3", region_name=AWS_REGION)
 
 ALIASES = {
-    "10u": ["10u", "u10"],
-    "10v": ["10v", "v10"],
-    'WIND': ['ws', 'WIND'],
-    'WDIR': ['wdir', 'WDIR'],
-    'UGRD': ['u', 'UGRD'],
-    'VGRD': ['v', 'VGRD'],
-    'HTSGW': ['swh', 'HTSGW'],
-    'PERPW': ['perpw', 'PERPW'],
-    'DIRPW': ['dirpw', 'DIRPW'],
+    # ECMWF 10m winds
+    "10u": ["10u", "u10", "eastward_wind", "u10m", "165"],  # paramId도 추가
+    "10v": ["10v", "v10", "northward_wind", "v10m", "166"],
+    
+    # NOAA GFS winds
+    "UGRD": ["UGRD", "u", "U-component_of_wind", "2"],
+    "VGRD": ["VGRD", "v", "V-component_of_wind", "3"],
+    
+    # Computed
+    'WIND': ['ws', 'WIND', 'wind_speed'],
+    'WDIR': ['wdir', 'WDIR', 'wind_direction'],
+    
+    # Waves
+    'HTSGW': ['swh', 'HTSGW', 'significant_height_of_wind_and_swell_waves'],
+    'PERPW': ['perpw', 'PERPW', 'primary_wave_mean_period'],
+    'DIRPW': ['dirpw', 'DIRPW', 'primary_wave_direction'],
 }
 
 router = APIRouter(prefix="/api", tags=["grid"])
@@ -150,17 +157,34 @@ async def _handle_original_variable(
     
     try:
         da, lat_inc = _extract_and_prepare_da(ds, norm_var, bbox)
-
-
-        da = da.compute() 
+        da = da.compute()
         
-        return _build_grid_response(
-            da, lat_inc, norm_var, 
-            doc.get("unit"), doc.get("name_en"), doc.get("standard_name"),
-            run_dt, step_hours, valid_time_utc, bbox
+        # 데이터 검증
+        if da.size == 0:
+            raise ValueError("Selected data is empty after bbox filtering")
+        
+        print(f"✅ Data loaded: shape={da.shape}, "
+            f"range=[{np.nanmin(da.values):.2f}, {np.nanmax(da.values):.2f}]")
+        
+    except KeyError as e:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Variable not found in dataset",
+                "message": str(e),
+                "requested_variable": norm_var,
+                "available_variables": list(ds.data_vars),
+            }
         )
-    finally:
-        _cleanup_datasets([ds])
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Failed to extract data",
+                "message": str(e),
+                "type": type(e).__name__,
+            }
+        )
 
 
 def _build_grid_response(
@@ -294,30 +318,48 @@ async def _download_and_open_single(doc):
 
 def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]]):
     """Select DataArray from dataset and apply bbox filtering"""
+    print(f"🔍 _select_da: var='{var}', bbox={bbox}")
+    print(f"   Available data_vars: {list(ds.data_vars)}")
+    print(f"   Available coords: {list(ds.coords)}")
+    
     # 변수 해석
     actual_var = resolve_var(ds, var)
+    print(f"   Resolved to: '{actual_var}'")
+    
     da = ds[actual_var]
+    print(f"   DataArray shape: {da.shape}, dims: {da.dims}")
     
     # lat 증가 방향 체크
     if "lat" in da.coords:
         lat_vals = da["lat"].values
         lat_inc = len(lat_vals) > 1 and lat_vals[1] > lat_vals[0]
+        print(f"   Latitude: {len(lat_vals)} points, increasing={lat_inc}")
+        print(f"   Lat range: [{lat_vals.min():.2f}, {lat_vals.max():.2f}]")
     else:
         lat_inc = True
+        print(f"   ⚠️  No 'lat' coordinate found")
+    
+    if "lon" in da.coords:
+        lon_vals = da["lon"].values
+        print(f"   Longitude: {len(lon_vals)} points")
+        print(f"   Lon range: [{lon_vals.min():.2f}, {lon_vals.max():.2f}]")
     
     # bbox 적용
     if bbox is not None:
+        print(f"   Applying bbox filter...")
         min_lon, min_lat, max_lon, max_lat = bbox
         lon_vals = da["lon"].values
         
         # 경도 범위 조정
         min_lon = _ensure_lon_range(lon_vals, min_lon)
         max_lon = _ensure_lon_range(lon_vals, max_lon)
+        print(f"   Adjusted bbox: lon=[{min_lon}, {max_lon}], lat=[{min_lat}, {max_lat}]")
         
         da = da.sel(
             lon=slice(min_lon, max_lon),
             lat=slice(min(min_lat, max_lat), max(min_lat, max_lat))
         )
+        print(f"   After bbox: shape={da.shape}")
     
     return da, lat_inc, actual_var
 
@@ -608,12 +650,75 @@ def _safe_float(value):
         return value
 
 def resolve_var(ds, var: str) -> str:
+    """변수 이름 해석 - GRIB 속성도 체크"""
     candidates = ALIASES.get(var, [var])
+    
+    # 1단계: 직접 data_vars에서 찾기
     for name in candidates:
         if name in ds.data_vars:
             return name
-    raise KeyError(f"Variable '{var}' not found. Available: {list(ds.data_vars)}")
-
+    
+    # 2단계: GRIB 속성으로 찾기 (cfgrib의 경우)
+    for data_var in ds.data_vars:
+        attrs = ds[data_var].attrs
+        
+        # GRIB 속성 체크
+        grib_attrs_to_check = [
+            'GRIB_shortName',      # 예: 'u', 'v', '10u', '10v'
+            'GRIB_cfName',         # CF convention 이름
+            'GRIB_cfVarName',      # CF variable 이름
+            'GRIB_name',           # 풀네임
+            'GRIB_paramId',        # 파라미터 ID로도 매칭 가능
+        ]
+        
+        for attr_key in grib_attrs_to_check:
+            if attr_key in attrs:
+                attr_val = str(attrs[attr_key]).lower()
+                # 후보군과 비교
+                for candidate in candidates:
+                    if candidate.lower() == attr_val:
+                        print(f"✅ Found '{var}' as '{data_var}' via {attr_key}='{attr_val}'")
+                        return data_var
+    
+    # 3단계: 특수 케이스 - paramId로 매칭
+    # ECMWF는 paramId를 사용할 수 있음
+    PARAM_ID_MAP = {
+        '165': '10u',    # ECMWF 10m U wind
+        '166': '10v',    # ECMWF 10m V wind
+        '2': 'UGRD',     # NOAA U wind component
+        '3': 'VGRD',     # NOAA V wind component
+    }
+    
+    for data_var in ds.data_vars:
+        attrs = ds[data_var].attrs
+        if 'GRIB_paramId' in attrs:
+            param_id = str(attrs['GRIB_paramId'])
+            if param_id in PARAM_ID_MAP:
+                expected_var = PARAM_ID_MAP[param_id]
+                if expected_var in candidates:
+                    print(f"✅ Found '{var}' as '{data_var}' via paramId={param_id}")
+                    return data_var
+    
+    # 실패시 상세 정보 제공
+    available_vars = []
+    for dv in ds.data_vars:
+        attrs = ds[dv].attrs
+        info = {
+            'name': dv,
+            'shortName': attrs.get('GRIB_shortName'),
+            'paramId': attrs.get('GRIB_paramId'),
+            'cfName': attrs.get('GRIB_cfName'),
+        }
+        available_vars.append(info)
+    
+    raise KeyError(
+        f"Variable '{var}' not found.\n"
+        f"Tried candidates: {candidates}\n"
+        f"Available variables with GRIB info:\n" + 
+        "\n".join([f"  - {v['name']}: shortName={v['shortName']}, "
+                   f"paramId={v['paramId']}, cfName={v['cfName']}" 
+                   for v in available_vars])
+    )
 
 def _parse_utc(dt_str: str) -> datetime:
     s = dt_str.strip()
@@ -661,13 +766,38 @@ def _tmp_suffix_from_doc(doc: dict) -> str:
 
 
 def _open_dataset_safely(path: str) -> xr.Dataset:
+    """다양한 GRIB2 포맷을 안전하게 열기"""
     last_err = None
-    for engine in ("cfgrib", "h5netcdf"):
+    
+    # cfgrib 옵션들
+    cfgrib_configs = [
+        {},  # 기본
+        {'backend_kwargs': {'errors': 'ignore'}},  # 에러 무시
+        {'backend_kwargs': {'indexpath': ''}},  # 인덱스 비활성화
+    ]
+    
+    for config in cfgrib_configs:
         try:
-            return xr.open_dataset(path, engine=engine)
+            ds = xr.open_dataset(path, engine='cfgrib', **config)
+            print(f"✅ cfgrib 성공 with config: {config}")
+            return ds
         except Exception as e:
             last_err = e
-    raise RuntimeError(f"Failed to open dataset: {last_err}")
+            print(f"⚠️  cfgrib 실패 ({config}): {e}")
+    
+    # h5netcdf fallback
+    try:
+        ds = xr.open_dataset(path, engine='h5netcdf')
+        print(f"✅ h5netcdf 성공")
+        return ds
+    except Exception as e:
+        print(f"⚠️  h5netcdf 실패: {e}")
+    
+    raise RuntimeError(
+        f"Failed to open dataset with any engine.\n"
+        f"Last cfgrib error: {last_err}\n"
+        f"File: {path}"
+    )
 
 
 def _norm_var(v: str) -> str:
