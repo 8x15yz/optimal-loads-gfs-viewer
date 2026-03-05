@@ -409,6 +409,22 @@ def _ensure_lon_range(lon_vals: np.ndarray, x: float) -> float:
 
 
 def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]]):
+    # 디버깅: 데이터셋 구조 확인
+    print(f"=== Dataset info for {var} ===")
+    print(f"Data vars: {list(ds.data_vars)}")
+    print(f"Coords: {list(ds.coords)}")
+    
+    var_name = resolve_var(ds, var)
+    da = ds[var_name]
+    
+    print(f"DataArray shape: {da.shape}")
+    print(f"DataArray dims: {da.dims}")
+    print(f"DataArray coords: {list(da.coords)}")
+    print(f"Value range: min={da.min().values}, max={da.max().values}")
+    print(f"NaN count: {np.isnan(da.values).sum()}")
+    print(f"Inf count: {np.isinf(da.values).sum()}")
+
+    ## 정상코드
     ds = _normalize_lonlat(ds)
 
     var2 = resolve_var(ds, var)
