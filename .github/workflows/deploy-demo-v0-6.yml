@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -17,38 +17,32 @@ jobs:
       - name: Deploy to EC2 (demo v0.6)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.V04_EC2_HOST }}
-          username: ubuntu  
-          key: ${{ secrets.V04_EC2_SSH_KEY }}
+          host: ${{ secrets.EC2_HOST }}          # ← V04 제거
+          username: ${{ secrets.EC2_USER }}       # ← V04 제거, 하드코딩 제거
+          key: ${{ secrets.EC2_SSH_KEY }}         # ← V04 제거
           port: 22
           script: |
             set -e
             
             PROJECT_ROOT="$HOME/optimal-loads-gfs-viewer"
             DEMO_DIR="$PROJECT_ROOT/2026-03-demo-v0.6"
-            AIRFLOW_DATA="$HOME/airflow-data"
             ENV_FILE="$PROJECT_ROOT/2026-03-demo-v0.6/.env_06"
 
-
-            # -------------------------------
             # Update code
-            # -------------------------------
             cd "$PROJECT_ROOT"
-
             git fetch origin
-            git checkout -B main origin/main  
+            git checkout -B main origin/main
+            git pull origin main
             
-            # ------------------------------
             # Deploy FastAPI
-            # -------------------------------
             cd "$DEMO_DIR/fastapi-inventory"
 
-            docker ps -q --filter "name=demo-v0-6-api" | grep -q . && docker stop demo-v0-6-api || true
-            docker rm demo-v0-6-api || true
-
-            docker build -t demo-v0-6-api .
-            docker run -d \
+            sudo docker rm -f demo-v0-6-api 2>/dev/null || true
+            sudo docker build --no-cache -t demo-v0-6-api:latest .
+            
+            sudo docker run -d \
               --name demo-v0-6-api \
-              -p 80:8000 \
+              --restart=always \
               --env-file "$ENV_FILE" \
-              demo-v0-6-api
+              -p 80:8000 \
+              demo-v0-6-api:latest
