@@ -580,11 +580,19 @@ def _prepare_array_for_response(da: xr.DataArray, lat_inc: bool):
         arr2 = arr2[::-1, :]
         lat_vals = lat_vals[::-1]
 
-    dlon = float(abs(np.mean(np.diff(lon_vals)))) if lon_vals.size > 1 else np.nan
-    dlat = float(abs(np.mean(np.diff(lat_vals)))) if lat_vals.size > 1 else np.nan
+    # 해상도 계산 (단일 포인트 안전 처리)
+    if lon_vals.size > 1:
+        dlon = float(abs(np.mean(np.diff(lon_vals))))
+    else:
+        dlon = 0.25  # 기본 해상도 (ECMWF 0.25°)
+    
+    if lat_vals.size > 1:
+        dlat = float(abs(np.mean(np.diff(lat_vals))))
+    else:
+        dlat = 0.25
+    
     h, w = arr2.shape
     return arr2, dlon, dlat, w, h
-
 
 # =============================================================================
 # Helpers - 파일 및 시간
