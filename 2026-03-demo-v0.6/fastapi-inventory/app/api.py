@@ -267,17 +267,21 @@ async def _download_and_open_pair(doc_u, doc_v):
     return ds_u, ds_v
 
 async def _download_and_open_single(doc):
-    """Download and open single dataset file - caller must cleanup"""
+    """Download and open single dataset file"""
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc))
     
-    s3.download_file(S3_BUCKET, doc["s3"]["key"], tmp.name)
-    tmp.close()
-    
-    ds = _open_dataset_safely(tmp.name)
-    ds = _normalize_lonlat(ds)
-    ds._temp_file = tmp.name
-    
-    return ds
+    try:
+        s3.download_file(S3_BUCKET, doc["s3"]["key"], tmp.name)
+        tmp.close()
+        
+        ds = _open_dataset_safely(tmp.name)
+        ds = _normalize_lonlat(ds)
+        ds.load() 
+        
+        return ds
+    finally:
+        with contextlib.suppress(Exception):
+            os.unlink(tmp.name)
 
 def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]]):
     """Select DataArray from dataset and apply bbox filtering"""
