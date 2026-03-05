@@ -1,4 +1,4 @@
-name: Deploy demo v0.5
+name: Deploy demo v0.6
 
 on:
   push:
