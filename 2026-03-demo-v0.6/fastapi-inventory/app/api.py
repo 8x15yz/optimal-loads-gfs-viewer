@@ -150,6 +150,9 @@ async def _handle_original_variable(
     
     try:
         da, lat_inc = _extract_and_prepare_da(ds, norm_var, bbox)
+
+
+        da = da.compute() 
         
         return _build_grid_response(
             da, lat_inc, norm_var, 
@@ -264,21 +267,17 @@ async def _download_and_open_pair(doc_u, doc_v):
     return ds_u, ds_v
 
 async def _download_and_open_single(doc):
-    """Download and open single dataset file"""
-    if "s3" not in doc or "key" not in doc.get("s3", {}):
-        raise HTTPException(status_code=409, detail={"error": "Metadata has no s3.key"})
-    
+    """Download and open single dataset file - caller must cleanup"""
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=_tmp_suffix_from_doc(doc))
     
-    try:
-        s3.download_file(S3_BUCKET, doc["s3"]["key"], tmp.name)
-        ds = _open_dataset_safely(tmp.name)
-        ds = _normalize_lonlat(ds)
-        return ds
-    finally:
-        with contextlib.suppress(Exception):
-            tmp.close()
-            os.unlink(tmp.name)
+    s3.download_file(S3_BUCKET, doc["s3"]["key"], tmp.name)
+    tmp.close()
+    
+    ds = _open_dataset_safely(tmp.name)
+    ds = _normalize_lonlat(ds)
+    ds._temp_file = tmp.name
+    
+    return ds
 
 def _select_da(ds: xr.Dataset, var: str, bbox: Optional[List[float]]):
     """Select DataArray from dataset and apply bbox filtering"""
@@ -718,6 +717,8 @@ def _ensure_lat_lon_names(da: xr.DataArray) -> xr.DataArray:
 
 def _prepare_array_for_response(da: xr.DataArray, lat_inc: bool):
     da2 = da.transpose("lat", "lon")
+    da2 = da2.compute()
+    
     lat_vals = da2["lat"].values
     lon_vals = da2["lon"].values
     arr2 = da2.values
