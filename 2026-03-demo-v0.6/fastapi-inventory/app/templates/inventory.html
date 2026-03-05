@@ -22,7 +22,10 @@
   <div class="breadcrumb">
     <a href="/inventory?path=/">/</a>
     {%- set parts = current_path.strip('/').split('/') -%}
-    {%- for i, part in enumerate(parts) -%}
+    {%- for part in parts -%}
+        {{ loop.index0 }}  {# 0부터 시작 #}
+        {{ loop.index }}   {# 1부터 시작 #}
+    {%- endfor -%}
       {%- if part -%}
         {%- set path_so_far = '/' + parts[:i+1]|join('/') + '/' -%}
         <a href="/inventory?path={{ path_so_far|urlencode }}">
