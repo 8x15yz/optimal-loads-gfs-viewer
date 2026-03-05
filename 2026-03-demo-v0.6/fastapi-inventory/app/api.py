@@ -91,16 +91,26 @@ async def get_griddata(
     # ---- spatial ----
     lat: Optional[float] = Query(default=None, example=35.0),
     lon: Optional[float] = Query(default=None, example=129.0),
-    buffer_km: Optional[float] = Query(default=50.0, ge=1.0, le=500.0, example=50.0),
+    buffer_km: Optional[float] = Query(default=50.0, ge=0.0, le=500.0, example=50.0),
     ) -> GridDataResponse:
     
     type_ = "forecast"
     
     # ---- bbox 선검증 ----
     if lat is not None and lon is not None and buffer_km is not None:
-        # km → degree 변환
-        buffer_deg_lat = buffer_km / 111.0
-        buffer_deg_lon = buffer_km / (111.0 * np.cos(np.radians(lat)))
+        if buffer_km == 0:
+            # ✅ 단일 포인트 조회: 최소 격자 간격 사용
+            buffer_deg_lat = 0.125  # 0.25° / 2
+            buffer_deg_lon = 0.125 / np.cos(np.radians(lat))
+        else:
+            # km → degree 변환
+            buffer_deg_lat = buffer_km / 111.0
+            buffer_deg_lon = buffer_km / (111.0 * np.cos(np.radians(lat)))
+        
+        # ✅ 최소 버퍼 보장 (격자 해상도의 절반 이상)
+        min_buffer_deg = 0.125  # 0.25° / 2
+        buffer_deg_lat = max(buffer_deg_lat, min_buffer_deg)
+        buffer_deg_lon = max(buffer_deg_lon, min_buffer_deg / np.cos(np.radians(lat)))
         
         effective_bbox = [
             lon - buffer_deg_lon,  # minLon
