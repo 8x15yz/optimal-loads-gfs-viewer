@@ -727,11 +727,8 @@ def _ensure_lat_lon_names(da: xr.DataArray) -> xr.DataArray:
 #     except Exception:
 #         raise HTTPException(status_code=422, detail="Invalid depth parameter. Use a number (meters) or 'surface'.")
 
-
 def _prepare_array_for_response(da: xr.DataArray, lat_inc: bool):
     da2 = da.transpose("lat", "lon")
-    da2 = da2.compute()
-    
     lat_vals = da2["lat"].values
     lon_vals = da2["lon"].values
     arr2 = da2.values
@@ -740,11 +737,21 @@ def _prepare_array_for_response(da: xr.DataArray, lat_inc: bool):
         arr2 = arr2[::-1, :]
         lat_vals = lat_vals[::-1]
 
-    dlon = float(abs(np.mean(np.diff(lon_vals)))) if lon_vals.size > 1 else np.nan
-    dlat = float(abs(np.mean(np.diff(lat_vals)))) if lat_vals.size > 1 else np.nan
+    # ✅ JSON 안전한 계산
+    if lon_vals.size > 1:
+        dlon_raw = abs(np.mean(np.diff(lon_vals)))
+        dlon = float(dlon_raw) if np.isfinite(dlon_raw) else 0.0
+    else:
+        dlon = 0.0
+    
+    if lat_vals.size > 1:
+        dlat_raw = abs(np.mean(np.diff(lat_vals)))
+        dlat = float(dlat_raw) if np.isfinite(dlat_raw) else 0.0
+    else:
+        dlat = 0.0
+    
     h, w = arr2.shape
     return arr2, dlon, dlat, w, h
-
 
 # =============================================================================
 # bbox limits & cell budget
