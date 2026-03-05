@@ -1,1368 +1,433 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Optimal-LOADS • Consortium Preview — Demo v0.3 (ECMWF Open Data)</title>
-  <style>
-    :root {
-      --bg: #fafafa;
-      --text: #0f172a;
-      --muted: #475569;
-      --brand: #0284c7;
-      --border: #e2e8f0;
-      --card: #f8fafc;
-      --ok: #16a34a;
-      --warn: #d97706;
-      --danger: #dc2626;
+{# templates/inventory.html #}
+{% extends "base.html" %}
+{% block content %}
 
-      --shadow: 0 1px 3px rgba(0,0,0,0.08);
-      --shadow-hover: 0 4px 12px rgba(0,0,0,0.1);
-      --radius: 12px;
-      --radius-sm: 8px;
-    }
-    
-    * { box-sizing: border-box; }
-    
-    html { scroll-behavior: smooth; }
-    
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      line-height: 1.6;
-    }
-    
-    a { color: inherit; text-decoration: none; }
-    
-    .container { 
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 32px 24px 60px;
-    }
+<style>
+  :root {
+    --bg: #fafafa;
+    --text: #0f172a;
+    --muted: #475569;
+    --brand: #0284c7;
+    --border: #e2e8f0;
+    --card: #f8fafc;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-hover: 0 4px 12px rgba(0,0,0,0.1);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  
+  * { box-sizing: border-box; }
+  
+  body { 
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    margin: 0;
+    line-height: 1.6;
+  }
+  
+  /* Topbar - 두 번째 파일 스타일 적용 */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(12px) saturate(180%);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  
+  .topbar-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  
+  .brandline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0284c7, #0ea5e9);
+    box-shadow: 0 0 0 4px rgba(2,132,199,0.15);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  
+  .brandline .title {
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
 
-    /* Topbar - 더 모던하게 */
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: rgba(255,255,255,0.95);
-      backdrop-filter: blur(12px) saturate(180%);
-      border-bottom: 1px solid var(--border);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    
-    .topbar-inner {
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 16px 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-    
-    .brandline {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 0;
-    }
-    
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #0284c7, #0ea5e9);
-      box-shadow: 0 0 0 4px rgba(2,132,199,0.15);
-      animation: pulse 2s ease-in-out infinite;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.6; }
-    }
-    
-    .brandline .title {
-      font-weight: 700;
-      font-size: 14px;
-      letter-spacing: -0.01em;
-      color: var(--text);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    
-    .toolbar {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 13px;
-      font-weight: 500;
-      padding: 8px 16px;
-      border-radius: var(--radius-sm);
-      text-decoration: none;
-      border: 1px solid var(--border);
-      background: white;
-      color: var(--text);
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      cursor: pointer;
-    }
-    
-    .btn:hover {
-      background: var(--card);
-      border-color: #cbd5e1;
-      transform: translateY(-1px);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-    
-    .btn:active {
-      transform: translateY(0);
-    }
-    
-    .btn-outline {
-      border-color: rgba(2,132,199,0.3);
-      color: var(--brand);
-      background: rgba(2,132,199,0.05);
-    }
-    
-    .btn-outline:hover {
-      background: rgba(2,132,199,0.1);
-      border-color: var(--brand);
-    }
-
-    /* Layout */
-    .grid {
-      display: grid;
-      gap: 24px;
-      grid-template-columns: 280px 1fr;
-      align-items: start;
-      margin-top: 24px;
-    }
-    
-    @media (max-width: 980px) {
-      .grid { grid-template-columns: 1fr; }
-      .sidebar { 
-        position: static !important;
-        order: 2;
-      }
-      .content { order: 1; }
-    }
-
-    /* Typography */
-    h1, h2, h3, h4 {
-      line-height: 1.3;
-      margin: 0 0 16px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-    
-    h1 { font-size: 28px; }
-    h2 { font-size: 20px; margin-top: 32px; }
-    h3 { font-size: 17px; margin-top: 24px; }
-    h4 { font-size: 15px; margin-top: 16px; }
-
-    .muted { color: var(--muted); }
-    .small { font-size: 13px; }
-
-    /* Cards - 더 깔끔하게 */
-    .card {
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-      margin-bottom: 20px;
-      transition: box-shadow 0.2s ease;
-    }
-    
-    .card:hover {
-      box-shadow: var(--shadow-hover);
-    }
-    
-    .card-pad {
-      padding: 24px 28px;
-    }
-    
-    .card-head {
-      padding: 20px 28px;
-      background: linear-gradient(180deg, rgba(248,250,252,0.8), white);
-      border-bottom: 1px solid var(--border);
-    }
-    
-    .card-head .kicker {
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      font-weight: 700;
-      color: var(--brand);
-      margin-bottom: 4px;
-    }
-
-    /* Hero - 더 현대적으로 */
-    .hero {
-      background: linear-gradient(135deg, 
-        rgba(56,189,248,0.1) 0%, 
-        rgba(186,230,253,0.15) 50%,
-        rgba(224,242,254,0.1) 100%);
-      color: var(--text);
-      border-radius: var(--radius);
-      padding: 32px 28px;
-      border: 1px solid rgba(2,132,199,0.2);
-      box-shadow: 0 4px 20px rgba(2,132,199,0.08);
-      margin-bottom: 24px;
-    }
-    
-    .hero .kicker {
-      font-size: 12px;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      font-weight: 700;
-      color: var(--brand);
-      margin-bottom: 12px;
-    }
-    
-    .hero h1 {
-      margin: 0 0 12px;
-      color: var(--text);
-    }
-    
-    .hero p {
-      color: var(--muted);
-      margin: 0 0 16px;
-      font-size: 15px;
-    }
-    
-    .badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 16px;
-    }
-    
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: white;
-      color: var(--text);
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 500;
-      border: 1px solid var(--border);
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
-
-    /* Notes - 더 부드럽게 */
-    .note, .warn, .danger {
-      padding: 16px 20px;
-      border-radius: var(--radius-sm);
-      margin: 20px 0;
-      border-left: 4px solid;
-      font-size: 14px;
-      line-height: 1.6;
-    }
-    
-    .note {
-      background: rgba(224,242,254,0.5);
-      border-color: var(--brand);
-      color: #0c4a6e;
-    }
-    
-    .warn {
-      background: rgba(254,243,199,0.5);
-      border-color: var(--warn);
-      color: #78350f;
-    }
-    
-    .danger {
-      background: rgba(254,226,226,0.5);
-      border-color: var(--danger);
-      color: #7f1d1d;
-    }
-
-    /* Section */
-    .section {
-      scroll-margin-top: 100px;
-    }
-    
-    .h2-row {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-    
-    .h2-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(2,132,199,0.1);
-      border: 1px solid rgba(2,132,199,0.2);
-      color: var(--brand);
-      padding: 4px 12px;
-      border-radius: 999px;
-      font-weight: 600;
-      font-size: 11px;
-      white-space: nowrap;
-      letter-spacing: 0.02em;
-    }
-
-    /* Tables - 더 모던하게 */
-    .table-wrap {
-      overflow-x: auto;
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      margin: 20px 0;
-    }
-    
-    .table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 0;
-      font-size: 14px;
-      background: white;
-    }
-    
-    .table th, .table td {
-      border-bottom: 1px solid var(--border);
-      padding: 14px 16px;
-      text-align: left;
-      vertical-align: top;
-    }
-    
-    .table thead th {
-      background: var(--card);
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      position: sticky;
-      top: 0;
-    }
-    
-    .table tbody tr {
-      transition: background-color 0.15s ease;
-    }
-    
-    .table tbody tr:hover {
-      background: var(--card);
-    }
-    
-    .table tbody tr:last-child td {
-      border-bottom: none;
-    }
-
-    /* Code blocks - 더 세련되게 */
-    .code {
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-      background: #1e293b;
-      color: #e2e8f0;
-      border: 1px solid #334155;
-      padding: 16px 20px;
-      border-radius: var(--radius-sm);
-      overflow-x: auto;
-      white-space: pre;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-      margin: 20px 0;
-      font-size: 13px;
-      line-height: 1.6;
-    }
-    
-    .code .dim {
-      color: #94a3b8;
-    }
-
-    /* Links */
-    .link {
-      color: var(--brand);
-      text-decoration: underline;
-      text-underline-offset: 2px;
-      text-decoration-thickness: 1px;
-      transition: color 0.15s ease;
-    }
-    
-    .link:hover {
-      color: #0369a1;
-    }
-
-    /* Sidebar / TOC - 더 현대적으로 */
-    .sidebar {
-      position: sticky;
-      top: 100px;
-    }
-    
-    .toc {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+  }
+  
+  .btn:hover {
+    background: var(--card);
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  
+  .btn:active {
+    transform: translateY(0);
+  }
+  
+  .btn-outline {
+    border-color: rgba(2,132,199,0.3);
+    color: var(--brand);
+    background: rgba(2,132,199,0.05);
+  }
+  
+  .btn-outline:hover {
+    background: rgba(2,132,199,0.1);
+    border-color: var(--brand);
+  }
+  
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+  
+  .mono { 
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; 
+  }
+  
+  .header {
+    background: white;
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  
+  .page-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0 0 12px 0;
+    letter-spacing: -0.01em;
+  }
+  
+  .breadcrumb { 
+    display: flex; 
+    align-items: center; 
+    gap: 6px;
+    font-size: 14px;
+    color: #666;
+    flex-wrap: wrap;
+  }
+  
+  .breadcrumb a {
+    color: #2563eb;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  
+  .breadcrumb a:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+  }
+  
+  .breadcrumb-sep {
+    color: #d1d5db;
+    user-select: none;
+  }
+  
+  .description {
+    background: #f8fafc;
+    border-left: 3px solid #3b82f6;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #475569;
+  }
+  
+  .table-container {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  
+  table { 
+    border-collapse: collapse; 
+    width: 100%;
+  }
+  
+  th, td { 
+    padding: 14px 20px; 
+    text-align: left;
+  }
+  
+  thead {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  
+  thead th { 
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  
+  tbody tr {
+    border-bottom: 1px solid #f1f5f9;
+    transition: background-color 0.15s;
+  }
+  
+  tbody tr:last-child {
+    border-bottom: none;
+  }
+  
+  tbody tr:hover {
+    background: #f8fafc;
+  }
+  
+  tbody td {
+    font-size: 14px;
+    color: #334155;
+  }
+  
+  .dir-icon {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  
+  .file-icon {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  
+  .dir-link {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.15s;
+  }
+  
+  .dir-link:hover {
+    color: #1d4ed8;
+  }
+  
+  .parent-dir {
+    color: #64748b;
+    font-style: italic;
+  }
+  
+  .btn.copied {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+  }
+  
+  .file-name {
+    margin-left: 8px;
+    color: #1e293b;
+    font-weight: 400;
+  }
+  
+  .muted { 
+    color: #94a3b8;
+    font-size: 13px;
+  }
+  
+  @media (max-width: 768px) {
+    .container {
       padding: 16px;
     }
     
-    .toc .toc-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 12px;
+    .topbar-inner {
+      padding: 12px 16px;
     }
     
-    .toc .toc-title b {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
+    th, td {
+      padding: 10px 12px;
     }
     
-    .toc a {
-      display: block;
-      padding: 8px 12px;
-      border-radius: var(--radius-sm);
-      text-decoration: none;
-      color: var(--muted);
-      font-size: 13px;
-      border: 1px solid transparent;
-      transition: all 0.15s ease;
+    .header {
+      padding: 16px 20px;
     }
-    
-    .toc a:hover {
-      background: rgba(2,132,199,0.08);
-      border-color: rgba(2,132,199,0.15);
-      color: var(--brand);
-    }
-    
-    .toc .lvl2 {
-      padding-left: 24px;
-      font-size: 12px;
-    }
-    
-    .toc .lvl3 {
-      padding-left: 40px;
-      font-size: 11px;
-      color: #94a3b8;
-    }
-    
-    .toc .sep {
-      height: 1px;
-      background: var(--border);
-      margin: 12px 0;
-    }
+  }
+</style>
 
-    /* Content typography */
-    p {
-      margin: 12px 0;
-      line-height: 1.7;
-    }
-    
-    ul {
-      margin: 12px 0;
-      padding-left: 24px;
-    }
-    
-    ol {
-      margin: 12px 0;
-      padding-left: 24px;
-    }
-    
-    li {
-      margin: 6px 0;
-    }
-    
-    code {
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
-      font-size: 0.9em;
-      background: var(--card);
-      border: 1px solid var(--border);
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: #e11d48;
-    }
+<!-- Sticky topbar -->
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brandline" title="Weather API Inventory Browser">
+      <span class="dot" aria-hidden="true"></span>
+      <div class="title">Weather API Inventory Browser</div>
+    </div>
+    <div class="toolbar">
+      <a class="btn btn-outline" href="/" aria-label="Return to Home">Home</a>
+      <a class="btn btn-outline" href="/docs" aria-label="Open API Documentation">API Documentation</a>
+    </div>
+  </div>
+</div>
 
-    /* Footer */
-    footer {
-      margin-top: 48px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 13px;
-      text-align: center;
-    }
-    
-    /* Responsive */
-    @media (max-width: 768px) {
-      .container {
-        padding: 20px 16px 40px;
-      }
-      
-      .topbar-inner {
-        padding: 12px 16px;
-      }
-      
-      .hero {
-        padding: 24px 20px;
-      }
-      
-      .card-pad {
-        padding: 20px;
-      }
-      
-      .card-head {
-        padding: 16px 20px;
-      }
-    }
-  </style>
-</head>
-<body>
-
-  <!-- Sticky topbar -->
-  <div class="topbar">
-    <div class="topbar-inner">
-      <div class="brandline" title="Optimal-LOADS • Consortium Preview">
-        <span class="dot" aria-hidden="true"></span>
-        <div class="title">Optimal-LOADS • Consortium Preview</div>
-      </div>
-      <div class="toolbar">
-        <a class="btn btn-outline" href="/ko" aria-label="한국어로 전환">KO</a>
-        <a class="btn btn-outline" href="/inventory" aria-label="Open Metadata Index">Metadata Index</a>
-        <a class="btn btn-outline" href="/docs" aria-label="Open API Documentation">API Documentation</a>
-      </div>
+<div class="container">
+  <div class="header">
+    <h1 class="page-title">Directory Browser</h1>
+    <div class="breadcrumb mono">
+      <a href="/inventory?path=/">🏠</a>
+      {%- set parts = current_path.strip('/').split('/') -%}
+      {%- for part in parts -%}
+        {%- if part -%}
+          <span class="breadcrumb-sep">/</span>
+          {%- set path_so_far = '/' + parts[:loop.index]|join('/') + '/' -%}
+          <a href="/inventory?path={{ path_so_far|urlencode }}">
+            {%- if '-' in part and part[0:4].isdigit() -%}
+              {{ part.split('-')[-1] }}
+            {%- else -%}
+              {{ part }}
+            {%- endif -%}
+          </a>
+        {%- endif -%}
+      {%- endfor -%}
     </div>
   </div>
 
-  <div class="container">
-
-    <!-- HERO -->
-    <section class="hero">
-      <div class="kicker">Optimal-LOADS • Consortium Preview</div>
-      <h1>BLUEMAP Marine Weather Data Inventory User Manual</h1>
-      <p>This page is the <strong>user guide</strong> for the BLUEMAP Marine Weather Data Inventory service.</p>
-      <div class="badges">
-        <span class="badge">✓ Status: Active</span>
-        <span class="badge">📦 Version: v0.3</span>
-        <span class="badge">🌍 Primary Data Source: ECMWF Open Data</span>
-      </div>
-    </section>
-
-    <div class="grid">
-
-      <!-- SIDEBAR / TOC -->
-      <aside class="sidebar card">
-        <div class="card-head">
-          <div class="kicker">Navigation</div>
-          <div class="muted small">Table of Contents</div>
-        </div>
-        <div class="toc">
-          <div class="toc-title">
-            <b>Table of Contents</b>
-          </div>
-
-          <a href="#sec-1">1. Data Characteristics</a>
-          <a class="lvl2" href="#sec-1-1">1.1 Forecast Time-Series Data</a>
-          <a class="lvl2" href="#sec-1-2">1.2 Run Time and Step</a>
-
-          <div class="sep"></div>
-
-          <a href="#sec-2">2. Data Source</a>
-
-          <div class="sep"></div>
-
-          <a href="#sec-3">3. Data Availability</a>
-          <a class="lvl2" href="#sec-3-1">3.1 Run Times</a>
-          <a class="lvl2" href="#sec-3-2">3.2 Forecast Step Intervals</a>
-
-          <div class="sep"></div>
-
-          <a href="#sec-4">4. Directory Structure</a>
-          <a class="lvl2" href="#sec-4-1">4.1 Structure Overview</a>
-          <a class="lvl2" href="#sec-4-2">4.2 Meaning of Each Level</a>
-          <a class="lvl2" href="#sec-4-3">4.3 Dataset Code</a>
-          <a class="lvl2" href="#sec-4-4">4.4 File Naming Rules</a>
-          <a class="lvl2" href="#sec-4-5">4.5 Example Storage Layout</a>
-
-          <div class="sep"></div>
-
-          <a href="#sec-5">5. Provided Variables</a>
-          <a class="lvl2" href="#sec-5-1">5.1 Atmosphere</a>
-          <a class="lvl2" href="#sec-5-2">5.2 Wave</a>
-          <a class="lvl2" href="#sec-5-3">5.3 Notes on Direction Variables</a>
-
-          <div class="sep"></div>
-
-          <a href="#sec-6">6. How to Compose API Requests</a>
-          <a class="lvl2" href="#sec-6-1">6.1 Request Example</a>
-          <a class="lvl2" href="#sec-6-2">6.2 Key Parameters</a>
-          <a class="lvl2" href="#sec-6-3">6.3 How to Input run_time_utc</a>
-
-          <div class="sep"></div>
-
-          <a href="#sec-7">7. How to Read the Result Array</a>
-          <a class="lvl2" href="#sec-7-1">7.1 Array Storage Rule</a>
-          <a class="lvl2" href="#sec-7-2">7.2 Example Response Array</a>
-          <a class="lvl2" href="#sec-7-3">7.3 Grid Layout on a Map</a>
-          <a class="lvl2" href="#sec-7-4">7.4 Index-to-Coordinate Mapping</a>
-
-          <div class="sep"></div>
-
-          <a href="#sec-8">8. Wind speed / Wind direction</a>
-          <a class="lvl2" href="#sec-8-1">8.1 Wind Speed</a>
-          <a class="lvl2" href="#sec-8-2">8.2 Wind Direction (TO)</a>
-
-          <div class="sep"></div>
-
-          <a href="#appendix">[Appendix] Wind Speed & Direction Formulas</a>
-          <a class="lvl2" href="#app-1">(1) Meaning of Input Data</a>
-          <a class="lvl2" href="#app-2">(2) Wind Speed Formula</a>
-          <a class="lvl2" href="#app-3">(3) Wind Direction Basics</a>
-          <a class="lvl2" href="#app-4">(4) Why atan2</a>
-          <a class="lvl2" href="#app-5">(5) Bearing Conversion</a>
-          <a class="lvl2" href="#app-6">(6) Modulo 360</a>
-          <a class="lvl2" href="#app-7">(7) Final Summary</a>
-        </div>
-      </aside>
-
-      <!-- MAIN CONTENT -->
-      <main class="content">
-
-        <!-- OVERVIEW -->
-        <section id="overview" class="section card">
-          <div class="card-head">
-            <div class="kicker">Overview</div>
-            <div class="muted small">Service Overview</div>
-          </div>
-          <div class="card-pad">
-            <div class="note">
-              <b>This service uses ECMWF Open Data.</b><br />
-              For dataset overview and policies, refer to the official page below:
-              <a class="link" href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">
-                ECMWF Open Data
-              </a>
-            </div>
-
-            <p>
-              This demo collects and stores <strong>global gridded data</strong> based on <strong>ECMWF Open Data</strong>,
-              and provides a static catalog (metadata index), a map preview, and a lightweight API.
-            </p>
-
-            <ul>
-              <li>Global gridded forecast datasets (Atmosphere + Wave)</li>
-              <li>Static metadata index + preview</li>
-              <li>Lightweight API for front-end widgets</li>
-              <li>Derived variables: wind_speed_10m, wind_dir_10m (TO-direction)</li>
-            </ul>
-
-            <div class="warn small">
-              ⚠️ This document is for demonstration purposes. The coverage (time range / resolution / latency) may change depending on the operational environment.
-            </div>
-          </div>
-        </section>
-
-        <!-- 1 -->
-        <section id="sec-1" class="section card">
-          <div class="card-head">
-            <div class="kicker">Section 1</div>
-            <div class="h2-row">
-              <h2 style="margin:0;">1. Data Characteristics</h2>
-              <span class="h2-pill">Data Characteristics</span>
-            </div>
-          </div>
-          <div class="card-pad">
-
-            <h3 id="sec-1-1">1.1 Forecast Time-Series Data</h3>
-            <p>
-              This dataset is <strong>forecast time-series data</strong> generated by the
-              <strong>ECMWF IFS (Integrated Forecasting System)</strong> model.
-            </p>
-            <p>
-              All data are defined relative to a specific <strong>run time</strong> and consist of
-              <strong>forecast steps</strong> for future times.
-            </p>
-
-            <h3 id="sec-1-2">1.2 Run Time and Step</h3>
-            <ul>
-              <li><strong>Run time</strong>: the reference time when the forecast model run starts</li>
-              <li><strong>Step</strong>: how many hours after the run time the forecast value represents</li>
-            </ul>
-
-            <div class="note">
-              <b>⇒ Valid time</b> is the actual forecast timestamp computed as <code>run time + step_hours</code>.<br />
-              <span class="muted small">Valid time is not provided as an API parameter; users derive it from run time and step.</span>
-            </div>
-
-            <p><b>Example</b>:</p>
-            <ul>
-              <li><code>run_time_utc = 2025-07-16T00:00:00Z</code></li>
-              <li><code>step_hours = 24</code></li>
-            </ul>
-            <p>→ This indicates the forecast value at <strong>2025-07-17 00:00 (UTC)</strong>.</p>
-
-          </div>
-        </section>
-
-        <!-- 2 -->
-        <section id="sec-2" class="section card">
-          <div class="card-head">
-            <div class="kicker">Section 2</div>
-            <div class="h2-row">
-              <h2 style="margin:0;">2. Data Source</h2>
-              <span class="h2-pill">Source</span>
-            </div>
-          </div>
-          <div class="card-pad">
-            <ul>
-              <li>Source dataset: <strong>ECMWF Open Data</strong> :
-                <a class="link" href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">
-                  ECMWF Open Data
-                </a>
-              </li>
-              <li>Forecast models:
-                <ul>
-                  <li>Atmosphere model: IFS Atmosphere</li>
-                  <li>Wave model: IFS Wave Model</li>
-                </ul>
-              </li>
-              <li>Wave model documentation:
-                <a class="link" href="https://www.ecmwf.int/sites/default/files/elibrary/112024/81629-ifs-documentation-cy49r1-part-vii-ecmwf-wave-model.pdf" target="_blank" rel="noopener">
-                  ecmwf-wave-model.pdf
-                </a>
-              </li>
-              <li>Atmosphere model documentation:
-                <a class="link" href="https://www.ecmwf.int/sites/default/files/elibrary/112024/81626-ifs-documentation-cy49r1-part-iv-physical-processes.pdf" target="_blank" rel="noopener">
-                  ecmwf-atmosphere-model.pdf
-                </a>
-              </li>
-            </ul>
-          </div>
-        </section>
-
-        <!-- 3 -->
-        <section id="sec-3" class="section card">
-          <div class="card-head">
-            <div class="kicker">Section 3</div>
-            <div class="h2-row">
-              <h2 style="margin:0;">3. Data Availability</h2>
-              <span class="h2-pill">Availability</span>
-            </div>
-          </div>
-          <div class="card-pad">
-
-            <h3 id="sec-3-1">3.1 Run Times</h3>
-            <p>The forecast is produced <strong>four times per day</strong>:</p>
-            <ul>
-              <li>00Z</li>
-              <li>06Z</li>
-              <li>12Z</li>
-              <li>18Z</li>
-            </ul>
-
-            <h3 id="sec-3-2">3.2 Forecast Step Intervals</h3>
-            <ul>
-              <li><strong>00Z / 12Z (extended range, up to 15 days)</strong>
-                <ul>
-                  <li>0–144 hours: generated at <strong>3-hour intervals</strong></li>
-                  <li>150–360 hours: generated at <strong>6-hour intervals</strong></li>
-                </ul>
-              </li>
-              <li><strong>06Z / 18Z (short range, up to 6 days)</strong>
-                <ul>
-                  <li>0–144 hours: generated at <strong>3-hour intervals</strong></li>
-                  <li>No steps beyond 144 hours (06Z/18Z runs stop at +144h)</li>
-                </ul>
-              </li>
-            </ul>
-
-            <p class="small">
-              (Official schedule: ECMWF Dissemination Schedule) :
-              <a class="link" href="https://confluence.ecmwf.int/display/DAC/Dissemination+schedule" target="_blank" rel="noopener">
-                Check dissemination schedule
-              </a>
-            </p>
-
-          </div>
-        </section>
-
-        <!-- 4 -->
-        <section id="sec-4" class="section card">
-          <div class="card-head">
-            <div class="kicker">Section 4</div>
-            <div class="h2-row">
-              <h2 style="margin:0;">4. BlueMap Weather Data Directory Structure</h2>
-              <span class="h2-pill">Storage Layout</span>
-            </div>
-          </div>
-          <div class="card-pad">
-
-            <p>
-              This section describes the ECMWF IFS forecast data layout used by the BlueMap Weather Data service:
-              the <strong>directory structure, meaning of each level, data categorization, and file naming rules</strong>.
-            </p>
-
-            <p>
-              The structure is designed to manage forecast time-series data efficiently using the forecast run time and step.
-            </p>
-
-            <h3 id="sec-4-1">4.1 Structure Overview</h3>
-            <p>BlueMap Weather Data stores ECMWF IFS forecast data in the following hierarchy.</p>
-
-            <div class="code">ecmwf/
-└─ ifs/
-   └─ yyyy/                # Forecast run year (e.g., 2025)
-      └─ mm/               # Month (01 ~ 12)
-         └─ dd/            # Day (01 ~ 31)
-            └─ hhZ/        # Run cycle (00Z, 06Z, 12Z, 18Z)
-               └─ {dataset_code}/
-                  └─ {variable}/
-                     └─ dataset file</div>
-
-            <p>
-              This design separates data by <strong>year / month / day / run cycle</strong>,
-              enabling efficient management and retrieval of large forecast archives.
-            </p>
-
-            <ul>
-              <li><strong>yyyy / mm / dd</strong>
-                <div class="muted small">The date when the forecast run was produced, accumulated by year/month/day directories.</div>
-              </li>
-              <li><strong>hhZ</strong>
-                <div class="muted small">The forecast run cycle in UTC; produced 4 times per day (00Z, 06Z, 12Z, 18Z).</div>
-              </li>
-              <li><strong>dataset_code</strong>
-                <div class="muted small">A directory to classify data type and clearly separate raw vs derived products.</div>
-              </li>
-              <li><strong>variable</strong>
-                <div class="muted small">A directory per variable code.</div>
-              </li>
-              <li><strong>dataset file</strong>
-                <div class="muted small">The actual file for a specific run time and forecast step.</div>
-              </li>
-            </ul>
-
-            <h3 id="sec-4-2">4.2 Meaning of Each Level</h3>
-            <p>The meaning of each directory level is as follows.</p>
-
-            <div class="table-wrap">
-              <table class="table">
-                <thead>
-                  <tr><th>Level</th><th>Description</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td><code>ecmwf/</code></td><td>Root directory for ECMWF-based data</td></tr>
-                  <tr><td><code>ifs/</code></td><td>IFS (Integrated Forecasting System) model data</td></tr>
-                  <tr><td><code>yyyy/</code></td><td>Forecast run year</td></tr>
-                  <tr><td><code>mm/</code></td><td>Forecast run month</td></tr>
-                  <tr><td><code>dd/</code></td><td>Forecast run day</td></tr>
-                  <tr><td><code>hhZ/</code></td><td>Forecast run cycle (UTC)</td></tr>
-                  <tr><td><code>dataset_code/</code></td><td>Data type classification (<code>original</code>, <code>computed</code>)</td></tr>
-                  <tr><td><code>variable/</code></td><td>Variable code (e.g., <code>10u</code>, <code>swh</code>, <code>wind_speed_10m</code>)</td></tr>
-                  <tr><td><code>dataset file</code></td><td>Actual data file per run cycle + forecast step</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-            <h3 id="sec-4-3">4.3 Dataset Code</h3>
-            <p>The <code>dataset_code</code> directory is used to classify the data type as follows.</p>
-
-            <div class="code">dataset_code
-├─ original
-└─ computed</div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0;">
-              <div class="note">
-                <b>original</b><br />
-                Raw forecast variables provided by ECMWF (not post-processed).<br /><br />
-                Examples:
-                <ul>
-                  <li><code>10u</code>, <code>10v</code></li>
-                  <li><code>swh</code>, <code>mwp</code>, <code>mwd</code></li>
-                </ul>
-              </div>
-              <div class="note">
-                <b>computed</b><br />
-                Derived variables calculated from <code>original</code> variables.<br /><br />
-                Examples:
-                <ul>
-                  <li><code>wind_speed_10m</code></li>
-                  <li><code>wind_dir_10m</code></li>
-                </ul>
-              </div>
-            </div>
-
-            <h3 id="sec-4-4">4.4 File Naming Rules</h3>
-            <p>All files follow the naming convention below.</p>
-
-            <div class="code">{dataset_code}_{variable}_{YYYYMMDD}_{hhZ}_step{NNN}[.grib2]</div>
-
-            <p>Each component means:</p>
-            <ul>
-              <li><strong>dataset_code</strong> — data type (<code>original</code> or <code>computed</code>)</li>
-              <li><strong>variable</strong> — variable code</li>
-              <li><strong>YYYYMMDD_hhZ</strong> — forecast run time (run cycle)</li>
-              <li><strong>stepNNN</strong> — forecast step (in hours)</li>
-              <li><strong>Extension</strong>
-                <ul>
-                  <li><code>original</code>: <code>.grib2</code></li>
-                  <li><code>computed</code>: no extension</li>
-                </ul>
-              </li>
-            </ul>
-
-            <h4>Examples</h4>
-            <div class="code">original_swh_20250701_00Z_step024.grib2
-computed_wind_speed_10m_20250701_00Z_step024</div>
-
-            <h3 id="sec-4-5">4.5 Example Storage Layout</h3>
-            <p>Below is an example of the BlueMap Weather Data storage layout.</p>
-
-            <div class="code">ecmwf/ifs/2025/07/01/00Z/
-├─ computed/
-│  ├─ wind_dir_10m/
-│  │  ├─ computed_wind_dir_10m_20250701_00Z_step000
-│  │  ├─ computed_wind_dir_10m_20250701_00Z_step003
-│  └─ wind_speed_10m/
-│     ├─ computed_wind_speed_10m_20250701_00Z_step000
-│     ├─ computed_wind_speed_10m_20250701_00Z_step003
-│
-└─ original/
-   ├─ 10u/
-   │  ├─ original_10u_20250701_00Z_step000.grib2
-   ├─ 10v/
-   ├─ mwd/
-   ├─ mwp/
-   └─ swh/</div>
-
-          </div>
-        </section>
-
-        <!-- 5 -->
-        <section id="sec-5" class="section card">
-          <div class="card-head">
-            <div class="kicker">Section 5</div>
-            <div class="h2-row">
-              <h2 style="margin:0;">5. Provided Variables</h2>
-              <span class="h2-pill">Variables</span>
-            </div>
-          </div>
-          <div class="card-pad">
-
-            <div class="note">
-              This system provides both original ECMWF IFS variables (<code>10u</code>, <code>10v</code>, <code>swh</code>, <code>mwp</code>, <code>mwd</code>)
-              and derived variables computed from them (<code>wind_speed_10m</code>, <code>wind_dir_10m</code>).
-            </div>
-
-            <h3 id="sec-5-1">5.1 Atmosphere</h3>
-            <div class="table-wrap">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Variable</th>
-                    <th>Description</th>
-                    <th>Unit</th>
-                    <th>Type</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><b>10u</b></td>
-                    <td>Wind component at 10 m height in the eastward (positive east) direction</td>
-                    <td>m/s</td>
-                    <td>original</td>
-                  </tr>
-                  <tr>
-                    <td><b>10v</b></td>
-                    <td>Wind component at 10 m height in the northward (positive north) direction</td>
-                    <td>m/s</td>
-                    <td>original</td>
-                  </tr>
-                  <tr>
-                    <td><b>wind_speed_10m</b></td>
-                    <td>Wind speed magnitude at 10 m computed from <code>10u</code> and <code>10v</code></td>
-                    <td>m/s</td>
-                    <td>computed</td>
-                  </tr>
-                  <tr>
-                    <td><b>wind_dir_10m</b></td>
-                    <td>Wind direction based on the <b>TO-direction</b> convention (0°=North, clockwise)</td>
-                    <td>degree</td>
-                    <td>computed</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <h3 id="sec-5-2">5.2 Wave</h3>
-            <div class="table-wrap">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Variable</th>
-                    <th>Description</th>
-                    <th>Unit</th>
-                    <th>Type</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><b>swh</b></td>
-                    <td>Significant Wave Height (a representative wave height based on wave energy)</td>
-                    <td>m</td>
-                    <td>original</td>
-                  </tr>
-                  <tr>
-                    <td><b>mwp</b></td>
-                    <td>Mean Wave Period</td>
-                    <td>s</td>
-                    <td>original</td>
-                  </tr>
-                  <tr>
-                    <td><b>mwd</b></td>
-                    <td>Mean Wave Direction based on the <b>FROM-direction</b> convention</td>
-                    <td>degree</td>
-                    <td>original</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <h3 id="sec-5-3">5.3 Notes on Direction Variables</h3>
-            <div class="warn">
-              <b>Wind direction (wind_dir_10m) and wave direction (mwd) use different conventions (TO vs FROM).</b>
-            </div>
-
-            <ul>
-              <li><strong>wind_dir_10m</strong>
-                <ul>
-                  <li>Uses the <strong>TO-direction</strong> convention (direction the wind blows toward)</li>
-                  <li>Consistent with the vector definition of <code>10u</code> and <code>10v</code></li>
-                </ul>
-              </li>
-              <li><strong>mwd</strong>
-                <ul>
-                  <li>Uses the <strong>FROM-direction</strong> convention (direction the waves come from)</li>
-                  <li>Follows common practice in ocean/wave applications</li>
-                </ul>
-              </li>
-            </ul>
-
-          </div>
-        </section>
-
-        <!-- 6 -->
-        <section id="sec-6" class="section card">
-          <div class="card-head">
-            <div class="kicker">Section 6</div>
-            <div class="h2-row">
-              <h2 style="margin:0;">6. How to Compose API Requests</h2>
-              <span class="h2-pill">API</span>
-            </div>
-          </div>
-          <div class="card-pad">
-
-            <h3 id="sec-6-1">6.1 Request Example</h3>
-            <div class="code">http://52.78.244.211/api/griddata
- ?source=ecmwf
- &dataset_code=original
- &model=ifs
- &variable=swh
- &run_time_utc=2025-07-03T00:00:00Z
- &step_hours=24
- &bbox=128&bbox=34&bbox=130&bbox=36</div>
-
-            <h3 id="sec-6-2">6.2 Key Parameters</h3>
-            <ul>
-              <li><code>run_time_utc</code>: forecast run time</li>
-              <li><code>step_hours</code>: forecast step (lead time)</li>
-              <li><code>bbox</code>: [minLon, minLat, maxLon, maxLat]</li>
-            </ul>
-
-            <h3 id="sec-6-3">6.3 Meaning and Input Rules for <code>2025-07-16T00:00:00Z</code></h3>
-            <ul>
-              <li><strong>ISO 8601 + UTC (Z) format</strong></li>
-              <li><code>2025-07-16T00:00:00Z</code> → July 16, 2025 00:00:00 (UTC)</li>
-            </ul>
-
-            <p><b>Input rules</b>:</p>
-            <ul>
-              <li>Use the format <code>YYYY-MM-DDTHH:MM:SSZ</code></li>
-              <li><code>00:00:00Z</code> indicates the <strong>run time</strong></li>
-              <li><code>step_hours</code> increases in increments of 3 hours or 6 hours</li>
-            </ul>
-
-          </div>
-        </section>
-
-        <!-- 7 -->
-        <section id="sec-7" class="section card">
-          <div class="card-head">
-            <div class="kicker">Section 7</div>
-            <div class="h2-row">
-              <h2 style="margin:0;">7. How to Read the Result Array (Indexing)</h2>
-              <span class="h2-pill">Indexing</span>
-            </div>
-          </div>
-          <div class="card-pad">
-
-            <div class="note">
-              This system stores gridded values in a 1D array using a row-major, bottom-up order:
-              starting from the southwest grid cell and filling west→east, south→north.
-            </div>
-
-            <h3 id="sec-7-1">7.1 Array Storage Rule</h3>
-            <ul>
-              <li><strong>Row-major</strong>: fill each row from west → east first</li>
-              <li><strong>Bottom-up</strong>: store rows from south → north</li>
-              <li>Values increase from <strong>west → east</strong> within a row</li>
-            </ul>
-
-            <p>Therefore, index 0 corresponds to the <strong>southwest (SW)</strong> grid cell.</p>
-
-            <h3 id="sec-7-2">7.2 Example Response Array (4 × 4 grid)</h3>
-            <div class="code">values = [
-   1,  2,  3,  4,
-   5,  6,  7,  8,
-   9, 10, 11, 12,
-  13, 14, 15, 16
-]</div>
-
-            <ul class="small">
-              <li>Total length = <code>nx × ny = 4 × 4</code></li>
-              <li>Returned as a 1D array</li>
-            </ul>
-
-            <h3 id="sec-7-3">7.3 Meaning of the Grid Layout on a Map</h3>
-            <div class="code">North (N)
- ↑
- |   13 ── 14 ── 15 ── 16
- |    9 ── 10 ── 11 ── 12
- |    5 ──  6 ──  7 ──  8
- |    1 ──  2 ──  3 ──  4
- |
- └────────────────────────→ East (E)
-     West (W)</div>
-
-            <p class="small"><b>Notes</b>:</p>
-            <ul class="small">
-              <li>The <b>bottom row</b> is the south</li>
-              <li>The <b>top row</b> is the north</li>
-              <li>Within each row, values increase <b>west → east</b></li>
-              <li>
-                Therefore:
-                <ul class="small">
-                  <li><code>values[0]</code> → <b>Southwest (SW)</b></li>
-                  <li><code>values[3]</code> → Southeast (SE)</li>
-                  <li><code>values[12]</code> → Northwest (NW)</li>
-                  <li><code>values[15]</code> → <b>Northeast (NE)</b></li>
-                </ul>
-              </li>
-            </ul>
-
-            <h3 id="sec-7-4">7.4 Relationship Between Array Index and Coordinates</h3>
-            <p>The index is computed as:</p>
-            <div class="code">index = y * nx + x</div>
-
-            <p>Where:</p>
-            <ul>
-              <li><code>x</code>: west → east index (<code>0 … nx-1</code>)</li>
-              <li><code>y</code>: south → north index (<code>0 … ny-1</code>)</li>
-              <li><code>nx</code>: number of grid points in the longitude direction</li>
-            </ul>
-
-            <p>Thus:</p>
-            <ul>
-              <li><code>(x=0, y=0)</code> → Southwest</li>
-              <li><code>(x=nx-1, y=ny-1)</code> → Northeast</li>
-            </ul>
-
-          </div>
-        </section>
-
-        <!-- 8 -->
-        <section id="sec-8" class="section card">
-          <div class="card-head">
-            <div class="kicker">Section 8</div>
-            <div class="h2-row">
-              <h2 style="margin:0;">8. Wind Speed / Wind Direction Formulas</h2>
-              <span class="h2-pill">Derived</span>
-            </div>
-          </div>
-          <div class="card-pad">
-
-            <h3 id="sec-8-1">8.1 Wind Speed</h3>
-            <div class="code">speed = np.hypot(da_u.values, da_v.values)</div>
-
-            <h3 id="sec-8-2">8.2 Wind Direction (TO-direction)</h3>
-            <div class="code">direc = (90.0 - np.degrees(np.arctan2(da_v.values, da_u.values))) %360.0</div>
-
-            <ul class="small">
-              <li>0° = North</li>
-              <li>90° = East</li>
-              <li>Increases clockwise</li>
-            </ul>
-
-          </div>
-        </section>
-
-        <!-- APPENDIX -->
-        <section id="appendix" class="section card">
-          <div class="card-head">
-            <div class="kicker">Appendix</div>
-            <div class="h2-row">
-              <h2 style="margin:0;">[Appendix] Rationale for the Wind Speed & Direction Formulas</h2>
-              <span class="h2-pill">Appendix</span>
-            </div>
-          </div>
-          <div class="card-pad">
-
-            <h3 id="app-1">(1) Meaning of Input Data (10u, 10v)</h3>
-            <p>This system uses the following wind components provided by the ECMWF IFS model:</p>
-            <ul>
-              <li><strong>10u</strong>: eastward wind component at 10 m height</li>
-              <li><strong>10v</strong>: northward wind component at 10 m height</li>
-            </ul>
-
-            <p>
-              In other words, <code>(10u, 10v)</code> represents the wind vector in terms of where it is blowing <strong>to</strong>,
-              not where it is coming <strong>from</strong>.
-            </p>
-
-            <p>
-              Therefore, wind speed and direction are computed using the <strong>TO-direction</strong> convention.
-            </p>
-
-            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
-
-            <h3 id="app-2">(2) Wind Speed Formula</h3>
-            <p>Wind speed is defined as the magnitude of the wind vector and is computed as the Euclidean length of the two components.</p>
-            <div class="code">speed = np.hypot(u, v)</div>
-            <p>This is the standard definition commonly used in meteorology and oceanography.</p>
-
-            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
-
-            <h3 id="app-3">(3) Basics of Wind Direction</h3>
-            <p>Wind direction in this system is based on:</p>
-            <ul>
-              <li><strong>Reference direction</strong>: North as 0°</li>
-              <li><strong>Direction of increase</strong>: clockwise (CW)</li>
-            </ul>
-
-            <p>However, the mathematical angle system uses:</p>
-            <div class="table-wrap">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Mathematical Angle</th>
-                    <th>This System</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Reference axis</td>
-                    <td>East (+x)</td>
-                    <td>North</td>
-                  </tr>
-                  <tr>
-                    <td>Increase direction</td>
-                    <td>Counterclockwise (CCW)</td>
-                    <td>Clockwise (CW)</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <p>So a conversion is required.</p>
-
-            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
-
-            <h3 id="app-4">(4) Why <code>atan2</code>?</h3>
-            <p>We use <code>atan2(v, u)</code> to compute the vector direction.</p>
-            <div class="code">θ = atan2(v, u)</div>
-
-            <p><code>atan2</code> has the following advantages:</p>
-            <ul>
-              <li>Correctly distinguishes all quadrants</li>
-              <li>Works reliably even when <code>u = 0</code></li>
-              <li>Accurately represents the wind vector direction (TO)</li>
-            </ul>
-
-            <p>This angle is measured <strong>from the east</strong> and increases <strong>counterclockwise</strong>.</p>
-
-            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
-
-            <h3 id="app-5">(5) Conversion to Navigation/Meteorological Bearing</h3>
-            <p>To match the bearing convention of this service, we apply:</p>
-            <ol>
-              <li><strong>Axis change</strong>: east → north</li>
-              <li><strong>Rotation direction change</strong>: CCW → CW</li>
-            </ol>
-
-            <p>Combined into a single expression:</p>
-            <div class="code">dir_to =90.0 - np.degrees(np.arctan2(v, u))</div>
-
-            <p>The result has these properties:</p>
-            <ul>
-              <li>0° = North</li>
-              <li>90° = East</li>
-              <li>Increases clockwise</li>
-              <li>Represents the direction the wind is <strong>blowing to</strong> (TO)</li>
-            </ul>
-
-            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
-
-            <h3 id="app-6">(6) Angle Normalization (Modulo 360)</h3>
-            <p>The result can be negative or exceed 360°, so we normalize it into the standard bearing range.</p>
-            <div class="code">wind_dir_to = (90.0 - np.degrees(np.arctan2(v, u))) %360.0</div>
-
-            <p>
-              This does not change the physical direction; it selects the representative value in the range
-              <strong>0 ≤ angle &lt; 360</strong>.
-            </p>
-
-            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
-
-            <h3 id="app-7">(7) Final Formula Summary</h3>
-            <div class="code">wind_speed = np.hypot(u, v)
-wind_dir_to = (90.0 - np.degrees(np.arctan2(v, u))) %360.0</div>
-
-            <p>These formulas ensure:</p>
-            <ul>
-              <li>Full consistency with ECMWF 10u/10v definitions</li>
-              <li>Wind direction computed using the TO-direction convention</li>
-              <li>North-referenced, clockwise-bearing convention suitable for navigation/visualization</li>
-              <li>API outputs ready for map rendering and client applications</li>
-            </ul>
-
-          </div>
-        </section>
-
-        <!-- CONTACT -->
-        <section class="section card">
-          <div class="card-head">
-            <div class="kicker">Contact</div>
-            <div class="muted small">Inquiry</div>
-          </div>
-          <div class="card-pad">
-            <h2 style="margin-top:0;">Contact</h2>
-            <p>
-              BlueMap <b>Kim (Hyunju Kim)</b><br>
-              ✉️ <a class="link" href="mailto:hjk@bluemap.dev">hjk@bluemap.dev</a>
-            </p>
-            <p class="muted">For partner-only inquiries (testbeds, expanding data scope, standards compliance), please contact us by email.</p>
-          </div>
-        </section>
-
-        <footer>
-          <p>© 2025 BlueMap / Optimal-LOADS Consortium — For demonstration purposes.</p>
-        </footer>
-
-      </main>
+  {% if description %}
+    <div class="description mono">
+      {{ description }}
     </div>
+  {% endif %}
 
+  <div class="table-container">
+    <table class="mono">
+      <thead>
+        <tr>
+          <th style="width:50%;">Name</th>
+          <th style="width:25%;">Last modified</th>
+          <th style="width:15%;">Size</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {# Parent Directory #}
+        {% if parent_path %}
+        <tr>
+          <td>
+            <a href="/inventory?path={{ parent_path|urlencode }}" class="dir-link parent-dir">
+              <svg class="dir-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+              </svg>
+              Parent Directory
+            </a>
+          </td>
+          <td class="muted">-</td>
+          <td class="muted">-</td>
+        </tr>
+        {% endif %}
+
+        {# Entries #}
+        {% for e in entries %}
+        <tr>
+          <td>
+            {% if e.is_dir %}
+              <a href="/inventory?path={{ e.path|urlencode }}" class="dir-link">
+                <svg class="dir-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                </svg>
+                {{ e.name }}
+              </a>
+            {% else %}
+              <button
+                type="button"
+                class="btn mono"
+                data-url="{{ e.api_url }}"
+                onclick="copyApiUrl(this)"
+              >
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                </svg>
+                Copy API URL
+              </button>
+              <span class="file-name">{{ e.name }}</span>
+            {% endif %}
+          </td>
+          <td class="muted">{{ e.last_modified or "-" }}</td>
+          <td class="muted">{{ e.size_human or "-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-</body>
-</html>
+</div>
+
+<script>
+  async function copyApiUrl(btn) {
+    const url = btn.dataset.url || "";
+    if (!url) return;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      btn.classList.add('copied');
+      const oldHTML = btn.innerHTML;
+      btn.innerHTML = `
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        Copied!
+      `;
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = oldHTML;
+      }, 1200);
+    } catch (e) {
+      window.prompt("Copy this URL:", url);
+    }
+  }
+</script>
+
+{% endblock %}
