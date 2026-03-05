@@ -89,20 +89,31 @@ async def get_griddata(
     step_hours: int = Query(..., ge=0, le=360, example=24),
 
     # ---- spatial ----
-    bbox: Optional[List[float]] = Query(
-        default=None,
-        description="[minLon, minLat, maxLon, maxLat] (optional)",
-        example=[128.0, 34.0, 130.0, 36.0]
-    ),
-) -> GridDataResponse:
+    lat: Optional[float] = Query(default=None, example=35.0),
+    lon: Optional[float] = Query(default=None, example=129.0),
+    buffer_km: Optional[float] = Query(default=50.0, ge=1.0, le=500.0, example=50.0),
+    ) -> GridDataResponse:
     
     type_ = "forecast"
     
     # ---- bbox 선검증 ----
-    effective_bbox = bbox or [
-        BBOX_LIMITS["min_lon"], BBOX_LIMITS["min_lat"],
-        BBOX_LIMITS["max_lon"], BBOX_LIMITS["max_lat"],
-    ]
+    if lat is not None and lon is not None and buffer_km is not None:
+        # km → degree 변환
+        buffer_deg_lat = buffer_km / 111.0
+        buffer_deg_lon = buffer_km / (111.0 * np.cos(np.radians(lat)))
+        
+        effective_bbox = [
+            lon - buffer_deg_lon,  # minLon
+            lat - buffer_deg_lat,   # minLat
+            lon + buffer_deg_lon,   # maxLon
+            lat + buffer_deg_lat    # maxLat
+        ]
+    else:
+        # 파라미터 없으면 전역 범위
+        effective_bbox = [
+            BBOX_LIMITS["min_lon"], BBOX_LIMITS["min_lat"],
+            BBOX_LIMITS["max_lon"], BBOX_LIMITS["max_lat"],
+        ]
     _validate_bbox_limits_raw(effective_bbox)
     
     # ---- 변수 정규화 (소스별) ----
@@ -197,8 +208,8 @@ async def get_griddata(
             ds_v = _normalize_grib_coordinates(ds_v, source)
             
             # 소스별 변수명으로 선택
-            da_u, lat_inc_u, _ = _select_da(ds_u, u_var, bbox, source=source)
-            da_v, lat_inc_v, _ = _select_da(ds_v, v_var, bbox, source=source)
+            da_u, lat_inc_u, _ = _select_da(ds_u, u_var, effective_bbox, source=source)
+            da_v, lat_inc_v, _ = _select_da(ds_v, v_var, effective_bbox, source=source)
             
             da_u = _ensure_lat_lon_names(da_u)
             da_v = _ensure_lat_lon_names(da_v)
@@ -237,7 +248,7 @@ async def get_griddata(
                 "name_en": name_en_meta,
                 "standard_name": std_name_meta,
 
-                "bbox": bbox if bbox else [
+                "bbox": [
                     float(da_like["lon"].values.min()),
                     float(da_like["lat"].values.min()),
                     float(da_like["lon"].values.max()),
@@ -312,11 +323,9 @@ async def get_griddata(
         # 소스별 좌표 정규화
         ds = _normalize_grib_coordinates(ds, source)
 
-        if bbox is not None and len(bbox) != 4:
-            raise HTTPException(status_code=422, detail="bbox must have 4 numbers: [minLon, minLat, maxLon, maxLat]")
 
         # 소스 정보 전달
-        da, lat_inc, _ = _select_da(ds, norm_var, bbox, source=source)
+        da, lat_inc, _ = _select_da(ds, norm_var, effective_bbox, source=source)
         da = _ensure_lat_lon_names(da)
 
         arr2, dlon, dlat, width, height = _prepare_array_for_response(da, lat_inc)
@@ -339,11 +348,11 @@ async def get_griddata(
             "name_en": name_en_meta,
             "standard_name": std_name_meta,
 
-            "bbox": bbox if bbox else [
-                float(da["lon"].values.min()),
+            "bbox": [
+                float(da["lon"].values.min()), 
                 float(da["lat"].values.min()),
                 float(da["lon"].values.max()),
-                float(da["lat"].values.max())
+                float(da["lat"].values.max()),
             ],
             "resolution": [dlon, dlat],
             "shape": [width, height],
