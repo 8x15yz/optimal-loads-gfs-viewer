@@ -139,13 +139,13 @@ def _fmt_lm(v: Any) -> Optional[str]:
     return None
 
 
-def _build_api_example(doc: Dict[str, Any], bbox: List[str]) -> str:
+def _build_api_example(doc: Dict[str, Any], lat: float = 35.0, lon: float = 129.0, buffer_km: float = 50.0) -> str:
     """
     Final griddata API example
     - 모든 필드를 doc에서 가져와서 동적 생성
     - datetime은 RFC3339 그대로 (NO URL encoding)
+    - 중심점(lat, lon) + 버퍼(buffer_km) 방식으로 변경
     """
-    # ✅ 기본값 제거, doc에서 직접 가져오기
     source = doc.get("source", "")
     dataset_code = doc.get("dataset_code", "")
     model = doc.get("model", "")
@@ -153,8 +153,6 @@ def _build_api_example(doc: Dict[str, Any], bbox: List[str]) -> str:
 
     run_time_utc = _to_iso_z(doc.get("run_time_utc"))
     step_hours = int(doc.get("step_hours", 0))
-
-    bbox_q = "&".join(f"bbox={v}" for v in bbox)
 
     return (
         "http://52.78.244.211/api/griddata"
@@ -164,7 +162,9 @@ def _build_api_example(doc: Dict[str, Any], bbox: List[str]) -> str:
         f"&variable={variable}"
         f"&run_time_utc={run_time_utc}"
         f"&step_hours={step_hours}"
-        f"&{bbox_q}"
+        f"&lat={lat}"
+        f"&lon={lon}"
+        f"&buffer_km={buffer_km}"
     )
 
 
@@ -176,7 +176,9 @@ def _build_api_example(doc: Dict[str, Any], bbox: List[str]) -> str:
 async def inventory_index(
     request: Request,
     path: str = Query("/", description="directory-like path. e.g. /ecmwf/ifs/2025/2025-07/2025-07-16/06Z/"),
-    bbox: List[str] = Query(default=["128", "34", "130", "36"], description="bbox repeated 4 times: minLon,minLat,maxLon,maxLat"),
+    lat: float = Query(default=35.0, description="Center latitude"),
+    lon: float = Query(default=129.0, description="Center longitude"),
+    buffer_km: float = Query(default=50.0, ge=1.0, le=500.0, description="Buffer distance in km"),
 ):
     assets = await get_assets_collection()
     dirs = await get_directories_collection()
@@ -245,7 +247,7 @@ async def inventory_index(
 
     for d in file_docs:
         display_name = d.get("name") or d.get("inventory_name") or "(unnamed)"
-        api_example = _build_api_example(d, bbox=bbox)
+        api_example = _build_api_example(d, lat=lat, lon=lon, buffer_km=buffer_km)
 
         entries.append({
             "name": display_name,
