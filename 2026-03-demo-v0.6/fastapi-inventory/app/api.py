@@ -548,38 +548,33 @@ def resolve_var(ds: xr.Dataset, var: str, source: str = "ecmwf") -> str:
 
 
 def _norm_var(v: str, source: str = "ecmwf") -> str:
-    """
-    사용자 입력 변수명을 소스별 표준 변수명으로 정규화
-    """
     low = v.strip().lower()
     source_lower = source.lower()
-    
-    # Computed 바람 (소스 무관)
-    if low in ("wind_speed_10m", "ws", "ws10", "spd", "wind"):
-        return "wind_speed_10m"
-    if low in ("wind_dir_10m", "wdir", "wdir10", "dir", "wd"):
-        return "wind_dir_10m"
-    
-    # NOAA 변수명 정규화
+
+    # ✅ NOAA 변수명을 먼저 처리 (WDIR이 wind_dir_10m으로 오변환되는 것 방지)
     if source_lower == "noaa":
         for key in ALIASES_NOAA.keys():
             if low == key.lower():
                 return key
-        
-        # 별칭으로 입력한 경우
         for key, aliases in ALIASES_NOAA.items():
             if low in [a.lower() for a in aliases]:
                 return key
-    
+
+    # Computed 바람 (NOAA 원본 변수명 처리 후에만 도달)
+    if low in ("wind_speed_10m", "ws", "ws10", "spd", "wind"):
+        return "wind_speed_10m"
+    if low in ("wind_dir_10m", "wdir", "wdir10", "dir", "wd"):
+        return "wind_dir_10m"
+
     # ECMWF 변수명 정규화
-    elif source_lower == "ecmwf":
+    if source_lower == "ecmwf":
         if low in ("u10", "10u"):
             return "10u"
         if low in ("v10", "10v"):
             return "10v"
         if low in ("swh", "significant_wave_height", "hs"):
             return "swh"
-    
+
     return v.strip()
 
 
