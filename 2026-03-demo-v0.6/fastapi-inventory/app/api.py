@@ -232,7 +232,7 @@ async def get_griddata(
             
             # 바람 속도/방향 계산
             speed = np.hypot(da_u.values, da_v.values)
-            direc = (90.0 - np.degrees(np.arctan2(da_v.values, da_u.values))) % 360.0
+            direc = (270.0 - np.degrees(np.arctan2(da_v.values, da_u.values))) % 360.0
 
             target = speed if norm_var == "wind_speed_10m" else direc
             da_like = da_u  # 좌표/차원 템플릿
