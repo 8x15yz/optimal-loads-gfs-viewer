@@ -408,9 +408,17 @@ async def get_sources():
     if not docs:
         raise HTTPException(status_code=404, detail="No sources found in directories.")
 
-    # _id: "ecmwf/" → name: "ecmwf"
+    # 변경
+    MODEL_MAP = {
+        "ecmwf": "ifs",
+        "noaa": "gfs",
+    }
+
     sources = [
-        {"source": doc.get("name") or doc["_id"].strip("/")}
+        {
+            "source": (name := doc.get("name") or doc["_id"].strip("/")),
+            "model": MODEL_MAP.get(name)
+        }
         for doc in docs
     ]
 
