@@ -376,6 +376,143 @@ async def get_griddata(
             ds and ds.close()
 
 
+# ----------------- Web-ECDIS 응답용 ----------------- 
+
+from fastapi import APIRouter, HTTPException
+from app.db import get_directories_collection
+
+meta_router = APIRouter(prefix="/api", tags=["meta"])
+
+
+# =============================================================================
+# GET /api/sources
+# STEP 2 진입 시 — ecmwf, noaa 등 source 목록 반환
+# directories 컬렉션에서 parent가 None인 최상위 폴더들 조회
+# =============================================================================
+
+@meta_router.get("/sources", summary="사용 가능한 데이터 소스 목록")
+async def get_sources():
+    """
+    directories 컬렉션의 최상위 폴더(_id 예: "ecmwf/", "noaa/")를 반환.
+    parent가 None인 문서들 = 루트 바로 아래 source 폴더들.
+    """
+    coll = await get_directories_collection()
+
+    docs = await coll.find(
+        {"parent": None},
+        {"_id": 1, "name": 1}
+    ).to_list(length=100)
+
+    if not docs:
+        raise HTTPException(status_code=404, detail="No sources found in directories.")
+
+    # _id: "ecmwf/" → name: "ecmwf"
+    sources = [
+        {"source": doc.get("name") or doc["_id"].strip("/")}
+        for doc in docs
+    ]
+
+    return {"sources": sources}
+    # 응답 예시:
+    # { "sources": [{"source": "ecmwf"}, {"source": "noaa"}] }
+
+
+# =============================================================================
+# GET /api/variables?source=ecmwf
+# STEP 3 진입 시 — 해당 source의 변수 목록 반환
+# directories에서 xxZ/ 하위의 original/, computed/ 문서들을 찾아
+# children_dirs를 union해서 변수 목록 구성
+# original-all-steps/, s100/ 는 regex에서 자동 제외됨
+# =============================================================================
+
+@meta_router.get("/variables", summary="source별 사용 가능한 변수 목록")
+async def get_variables(source: str):
+    """
+    경로 패턴: {source}/{model}/yyyy/yyyy-mm/yyyy-mm-dd/xxZ/(original|computed)/
+    해당 패턴에 매칭되는 디렉토리 문서들의 children_dirs를 모아서 변수 목록 반환.
+
+    - original/   → dataset_code: "original"
+    - computed/   → dataset_code: "computed"
+    - original-all-steps/, s100/ 등은 regex 패턴에서 자동 제외
+    """
+    source_lower = source.strip().lower()
+
+    # source에 따라 model 결정
+    # ecmwf → ifs,  noaa → gfs  (추후 다른 모델 생기면 여기서 확장)
+    MODEL_MAP = {
+        "ecmwf": "ifs",
+        "noaa": "gfs",
+    }
+    model = MODEL_MAP.get(source_lower)
+    if not model:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown source '{source}'. Available: {list(MODEL_MAP.keys())}"
+        )
+
+    coll = await get_directories_collection()
+
+    # 패턴: ecmwf/ifs/2026/2026-03/2026-03-08/00Z/original/
+    #        ecmwf/ifs/2026/2026-03/2026-03-08/00Z/computed/
+    # → original-all-steps, s100 등은 매칭 안 됨
+    pattern = (
+        rf"^{source_lower}/{model}/"       # ecmwf/ifs/
+        r"\d{4}/"                          # 2026/
+        r"\d{4}-\d{2}/"                    # 2026-03/
+        r"\d{4}-\d{2}-\d{2}/"             # 2026-03-08/
+        r"\d{2}Z/"                         # 00Z/
+        r"(original|computed)/$"           # original/ 또는 computed/ 만
+    )
+
+    docs = await coll.find(
+        {"_id": {"$regex": pattern}},
+        {"_id": 1, "children_dirs": 1}
+    ).to_list(length=10000)
+
+    if not docs:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No variable directories found for source='{source}'."
+        )
+
+    # dataset_code별로 변수 수집
+    original_vars: set[str] = set()
+    computed_vars: set[str] = set()
+
+    for doc in docs:
+        path: str = doc["_id"]          # ex) "ecmwf/ifs/2026/.../original/"
+        children: list = doc.get("children_dirs", [])
+
+        if "/original/" in path:
+            for child in children:
+                original_vars.add(child.rstrip("/"))
+        elif "/computed/" in path:
+            for child in children:
+                computed_vars.add(child.rstrip("/"))
+
+    # 응답 구성 — original 먼저, computed 뒤에
+    variables = (
+        [{"variable": v, "dataset_code": "original"} for v in sorted(original_vars)]
+        + [{"variable": v, "dataset_code": "computed"} for v in sorted(computed_vars)]
+    )
+
+    return {
+        "source": source_lower,
+        "model": model,
+        "variables": variables,
+    }
+    # 응답 예시:
+    # {
+    #   "source": "ecmwf",
+    #   "model": "ifs",
+    #   "variables": [
+    #     {"variable": "10u", "dataset_code": "original"},
+    #     {"variable": "10v", "dataset_code": "original"},
+    #     {"variable": "swh", "dataset_code": "original"},
+    #     {"variable": "wind_speed_10m", "dataset_code": "computed"}
+    #   ]
+    # }
+
 # =============================================================================
 # Helpers - 변수명 처리
 # =============================================================================
