@@ -15,7 +15,7 @@ from starlette.middleware.cors import CORSMiddleware
 from app.ingestion import router as ingestion_router
 
 from app.db import get_assets_collection, get_directories_collection
-from app.api import router as api_router
+from app.api import router as api_router, meta_router
 
 from urllib.parse import quote
 
@@ -58,6 +58,7 @@ async def root_en():
 
 app.include_router(api_router)
 app.include_router(ingestion_router)
+app.include_router(meta_router)
 
 # ---- CORS ----
 app.add_middleware(

@@ -6,12 +6,12 @@ from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 
 from app.models import GridDataResponse
-from app.db import get_assets_collection
+from app.db import get_assets_collection, get_directories_collection
+
 
 import numpy as np
 import xarray as xr
 import tempfile, os, contextlib, boto3
-
 
 # ---- env / S3 ----
 AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
@@ -70,8 +70,11 @@ ASSUMED_DLAT = 0.083
 # =============================================================================
 # Router
 # =============================================================================
+# router (griddata용)
 router = APIRouter(prefix="/api", tags=["grid"])
 
+# meta_router (sources, variables용)
+meta_router = APIRouter(prefix="/api", tags=["meta"])
 
 @router.get(
     "/griddata",
@@ -378,10 +381,9 @@ async def get_griddata(
 
 # ----------------- Web-ECDIS 응답용 ----------------- 
 
-from fastapi import APIRouter, HTTPException
-from app.db import get_directories_collection
 
-meta_router = APIRouter(prefix="/api", tags=["meta"])
+
+
 
 
 # =============================================================================
