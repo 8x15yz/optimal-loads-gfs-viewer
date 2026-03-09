@@ -91,16 +91,48 @@ async def get_griddata(
     run_time_utc: str = Query(..., example="2025-07-16T00:00:00Z"),
     step_hours: int = Query(..., ge=0, le=360, example=24),
 
-    # ---- spatial ----
-    lat: Optional[float] = Query(default=None, example=35.0),
-    lon: Optional[float] = Query(default=None, example=129.0),
-    buffer_km: Optional[float] = Query(default=50.0, ge=0.0, le=500.0, example=50.0),
+    # ---- spatial (방식 1: 중심점 + 버퍼) ----
+    lat: Optional[float] = Query(default=None, example=35.0, description="중심점 위도"),
+    lon: Optional[float] = Query(default=None, example=129.0, description="중심점 경도"),
+    buffer_km: Optional[float] = Query(default=50.0, ge=0.0, le=500.0, example=50.0, description="버퍼 반경(km)"),
+    
+    # ---- spatial (방식 2: 북서-남동 모서리) ----
+    nw_lon: Optional[float] = Query(default=None, example=128.0, description="북서(좌상단) 경도"),
+    nw_lat: Optional[float] = Query(default=None, example=36.0, description="북서(좌상단) 위도"),
+    se_lon: Optional[float] = Query(default=None, example=130.0, description="남동(우하단) 경도"),
+    se_lat: Optional[float] = Query(default=None, example=34.0, description="남동(우하단) 위도"),
     ) -> GridDataResponse:
     
     type_ = "forecast"
     
-    # ---- bbox 선검증 ----
-    if lat is not None and lon is not None and buffer_km is not None:
+    # ---- bbox 생성 로직 ----
+    # 우선순위: 1) nw/se 모서리 → 2) 중심점+버퍼 → 3) 전체 영역
+    
+    # 방식 1: 북서-남동 모서리로 bbox 생성
+    nw_se_params = [nw_lon, nw_lat, se_lon, se_lat]
+    center_buffer_params = [lat, lon, buffer_km]
+    
+    if all(p is not None for p in nw_se_params):
+        # nw/se 파라미터가 모두 제공됨
+        if any(p is not None for p in center_buffer_params):
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "Cannot use both nw/se and lat/lon/buffer parameters simultaneously.",
+                    "hint": "Use either (nw_lon, nw_lat, se_lon, se_lat) OR (lat, lon, buffer_km)"
+                }
+            )
+        
+        # nw = (min_lon, max_lat), se = (max_lon, min_lat)
+        effective_bbox = [
+            nw_lon,  # min_lon
+            se_lat,  # min_lat
+            se_lon,  # max_lon
+            nw_lat   # max_lat
+        ]
+    
+    # 방식 2: 중심점 + 버퍼로 bbox 생성 (기존 로직)
+    elif lat is not None and lon is not None and buffer_km is not None:
         if buffer_km == 0:
             # ✅ 단일 포인트: 가장 가까운 격자점 1개만
             buffer_deg_lat = 0.001
@@ -116,11 +148,13 @@ async def get_griddata(
             buffer_deg_lon = max(buffer_deg_lon, min_buffer_deg / np.cos(np.radians(lat)))
         
         effective_bbox = [
-            lon - buffer_deg_lon,
-            lat - buffer_deg_lat,
-            lon + buffer_deg_lon,
-            lat + buffer_deg_lat
+            lon - buffer_deg_lon,  # min_lon
+            lat - buffer_deg_lat,  # min_lat
+            lon + buffer_deg_lon,  # max_lon
+            lat + buffer_deg_lat   # max_lat
         ]
+    
+    # 방식 3: 전체 영역 (파라미터 없음)
     else:
         effective_bbox = [
             BBOX_LIMITS["min_lon"], BBOX_LIMITS["min_lat"],
