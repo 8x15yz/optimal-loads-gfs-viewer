@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+import sys  # ← 이 줄 추가!
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -147,5 +148,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    import sys
     main()
