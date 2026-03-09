@@ -223,6 +223,23 @@
     stroke: #166534;
   }
   
+  /* Different colors for different button types */
+  .icon-btn.btn-center:hover {
+    border-color: #0ea5e9;
+  }
+  
+  .icon-btn.btn-center:hover svg {
+    stroke: #0ea5e9;
+  }
+  
+  .icon-btn.btn-corner:hover {
+    border-color: #8b5cf6;
+  }
+  
+  .icon-btn.btn-corner:hover svg {
+    stroke: #8b5cf6;
+  }
+  
   /* Tooltip */
   .tooltip {
     position: absolute;
@@ -417,18 +434,37 @@
                 </svg>
                 <span class="file-name">{{ e.name }}</span>
                 <div class="file-actions">
+                  <!-- Center + Buffer API -->
                   <button
                     type="button"
-                    class="icon-btn"
+                    class="icon-btn btn-center"
                     data-url="{{ e.api_url }}"
+                    data-type="center"
                     onclick="copyApiUrl(this)"
-                    aria-label="Copy API URL"
+                    aria-label="Copy Center+Buffer API URL"
                   >
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
                     </svg>
-                    <span class="tooltip">{{ e.api_url }}</span>
+                    <span class="tooltip">📍 Center+Buffer</span>
                   </button>
+                  
+                  <!-- Corner API -->
+                  <button
+                    type="button"
+                    class="icon-btn btn-corner"
+                    data-url="{{ e.api_url_corners }}"
+                    data-type="corner"
+                    onclick="copyApiUrl(this)"
+                    aria-label="Copy Corner (NW/SE) API URL"
+                  >
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+                    </svg>
+                    <span class="tooltip">📐 NW/SE Corners</span>
+                  </button>
+                  
+                  <!-- Open in new tab -->
                   <button
                     type="button"
                     class="icon-btn"
@@ -439,7 +475,7 @@
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                     </svg>
-                    <span class="tooltip">Open in new tab</span>
+                    <span class="tooltip">🔗 Open in new tab</span>
                   </button>
                 </div>
               </div>
@@ -460,7 +496,7 @@
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
   </svg>
   <div class="toast-content">
-    <div class="toast-title">API URL copied!</div>
+    <div class="toast-title" id="toast-title">API URL copied!</div>
     <div class="toast-message" id="toast-url"></div>
   </div>
 </div>
@@ -468,9 +504,19 @@
 <script>
   let toastTimeout;
 
-  function showToast(url) {
+  function showToast(url, type) {
     const toast = document.getElementById('toast');
     const urlDisplay = document.getElementById('toast-url');
+    const titleDisplay = document.getElementById('toast-title');
+    
+    // Update title based on type
+    if (type === 'center') {
+      titleDisplay.textContent = '📍 Center+Buffer URL copied!';
+    } else if (type === 'corner') {
+      titleDisplay.textContent = '📐 Corner (NW/SE) URL copied!';
+    } else {
+      titleDisplay.textContent = 'API URL copied!';
+    }
     
     urlDisplay.textContent = url;
     toast.classList.add('show');
@@ -483,6 +529,8 @@
 
   async function copyApiUrl(btn) {
     const url = btn.dataset.url || "";
+    const type = btn.dataset.type || "";
+    
     if (!url) return;
 
     try {
@@ -502,8 +550,8 @@
         btn.querySelector('svg').outerHTML = originalSvg;
       }, 1200);
       
-      // Show toast
-      showToast(url);
+      // Show toast with type
+      showToast(url, type);
     } catch (e) {
       window.prompt("Copy this URL:", url);
     }

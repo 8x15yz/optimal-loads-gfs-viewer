@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import json
+import math
 from datetime import datetime, timezone
 from typing import Optional, Any, Dict, List
 
@@ -142,10 +143,9 @@ def _fmt_lm(v: Any) -> Optional[str]:
 
 def _build_api_example(doc: Dict[str, Any], lat: float = 35.0, lon: float = 129.0, buffer_km: float = 50.0) -> str:
     """
-    Final griddata API example
+    Final griddata API example - 중심점 + 버퍼 방식
     - 모든 필드를 doc에서 가져와서 동적 생성
     - datetime은 RFC3339 그대로 (NO URL encoding)
-    - 중심점(lat, lon) + 버퍼(buffer_km) 방식으로 변경
     """
     source = doc.get("source", "")
     dataset_code = doc.get("dataset_code", "")
@@ -166,6 +166,58 @@ def _build_api_example(doc: Dict[str, Any], lat: float = 35.0, lon: float = 129.
         f"&lat={lat}"
         f"&lon={lon}"
         f"&buffer_km={buffer_km}"
+    )
+
+
+def _build_api_example_corners(doc: Dict[str, Any], lat: float = 35.0, lon: float = 129.0, buffer_km: float = 50.0) -> str:
+    """
+    Final griddata API example - 북서/남동 모서리 방식
+    - 중심점(lat, lon)과 버퍼(buffer_km)를 모서리 좌표로 변환
+    - nw_lon, nw_lat, se_lon, se_lat 파라미터 사용
+    """
+    source = doc.get("source", "")
+    dataset_code = doc.get("dataset_code", "")
+    model = doc.get("model", "")
+    variable = doc.get("variable", "")
+
+    run_time_utc = _to_iso_z(doc.get("run_time_utc"))
+    step_hours = int(doc.get("step_hours", 0))
+
+    # km → degree 변환
+    buffer_deg_lat = buffer_km / 111.0
+    buffer_deg_lon = buffer_km / (111.0 * math.cos(math.radians(lat)))
+    
+    # 최소 버퍼 보장 (API와 동일한 로직)
+    min_buffer_deg = 0.125  # 0.25° / 2
+    buffer_deg_lat = max(buffer_deg_lat, min_buffer_deg)
+    buffer_deg_lon = max(buffer_deg_lon, min_buffer_deg / math.cos(math.radians(lat)))
+    
+    # 모서리 계산
+    # nw = 북서(좌상단) = (min_lon, max_lat)
+    # se = 남동(우하단) = (max_lon, min_lat)
+    nw_lon = lon - buffer_deg_lon
+    nw_lat = lat + buffer_deg_lat
+    se_lon = lon + buffer_deg_lon
+    se_lat = lat - buffer_deg_lat
+    
+    # 소수점 6자리로 반올림 (경도 0.000001° ≈ 0.11m)
+    nw_lon = round(nw_lon, 6)
+    nw_lat = round(nw_lat, 6)
+    se_lon = round(se_lon, 6)
+    se_lat = round(se_lat, 6)
+
+    return (
+        "http://52.78.244.211/api/griddata"
+        f"?source={source}"
+        f"&dataset_code={dataset_code}"
+        f"&model={model}"
+        f"&variable={variable}"
+        f"&run_time_utc={run_time_utc}"
+        f"&step_hours={step_hours}"
+        f"&nw_lon={nw_lon}"
+        f"&nw_lat={nw_lat}"
+        f"&se_lon={se_lon}"
+        f"&se_lat={se_lat}"
     )
 
 
@@ -248,13 +300,17 @@ async def inventory_index(
 
     for d in file_docs:
         display_name = d.get("name") or d.get("inventory_name") or "(unnamed)"
-        api_example = _build_api_example(d, lat=lat, lon=lon, buffer_km=buffer_km)
+        
+        # 두 가지 API URL 생성
+        api_url = _build_api_example(d, lat=lat, lon=lon, buffer_km=buffer_km)
+        api_url_corners = _build_api_example_corners(d, lat=lat, lon=lon, buffer_km=buffer_km)
 
         entries.append({
             "name": display_name,
             "is_dir": False,
             "path": None,
-            "api_url": api_example,
+            "api_url": api_url,              # 중심점 + 버퍼
+            "api_url_corners": api_url_corners,  # 북서-남동 모서리
             "file_id": d.get("natural_key"),
             "last_modified": _fmt_lm(d.get("created_at")),
             "size_human": _human_size(d.get("size_bytes")),
