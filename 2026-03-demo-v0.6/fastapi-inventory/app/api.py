@@ -94,7 +94,7 @@ async def get_griddata(
     # ---- spatial (방식 1: 중심점 + 버퍼) ----
     lat: Optional[float] = Query(default=None, example=35.0, description="중심점 위도"),
     lon: Optional[float] = Query(default=None, example=129.0, description="중심점 경도"),
-    buffer_km: Optional[float] = Query(default=50.0, ge=0.0, le=500.0, example=50.0, description="버퍼 반경(km)"),
+    buffer_km: Optional[float] = Query(default=None, ge=0.0, le=500.0, example=50.0, description="버퍼 반경(km)"),
     
     # ---- spatial (방식 2: 북서-남동 모서리) ----
     nw_lon: Optional[float] = Query(default=None, example=128.0, description="북서(좌상단) 경도"),
@@ -132,15 +132,18 @@ async def get_griddata(
         ]
     
     # 방식 2: 중심점 + 버퍼로 bbox 생성 (기존 로직)
-    elif lat is not None and lon is not None and buffer_km is not None:
-        if buffer_km == 0:
+    elif lat is not None and lon is not None:
+        # buffer_km이 None이면 기본값 50.0 사용
+        buffer = buffer_km if buffer_km is not None else 50.0
+        
+        if buffer == 0:
             # ✅ 단일 포인트: 가장 가까운 격자점 1개만
             buffer_deg_lat = 0.001
             buffer_deg_lon = 0.001
         else:
             # km → degree 변환
-            buffer_deg_lat = buffer_km / 111.0
-            buffer_deg_lon = buffer_km / (111.0 * np.cos(np.radians(lat)))
+            buffer_deg_lat = buffer / 111.0
+            buffer_deg_lon = buffer / (111.0 * np.cos(np.radians(lat)))
             
             # 최소 버퍼 보장 (buffer_km > 0일 때만)
             min_buffer_deg = 0.125  # 0.25° / 2
