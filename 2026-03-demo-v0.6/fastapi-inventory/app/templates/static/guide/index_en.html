@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Optimal-LOADS • Consortium Preview — Demo v0.3 (ECMWF Open Data)</title>
+  <title>Optimal-LOADS • Consortium Preview — Demo v0.6 (ECMWF + NOAA)</title>
   <style>
     :root {
       --bg: #fafafa;
@@ -545,8 +545,8 @@
       <p>This page is the <strong>user guide</strong> for the BLUEMAP Marine Weather Data Inventory service.</p>
       <div class="badges">
         <span class="badge">✓ Status: Active</span>
-        <span class="badge">📦 Version: v0.3</span>
-        <span class="badge">🌍 Primary Data Source: ECMWF Open Data</span>
+        <span class="badge">📦 Version: v0.6</span>
+        <span class="badge">🌍 Data Sources: ECMWF Open Data, NOAA GFS</span>
       </div>
     </section>
 
@@ -569,7 +569,9 @@
 
           <div class="sep"></div>
 
-          <a href="#sec-2">2. Data Source</a>
+          <a href="#sec-2">2. Data Sources</a>
+          <a class="lvl2" href="#sec-2">2.1 ECMWF</a>
+          <a class="lvl2" href="#sec-2">2.2 NOAA GFS</a>
 
           <div class="sep"></div>
 
@@ -595,10 +597,13 @@
 
           <div class="sep"></div>
 
-          <a href="#sec-6">6. How to Compose API Requests</a>
-          <a class="lvl2" href="#sec-6-1">6.1 Request Example</a>
-          <a class="lvl2" href="#sec-6-2">6.2 Key Parameters</a>
-          <a class="lvl2" href="#sec-6-3">6.3 How to Input run_time_utc</a>
+          <a href="#sec-6">6. API Usage</a>
+          <a class="lvl2" href="#sec-6-0">6.0 Endpoint List</a>
+          <a class="lvl2" href="#sec-6-meta">6.1 Meta API (sources / variables)</a>
+          <a class="lvl2" href="#sec-6-1">6.2 Grid Data Query</a>
+          <a class="lvl2" href="#sec-6-2">6.3 Request Examples</a>
+          <a class="lvl2" href="#sec-6-3">6.4 run_time_utc Format</a>
+          <a class="lvl2" href="#sec-6-4">6.5 Cell Count Limit</a>
 
           <div class="sep"></div>
 
@@ -610,18 +615,18 @@
 
           <div class="sep"></div>
 
-          <a href="#sec-8">8. Wind speed / Wind direction</a>
+          <a href="#sec-8">8. Wind Speed / Wind Direction</a>
           <a class="lvl2" href="#sec-8-1">8.1 Wind Speed</a>
-          <a class="lvl2" href="#sec-8-2">8.2 Wind Direction (TO)</a>
+          <a class="lvl2" href="#sec-8-2">8.2 Wind Direction (FROM)</a>
 
           <div class="sep"></div>
 
-          <a href="#appendix">[Appendix] Wind Speed & Direction Formulas</a>
+          <a href="#appendix">[Appendix] Wind Speed &amp; Direction Formulas</a>
           <a class="lvl2" href="#app-1">(1) Meaning of Input Data</a>
           <a class="lvl2" href="#app-2">(2) Wind Speed Formula</a>
           <a class="lvl2" href="#app-3">(3) Wind Direction Basics</a>
           <a class="lvl2" href="#app-4">(4) Why atan2</a>
-          <a class="lvl2" href="#app-5">(5) Bearing Conversion</a>
+          <a class="lvl2" href="#app-5">(5) FROM-Direction Conversion</a>
           <a class="lvl2" href="#app-6">(6) Modulo 360</a>
           <a class="lvl2" href="#app-7">(7) Final Summary</a>
         </div>
@@ -638,23 +643,28 @@
           </div>
           <div class="card-pad">
             <div class="note">
-              <b>This service uses ECMWF Open Data.</b><br />
-              For dataset overview and policies, refer to the official page below:
+              <b>This service uses ECMWF Open Data and NOAA GFS data.</b><br />
+              ECMWF dataset overview and policies:
               <a class="link" href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">
                 ECMWF Open Data
+              </a><br />
+              NOAA GFS data:
+              <a class="link" href="https://www.ncei.noaa.gov/products/weather-climate-models/global-forecast" target="_blank" rel="noopener">
+                NOAA GFS
               </a>
             </div>
 
             <p>
-              This demo collects and stores <strong>global gridded data</strong> based on <strong>ECMWF Open Data</strong>,
-              and provides a static catalog (metadata index), a map preview, and a lightweight API.
+              This demo collects and stores <strong>global gridded data</strong> based on <strong>ECMWF Open Data</strong>
+              and <strong>NOAA GFS</strong>, and provides a static catalog (metadata index), a map preview, and a lightweight API.
             </p>
 
             <ul>
-              <li>Global gridded forecast datasets (Atmosphere + Wave)</li>
+              <li>Global gridded forecast datasets (Atmosphere + Wave) — ECMWF &amp; NOAA</li>
               <li>Static metadata index + preview</li>
               <li>Lightweight API for front-end widgets</li>
-              <li>Derived variables: wind_speed_10m, wind_dir_10m (TO-direction)</li>
+              <li>Derived variables: wind_speed_10m, wind_dir_10m (FROM-direction)</li>
+              <li>Meta API: <code>/api/sources</code>, <code>/api/variables</code></li>
             </ul>
 
             <div class="warn small">
@@ -676,8 +686,8 @@
 
             <h3 id="sec-1-1">1.1 Forecast Time-Series Data</h3>
             <p>
-              This dataset is <strong>forecast time-series data</strong> generated by the
-              <strong>ECMWF IFS (Integrated Forecasting System)</strong> model.
+              This dataset provides <strong>forecast time-series data</strong> generated by the
+              <strong>ECMWF IFS (Integrated Forecasting System)</strong> and <strong>NOAA GFS (Global Forecast System)</strong> models.
             </p>
             <p>
               All data are defined relative to a specific <strong>run time</strong> and consist of
@@ -710,20 +720,22 @@
           <div class="card-head">
             <div class="kicker">Section 2</div>
             <div class="h2-row">
-              <h2 style="margin:0;">2. Data Source</h2>
+              <h2 style="margin:0;">2. Data Sources</h2>
               <span class="h2-pill">Source</span>
             </div>
           </div>
           <div class="card-pad">
+
+            <h3>2.1 ECMWF</h3>
             <ul>
-              <li>Source dataset: <strong>ECMWF Open Data</strong> :
+              <li>Source dataset: <strong>ECMWF Open Data</strong>:
                 <a class="link" href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">
                   ECMWF Open Data
                 </a>
               </li>
               <li>Forecast models:
                 <ul>
-                  <li>Atmosphere model: IFS Atmosphere</li>
+                  <li>Atmosphere model: IFS Atmosphere (<code>source=ecmwf</code>, <code>model=ifs</code>)</li>
                   <li>Wave model: IFS Wave Model</li>
                 </ul>
               </li>
@@ -738,6 +750,33 @@
                 </a>
               </li>
             </ul>
+
+            <h3>2.2 NOAA GFS</h3>
+            <ul>
+              <li>Source dataset: <strong>NOAA GFS (Global Forecast System)</strong>:
+                <a class="link" href="https://www.ncei.noaa.gov/products/weather-climate-models/global-forecast" target="_blank" rel="noopener">
+                  NOAA GFS
+                </a>
+              </li>
+              <li>Forecast model: GFS (<code>source=noaa</code>, <code>model=gfs</code>)</li>
+              <li>Available variables: wind (UGRD, VGRD, WIND, WDIR), wave (HTSGW, PERPW, DIRPW)</li>
+            </ul>
+
+            <div class="note">
+              <b>source / model parameter mapping</b>
+              <div class="table-wrap" style="margin-top:12px;">
+                <table class="table">
+                  <thead>
+                    <tr><th>source</th><th>model</th><th>Description</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td><code>ecmwf</code></td><td><code>ifs</code></td><td>ECMWF IFS (Atmosphere + Wave)</td></tr>
+                    <tr><td><code>noaa</code></td><td><code>gfs</code></td><td>NOAA GFS (Atmosphere + Wave)</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
           </div>
         </section>
 
@@ -753,7 +792,7 @@
           <div class="card-pad">
 
             <h3 id="sec-3-1">3.1 Run Times</h3>
-            <p>The forecast is produced <strong>four times per day</strong>:</p>
+            <p>Both sources produce forecasts <strong>four times per day</strong>:</p>
             <ul>
               <li>00Z</li>
               <li>06Z</li>
@@ -762,25 +801,42 @@
             </ul>
 
             <h3 id="sec-3-2">3.2 Forecast Step Intervals</h3>
+
+            <h4>ECMWF IFS</h4>
             <ul>
               <li><strong>00Z / 12Z (extended range, up to 15 days)</strong>
                 <ul>
-                  <li>0–144 hours: generated at <strong>3-hour intervals</strong></li>
-                  <li>150–360 hours: generated at <strong>6-hour intervals</strong></li>
+                  <li>0–144 hours: <strong>3-hour intervals</strong></li>
+                  <li>150–360 hours: <strong>6-hour intervals</strong></li>
                 </ul>
               </li>
               <li><strong>06Z / 18Z (short range, up to 6 days)</strong>
                 <ul>
-                  <li>0–144 hours: generated at <strong>3-hour intervals</strong></li>
-                  <li>No steps beyond 144 hours (06Z/18Z runs stop at +144h)</li>
+                  <li>0–144 hours: <strong>3-hour intervals</strong></li>
+                  <li>No steps beyond 144 hours</li>
                 </ul>
               </li>
             </ul>
-
             <p class="small">
-              (Official schedule: ECMWF Dissemination Schedule) :
+              Official schedule:
               <a class="link" href="https://confluence.ecmwf.int/display/DAC/Dissemination+schedule" target="_blank" rel="noopener">
-                Check dissemination schedule
+                ECMWF Dissemination Schedule
+              </a>
+            </p>
+
+            <h4>NOAA GFS</h4>
+            <ul>
+              <li><strong>00Z / 06Z / 12Z / 18Z (up to 16 days)</strong>
+                <ul>
+                  <li>0–120 hours: <strong>1-hour intervals</strong></li>
+                  <li>123–384 hours: <strong>3-hour intervals</strong></li>
+                </ul>
+              </li>
+            </ul>
+            <p class="small">
+              Official schedule:
+              <a class="link" href="https://www.nco.ncep.noaa.gov/pmb/products/gfs/" target="_blank" rel="noopener">
+                NOAA GFS Products
               </a>
             </p>
 
@@ -808,17 +864,21 @@
             </p>
 
             <h3 id="sec-4-1">4.1 Structure Overview</h3>
-            <p>BlueMap Weather Data stores ECMWF IFS forecast data in the following hierarchy.</p>
+            <p>BlueMap Weather Data stores ECMWF IFS and NOAA GFS forecast data in the following hierarchy.</p>
 
-            <div class="code">ecmwf/
-└─ ifs/
+            <div class="code">{source}/
+└─ {model}/
    └─ yyyy/                # Forecast run year (e.g., 2025)
-      └─ mm/               # Month (01 ~ 12)
-         └─ dd/            # Day (01 ~ 31)
+      └─ yyyy-mm/          # Year-month (e.g., 2025-07)
+         └─ yyyy-mm-dd/    # Year-month-day (e.g., 2025-07-01)
             └─ hhZ/        # Run cycle (00Z, 06Z, 12Z, 18Z)
                └─ {dataset_code}/
                   └─ {variable}/
-                     └─ dataset file</div>
+                     └─ dataset file
+
+<span class="dim"># Example paths</span>
+ecmwf/ifs/2025/2025-07/2025-07-01/00Z/original/swh/
+noaa/gfs/2025/2025-07/2025-07-01/00Z/original/HTSGW/</div>
 
             <p>
               This design separates data by <strong>year / month / day / run cycle</strong>,
@@ -826,8 +886,8 @@
             </p>
 
             <ul>
-              <li><strong>yyyy / mm / dd</strong>
-                <div class="muted small">The date when the forecast run was produced, accumulated by year/month/day directories.</div>
+              <li><strong>yyyy / yyyy-mm / yyyy-mm-dd</strong>
+                <div class="muted small">The date when the forecast run was produced, accumulated as year/month/day directories.</div>
               </li>
               <li><strong>hhZ</strong>
                 <div class="muted small">The forecast run cycle in UTC; produced 4 times per day (00Z, 06Z, 12Z, 18Z).</div>
@@ -849,18 +909,18 @@
             <div class="table-wrap">
               <table class="table">
                 <thead>
-                  <tr><th>Level</th><th>Description</th></tr>
+                  <tr><th>Level</th><th>Description</th><th>Example</th></tr>
                 </thead>
                 <tbody>
-                  <tr><td><code>ecmwf/</code></td><td>Root directory for ECMWF-based data</td></tr>
-                  <tr><td><code>ifs/</code></td><td>IFS (Integrated Forecasting System) model data</td></tr>
-                  <tr><td><code>yyyy/</code></td><td>Forecast run year</td></tr>
-                  <tr><td><code>mm/</code></td><td>Forecast run month</td></tr>
-                  <tr><td><code>dd/</code></td><td>Forecast run day</td></tr>
-                  <tr><td><code>hhZ/</code></td><td>Forecast run cycle (UTC)</td></tr>
-                  <tr><td><code>dataset_code/</code></td><td>Data type classification (<code>original</code>, <code>computed</code>)</td></tr>
-                  <tr><td><code>variable/</code></td><td>Variable code (e.g., <code>10u</code>, <code>swh</code>, <code>wind_speed_10m</code>)</td></tr>
-                  <tr><td><code>dataset file</code></td><td>Actual data file per run cycle + forecast step</td></tr>
+                  <tr><td><code>{source}/</code></td><td>Data source root</td><td><code>ecmwf/</code>, <code>noaa/</code></td></tr>
+                  <tr><td><code>{model}/</code></td><td>Forecast model name</td><td><code>ifs/</code>, <code>gfs/</code></td></tr>
+                  <tr><td><code>yyyy/</code></td><td>Forecast run year</td><td><code>2025/</code></td></tr>
+                  <tr><td><code>yyyy-mm/</code></td><td>Forecast run year-month</td><td><code>2025-07/</code></td></tr>
+                  <tr><td><code>yyyy-mm-dd/</code></td><td>Forecast run day</td><td><code>2025-07-01/</code></td></tr>
+                  <tr><td><code>hhZ/</code></td><td>Forecast run cycle (UTC)</td><td><code>00Z/</code>, <code>12Z/</code></td></tr>
+                  <tr><td><code>dataset_code/</code></td><td>Data type classification</td><td><code>original/</code>, <code>computed/</code></td></tr>
+                  <tr><td><code>variable/</code></td><td>Variable code</td><td><code>swh/</code>, <code>HTSGW/</code>, <code>wind_speed_10m/</code></td></tr>
+                  <tr><td><code>dataset file</code></td><td>Actual data file per run cycle + forecast step</td><td></td></tr>
                 </tbody>
               </table>
             </div>
@@ -875,17 +935,22 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0;">
               <div class="note">
                 <b>original</b><br />
-                Raw forecast variables provided by ECMWF (not post-processed).<br /><br />
-                Examples:
+                Raw forecast variables provided by each source (not post-processed).<br /><br />
+                ECMWF examples:
                 <ul>
                   <li><code>10u</code>, <code>10v</code></li>
                   <li><code>swh</code>, <code>mwp</code>, <code>mwd</code></li>
+                </ul>
+                NOAA examples:
+                <ul>
+                  <li><code>UGRD</code>, <code>VGRD</code>, <code>WIND</code>, <code>WDIR</code></li>
+                  <li><code>HTSGW</code>, <code>PERPW</code>, <code>DIRPW</code></li>
                 </ul>
               </div>
               <div class="note">
                 <b>computed</b><br />
                 Derived variables calculated from <code>original</code> variables.<br /><br />
-                Examples:
+                Examples (common across sources):
                 <ul>
                   <li><code>wind_speed_10m</code></li>
                   <li><code>wind_dir_10m</code></li>
@@ -951,31 +1016,29 @@ computed_wind_speed_10m_20250701_00Z_step024</div>
           <div class="card-pad">
 
             <div class="note">
-              This system provides both original ECMWF IFS variables (<code>10u</code>, <code>10v</code>, <code>swh</code>, <code>mwp</code>, <code>mwd</code>)
-              and derived variables computed from them (<code>wind_speed_10m</code>, <code>wind_dir_10m</code>).
+              This system provides original variables from <strong>ECMWF IFS</strong> and <strong>NOAA GFS</strong>,
+              along with derived variables (<code>wind_speed_10m</code>, <code>wind_dir_10m</code>) computed from them.
+              Variable names differ by source — use the correct variable name for the source you are querying.
             </div>
 
             <h3 id="sec-5-1">5.1 Atmosphere</h3>
+
+            <h4>ECMWF IFS</h4>
             <div class="table-wrap">
               <table class="table">
                 <thead>
-                  <tr>
-                    <th>Variable</th>
-                    <th>Description</th>
-                    <th>Unit</th>
-                    <th>Type</th>
-                  </tr>
+                  <tr><th>Variable</th><th>Description</th><th>Unit</th><th>Type</th></tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td><b>10u</b></td>
-                    <td>Wind component at 10 m height in the eastward (positive east) direction</td>
+                    <td>Wind component at 10 m height in the eastward direction</td>
                     <td>m/s</td>
                     <td>original</td>
                   </tr>
                   <tr>
                     <td><b>10v</b></td>
-                    <td>Wind component at 10 m height in the northward (positive north) direction</td>
+                    <td>Wind component at 10 m height in the northward direction</td>
                     <td>m/s</td>
                     <td>original</td>
                   </tr>
@@ -987,7 +1050,54 @@ computed_wind_speed_10m_20250701_00Z_step024</div>
                   </tr>
                   <tr>
                     <td><b>wind_dir_10m</b></td>
-                    <td>Wind direction based on the <b>TO-direction</b> convention (0°=North, clockwise)</td>
+                    <td>Wind direction using the <b>FROM-direction</b> convention (0°=North, clockwise)</td>
+                    <td>degree</td>
+                    <td>computed</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h4>NOAA GFS</h4>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Variable</th><th>Description</th><th>Unit</th><th>Type</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><b>UGRD</b></td>
+                    <td>Eastward (U) ocean current / tidal current component (alias: <code>u</code>)</td>
+                    <td>m/s</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>VGRD</b></td>
+                    <td>Northward (V) ocean current / tidal current component (alias: <code>v</code>)</td>
+                    <td>m/s</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>WIND</b></td>
+                    <td>Wind speed (alias: <code>ws</code>)</td>
+                    <td>m/s</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>WDIR</b></td>
+                    <td>Wind direction (alias: <code>wdir</code>)</td>
+                    <td>degree</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>wind_speed_10m</b></td>
+                    <td>Wind speed computed from UGRD and VGRD</td>
+                    <td>m/s</td>
+                    <td>computed</td>
+                  </tr>
+                  <tr>
+                    <td><b>wind_dir_10m</b></td>
+                    <td>Wind direction computed from UGRD and VGRD (FROM-direction)</td>
                     <td>degree</td>
                     <td>computed</td>
                   </tr>
@@ -996,20 +1106,17 @@ computed_wind_speed_10m_20250701_00Z_step024</div>
             </div>
 
             <h3 id="sec-5-2">5.2 Wave</h3>
+
+            <h4>ECMWF IFS</h4>
             <div class="table-wrap">
               <table class="table">
                 <thead>
-                  <tr>
-                    <th>Variable</th>
-                    <th>Description</th>
-                    <th>Unit</th>
-                    <th>Type</th>
-                  </tr>
+                  <tr><th>Variable</th><th>Description</th><th>Unit</th><th>Type</th></tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td><b>swh</b></td>
-                    <td>Significant Wave Height (a representative wave height based on wave energy)</td>
+                    <td>Significant Wave Height (representative wave height based on wave energy)</td>
                     <td>m</td>
                     <td>original</td>
                   </tr>
@@ -1021,7 +1128,36 @@ computed_wind_speed_10m_20250701_00Z_step024</div>
                   </tr>
                   <tr>
                     <td><b>mwd</b></td>
-                    <td>Mean Wave Direction based on the <b>FROM-direction</b> convention</td>
+                    <td>Mean Wave Direction — <b>FROM-direction</b> convention (direction waves come from)</td>
+                    <td>degree</td>
+                    <td>original</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h4>NOAA GFS</h4>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Variable</th><th>Description</th><th>Unit</th><th>Type</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><b>HTSGW</b></td>
+                    <td>Significant Wave Height (alias: <code>swh</code>)</td>
+                    <td>m</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>PERPW</b></td>
+                    <td>Peak Wave Period (alias: <code>perpw</code>)</td>
+                    <td>s</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>DIRPW</b></td>
+                    <td>Peak Wave Direction (alias: <code>dirpw</code>)</td>
                     <td>degree</td>
                     <td>original</td>
                   </tr>
@@ -1031,20 +1167,20 @@ computed_wind_speed_10m_20250701_00Z_step024</div>
 
             <h3 id="sec-5-3">5.3 Notes on Direction Variables</h3>
             <div class="warn">
-              <b>Wind direction (wind_dir_10m) and wave direction (mwd) use different conventions (TO vs FROM).</b>
+              <b>Both wind direction (wind_dir_10m) and wave direction (mwd/DIRPW) use the FROM-direction convention.</b>
             </div>
 
             <ul>
               <li><strong>wind_dir_10m</strong>
                 <ul>
-                  <li>Uses the <strong>TO-direction</strong> convention (direction the wind blows toward)</li>
-                  <li>Consistent with the vector definition of <code>10u</code> and <code>10v</code></li>
+                  <li>Uses the <strong>FROM-direction</strong> convention (direction the wind is coming from)</li>
+                  <li>Formula: <code>(270 - degrees(arctan2(v, u))) % 360</code></li>
                 </ul>
               </li>
-              <li><strong>mwd</strong>
+              <li><strong>mwd (ECMWF) / DIRPW (NOAA)</strong>
                 <ul>
                   <li>Uses the <strong>FROM-direction</strong> convention (direction the waves come from)</li>
-                  <li>Follows common practice in ocean/wave applications</li>
+                  <li>Follows standard practice in oceanographic and wave applications</li>
                 </ul>
               </li>
             </ul>
@@ -1057,41 +1193,168 @@ computed_wind_speed_10m_20250701_00Z_step024</div>
           <div class="card-head">
             <div class="kicker">Section 6</div>
             <div class="h2-row">
-              <h2 style="margin:0;">6. How to Compose API Requests</h2>
+              <h2 style="margin:0;">6. API Usage</h2>
               <span class="h2-pill">API</span>
             </div>
           </div>
           <div class="card-pad">
 
-            <h3 id="sec-6-1">6.1 Request Example</h3>
-            <div class="code">http://52.78.244.211/api/griddata
- ?source=ecmwf
- &dataset_code=original
- &model=ifs
- &variable=swh
- &run_time_utc=2025-07-03T00:00:00Z
- &step_hours=24
- &bbox=128&bbox=34&bbox=130&bbox=36</div>
+            <h3 id="sec-6-0">6.0 Endpoint List</h3>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Endpoint</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>GET /api/griddata</code></td><td>Retrieve gridded variable data (primary endpoint)</td></tr>
+                  <tr><td><code>GET /api/sources</code></td><td>List available data sources</td></tr>
+                  <tr><td><code>GET /api/variables</code></td><td>List available variables per source</td></tr>
+                </tbody>
+              </table>
+            </div>
 
-            <h3 id="sec-6-2">6.2 Key Parameters</h3>
-            <ul>
-              <li><code>run_time_utc</code>: forecast run time</li>
-              <li><code>step_hours</code>: forecast step (lead time)</li>
-              <li><code>bbox</code>: [minLon, minLat, maxLon, maxLat]</li>
-            </ul>
+            <h3 id="sec-6-meta">6.1 Meta API</h3>
 
-            <h3 id="sec-6-3">6.3 Meaning and Input Rules for <code>2025-07-16T00:00:00Z</code></h3>
+            <h4>GET /api/sources — Source list</h4>
+            <div class="code">GET /api/sources
+
+<span class="dim"># Example response</span>
+{
+  "sources": [
+    {"source": "ecmwf", "model": "ifs"},
+    {"source": "noaa",  "model": "gfs"}
+  ]
+}</div>
+
+            <h4>GET /api/variables — Variable list</h4>
+            <div class="code">GET /api/variables?source=ecmwf
+
+<span class="dim"># Example response</span>
+{
+  "source": "ecmwf",
+  "model": "ifs",
+  "variables": [
+    {"variable": "10u",            "dataset_code": "original"},
+    {"variable": "10v",            "dataset_code": "original"},
+    {"variable": "swh",            "dataset_code": "original"},
+    {"variable": "wind_speed_10m", "dataset_code": "computed"},
+    {"variable": "wind_dir_10m",   "dataset_code": "computed"}
+  ]
+}</div>
+
+            <h3 id="sec-6-1">6.2 Grid Data Query (GET /api/griddata)</h3>
+
+            <h4>Required Parameters</h4>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Parameter</th><th>Description</th><th>Example</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>source</code></td><td>Data source</td><td><code>ecmwf</code>, <code>noaa</code></td></tr>
+                  <tr><td><code>dataset_code</code></td><td>Data type</td><td><code>original</code>, <code>computed</code></td></tr>
+                  <tr><td><code>model</code></td><td>Forecast model</td><td><code>ifs</code>, <code>gfs</code></td></tr>
+                  <tr><td><code>variable</code></td><td>Variable code</td><td><code>swh</code>, <code>HTSGW</code>, <code>wind_speed_10m</code></td></tr>
+                  <tr><td><code>run_time_utc</code></td><td>Forecast run time (ISO 8601 Z)</td><td><code>2025-07-16T00:00:00Z</code></td></tr>
+                  <tr><td><code>step_hours</code></td><td>Forecast step (0 – 360)</td><td><code>24</code></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h4>Spatial Parameters (choose one of three methods)</h4>
+
+            <div class="warn">
+              <b>⚠️ Methods 1 and 2 cannot be used together.</b> Mixing parameters from both methods returns a <code>422</code> error.
+            </div>
+
+            <div style="display: grid; gap: 16px; margin: 20px 0;">
+
+              <div class="note">
+                <b>Method 1: Direct bbox via NW/SE corners</b><br />
+                All four parameters required: <code>nw_lon</code>, <code>nw_lat</code>, <code>se_lon</code>, <code>se_lat</code>
+                <div class="code" style="margin-top:10px;">?nw_lon=128.0&amp;nw_lat=36.0&amp;se_lon=130.0&amp;se_lat=34.0</div>
+              </div>
+
+              <div class="note">
+                <b>Method 2: Center point + buffer (km)</b><br />
+                <code>lat</code> and <code>lon</code> are required. <code>buffer_km</code> is optional (default 50 km). Set to 0 to retrieve the nearest single grid point.
+                <div class="code" style="margin-top:10px;">?lat=35.0&amp;lon=129.0&amp;buffer_km=100.0</div>
+                <div class="code">?lat=35.0&amp;lon=129.0&amp;buffer_km=0   <span class="dim"># single grid point</span></div>
+              </div>
+
+              <div class="note">
+                <b>Method 3: Full domain (no spatial parameters)</b><br />
+                Omit all spatial parameters to return the full allowed domain.
+                <div class="code" style="margin-top:10px;">?source=ecmwf&amp;dataset_code=original&amp;model=ifs&amp;variable=swh
+&amp;run_time_utc=2025-07-03T00:00:00Z&amp;step_hours=24</div>
+                <div class="warn small" style="margin-top:8px;">⚠️ Full-domain requests may exceed the cell count limit (5,250,000).</div>
+              </div>
+
+            </div>
+
+            <h3 id="sec-6-2">6.3 Request Examples</h3>
+
+            <h4>ECMWF — NW/SE corner method</h4>
+            <div class="code">GET /api/griddata
+  ?source=ecmwf
+  &amp;dataset_code=original
+  &amp;model=ifs
+  &amp;variable=swh
+  &amp;run_time_utc=2025-07-03T00:00:00Z
+  &amp;step_hours=24
+  &amp;nw_lon=128.0&amp;nw_lat=36.0&amp;se_lon=130.0&amp;se_lat=34.0</div>
+
+            <h4>NOAA — Center point + buffer method</h4>
+            <div class="code">GET /api/griddata
+  ?source=noaa
+  &amp;dataset_code=original
+  &amp;model=gfs
+  &amp;variable=HTSGW
+  &amp;run_time_utc=2025-07-03T00:00:00Z
+  &amp;step_hours=24
+  &amp;lat=35.0&amp;lon=129.0&amp;buffer_km=200.0</div>
+
+            <h4>Computed variable — NW/SE corner method</h4>
+            <div class="note small">
+              Computed variables such as <code>wind_speed_10m</code> and <code>wind_dir_10m</code> fully support all three spatial parameter methods, including the NW/SE corner method.
+            </div>
+            <div class="code">GET /api/griddata
+  ?source=ecmwf
+  &amp;dataset_code=computed
+  &amp;model=ifs
+  &amp;variable=wind_speed_10m
+  &amp;run_time_utc=2025-07-03T00:00:00Z
+  &amp;step_hours=24
+  &amp;nw_lon=128.0&amp;nw_lat=36.0&amp;se_lon=130.0&amp;se_lat=34.0</div>
+
+            <h4>Computed variable (wind speed) — center + buffer method</h4>
+            <div class="code">GET /api/griddata
+  ?source=ecmwf
+  &amp;dataset_code=computed
+  &amp;model=ifs
+  &amp;variable=wind_speed_10m
+  &amp;run_time_utc=2025-07-03T00:00:00Z
+  &amp;step_hours=24
+  &amp;lat=35.0&amp;lon=129.0&amp;buffer_km=50.0</div>
+
+            <h3 id="sec-6-3">6.4 run_time_utc Format</h3>
             <ul>
               <li><strong>ISO 8601 + UTC (Z) format</strong></li>
-              <li><code>2025-07-16T00:00:00Z</code> → July 16, 2025 00:00:00 (UTC)</li>
+              <li><code>2025-07-16T00:00:00Z</code> → July 16, 2025 00:00:00 UTC</li>
             </ul>
 
             <p><b>Input rules</b>:</p>
             <ul>
-              <li>Use the format <code>YYYY-MM-DDTHH:MM:SSZ</code></li>
-              <li><code>00:00:00Z</code> indicates the <strong>run time</strong></li>
-              <li><code>step_hours</code> increases in increments of 3 hours or 6 hours</li>
+              <li>Format must be <code>YYYY-MM-DDTHH:MM:SSZ</code></li>
+              <li><code>HH</code> must be a valid run cycle: <code>00</code>, <code>06</code>, <code>12</code>, or <code>18</code></li>
+              <li><code>step_hours</code> increments in 3-hour or 6-hour intervals</li>
             </ul>
+
+            <h3 id="sec-6-4">6.5 Cell Count Limit</h3>
+            <div class="warn">
+              If the estimated grid cell count for the requested bbox exceeds <strong>5,250,000</strong>, a <code>413</code> error is returned.
+              Reduce the bbox size or use the center + buffer method to narrow the request area.
+            </div>
 
           </div>
         </section>
@@ -1195,13 +1458,14 @@ computed_wind_speed_10m_20250701_00Z_step024</div>
             <h3 id="sec-8-1">8.1 Wind Speed</h3>
             <div class="code">speed = np.hypot(da_u.values, da_v.values)</div>
 
-            <h3 id="sec-8-2">8.2 Wind Direction (TO-direction)</h3>
-            <div class="code">direc = (90.0 - np.degrees(np.arctan2(da_v.values, da_u.values))) %360.0</div>
+            <h3 id="sec-8-2">8.2 Wind Direction (FROM-direction)</h3>
+            <div class="code">direc = (270.0 - np.degrees(np.arctan2(da_v.values, da_u.values))) % 360.0</div>
 
             <ul class="small">
-              <li>0° = North</li>
-              <li>90° = East</li>
+              <li>0° = wind coming from the North</li>
+              <li>90° = wind coming from the East</li>
               <li>Increases clockwise</li>
+              <li>Standard meteorological wind direction (FROM-direction)</li>
             </ul>
 
           </div>
@@ -1218,20 +1482,26 @@ computed_wind_speed_10m_20250701_00Z_step024</div>
           </div>
           <div class="card-pad">
 
-            <h3 id="app-1">(1) Meaning of Input Data (10u, 10v)</h3>
-            <p>This system uses the following wind components provided by the ECMWF IFS model:</p>
+            <h3 id="app-1">(1) Meaning of Input Data (U and V components)</h3>
+            <p>This system uses the following wind components from ECMWF IFS and NOAA GFS:</p>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>Source</th><th>U component</th><th>V component</th></tr></thead>
+                <tbody>
+                  <tr><td>ECMWF</td><td><code>10u</code></td><td><code>10v</code></td></tr>
+                  <tr><td>NOAA</td><td><code>UGRD</code></td><td><code>VGRD</code></td></tr>
+                </tbody>
+              </table>
+            </div>
+
             <ul>
-              <li><strong>10u</strong>: eastward wind component at 10 m height</li>
-              <li><strong>10v</strong>: northward wind component at 10 m height</li>
+              <li><strong>U component</strong>: eastward wind component (positive = blowing east)</li>
+              <li><strong>V component</strong>: northward wind component (positive = blowing north)</li>
             </ul>
 
             <p>
-              In other words, <code>(10u, 10v)</code> represents the wind vector in terms of where it is blowing <strong>to</strong>,
-              not where it is coming <strong>from</strong>.
-            </p>
-
-            <p>
-              Therefore, wind speed and direction are computed using the <strong>TO-direction</strong> convention.
+              In other words, the <code>(U, V)</code> vector represents the direction the wind is blowing <strong>toward (TO)</strong>.
+              The meteorological wind direction (FROM) is the opposite of this vector.
             </p>
 
             <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
@@ -1287,36 +1557,39 @@ computed_wind_speed_10m_20250701_00Z_step024</div>
             <ul>
               <li>Correctly distinguishes all quadrants</li>
               <li>Works reliably even when <code>u = 0</code></li>
-              <li>Accurately represents the wind vector direction (TO)</li>
+              <li>Accurately represents the wind vector direction</li>
             </ul>
 
-            <p>This angle is measured <strong>from the east</strong> and increases <strong>counterclockwise</strong>.</p>
+            <p>This angle is measured <strong>from the east axis</strong> and increases <strong>counterclockwise</strong>.</p>
 
             <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
 
-            <h3 id="app-5">(5) Conversion to Navigation/Meteorological Bearing</h3>
-            <p>To match the bearing convention of this service, we apply:</p>
+            <h3 id="app-5">(5) Conversion to Meteorological Wind Direction (FROM)</h3>
+            <p>The meteorological wind direction is the direction the wind is <strong>coming from (FROM)</strong>, measured clockwise from North.</p>
+            <p>Since the U/V vector represents the TO direction, converting to FROM requires an additional 180° rotation.</p>
             <ol>
-              <li><strong>Axis change</strong>: east → north</li>
+              <li><strong>Axis change</strong>: east → north (+90°)</li>
               <li><strong>Rotation direction change</strong>: CCW → CW</li>
+              <li><strong>TO → FROM conversion</strong>: +180° (opposite direction)</li>
             </ol>
 
             <p>Combined into a single expression:</p>
-            <div class="code">dir_to =90.0 - np.degrees(np.arctan2(v, u))</div>
+            <div class="code">dir_from = 270.0 - np.degrees(np.arctan2(v, u))</div>
 
             <p>The result has these properties:</p>
             <ul>
-              <li>0° = North</li>
-              <li>90° = East</li>
+              <li>0° = wind coming from the North (northerly wind)</li>
+              <li>90° = wind coming from the East (easterly wind)</li>
               <li>Increases clockwise</li>
-              <li>Represents the direction the wind is <strong>blowing to</strong> (TO)</li>
+              <li>Represents the direction the wind is <strong>coming from (FROM)</strong></li>
+              <li>Consistent with the standard meteorological wind direction definition</li>
             </ul>
 
             <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
 
             <h3 id="app-6">(6) Angle Normalization (Modulo 360)</h3>
             <p>The result can be negative or exceed 360°, so we normalize it into the standard bearing range.</p>
-            <div class="code">wind_dir_to = (90.0 - np.degrees(np.arctan2(v, u))) %360.0</div>
+            <div class="code">wind_dir_from = (270.0 - np.degrees(np.arctan2(v, u))) % 360.0</div>
 
             <p>
               This does not change the physical direction; it selects the representative value in the range
@@ -1326,14 +1599,14 @@ computed_wind_speed_10m_20250701_00Z_step024</div>
             <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
 
             <h3 id="app-7">(7) Final Formula Summary</h3>
-            <div class="code">wind_speed = np.hypot(u, v)
-wind_dir_to = (90.0 - np.degrees(np.arctan2(v, u))) %360.0</div>
+            <div class="code">wind_speed      = np.hypot(u, v)
+wind_dir_from   = (270.0 - np.degrees(np.arctan2(v, u))) % 360.0</div>
 
             <p>These formulas ensure:</p>
             <ul>
-              <li>Full consistency with ECMWF 10u/10v definitions</li>
-              <li>Wind direction computed using the TO-direction convention</li>
-              <li>North-referenced, clockwise-bearing convention suitable for navigation/visualization</li>
+              <li>Full consistency with ECMWF 10u/10v and NOAA UGRD/VGRD definitions</li>
+              <li>Wind direction computed using the FROM-direction (meteorological) convention</li>
+              <li>North-referenced, clockwise-bearing convention</li>
               <li>API outputs ready for map rendering and client applications</li>
             </ul>
 
@@ -1350,19 +1623,11 @@ wind_dir_to = (90.0 - np.degrees(np.arctan2(v, u))) %360.0</div>
             <h2 style="margin-top:0;">Contact</h2>
             <p>
               BlueMap <b>Kim (Hyunju Kim)</b><br>
-              ✉️ <a class="link" href="mailto:hjk@bluemap.dev">hjk@bluemap.dev</a>
+              ✉️ <a class="link" href="/cdn-cgi/l/email-protection#8de5e7e6cdefe1f8e8e0ecfda3e9e8fb"><span class="__cf_email__" data-cfemail="4f2725240f2d233a2a222e3f612b2a39">[email&#160;protected]</span></a>
             </p>
             <p class="muted">For partner-only inquiries (testbeds, expanding data scope, standards compliance), please contact us by email.</p>
           </div>
         </section>
 
         <footer>
-          <p>© 2025 BlueMap / Optimal-LOADS Consortium — For demonstration purposes.</p>
-        </footer>
-
-      </main>
-    </div>
-
-  </div>
-</body>
-</html>
+          <p>© 2025 BlueMap / Optimal-LOA
