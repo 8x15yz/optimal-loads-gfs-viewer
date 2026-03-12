@@ -220,6 +220,27 @@ def _build_api_example_corners(doc: Dict[str, Any], lat: float = 35.0, lon: floa
         f"&se_lat={se_lat}"
     )
 
+def _build_api_example_file(doc: Dict[str, Any]) -> str:
+    """
+    gridfile API example - presigned URL 반환 (bbox 없음)
+    """
+    source = doc.get("source", "")
+    dataset_code = doc.get("dataset_code", "")
+    model = doc.get("model", "")
+    variable = doc.get("variable", "")
+    run_time_utc = _to_iso_z(doc.get("run_time_utc"))
+    step_hours = int(doc.get("step_hours", 0))
+
+    return (
+        "http://52.78.244.211/api/gridfile"
+        f"?source={source}"
+        f"&dataset_code={dataset_code}"
+        f"&model={model}"
+        f"&variable={variable}"
+        f"&run_time_utc={run_time_utc}"
+        f"&step_hours={step_hours}"
+    )
+
 
 # =========================================================
 # ✅ /inventory (Index of …) - directories + assets_metadata
@@ -304,13 +325,15 @@ async def inventory_index(
         # 두 가지 API URL 생성
         api_url = _build_api_example(d, lat=lat, lon=lon, buffer_km=buffer_km)
         api_url_corners = _build_api_example_corners(d, lat=lat, lon=lon, buffer_km=buffer_km)
+        api_url_file = _build_api_example_file(d)
 
         entries.append({
             "name": display_name,
             "is_dir": False,
             "path": None,
-            "api_url": api_url,              # 중심점 + 버퍼
-            "api_url_corners": api_url_corners,  # 북서-남동 모서리
+            "api_url": api_url,
+            "api_url_corners": api_url_corners,
+            "api_url_file": api_url_file,        # ✅ 추가
             "file_id": d.get("natural_key"),
             "last_modified": _fmt_lm(d.get("created_at")),
             "size_human": _human_size(d.get("size_bytes")),
