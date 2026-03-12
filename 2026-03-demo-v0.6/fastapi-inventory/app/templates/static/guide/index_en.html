@@ -1359,76 +1359,76 @@ computed_wind_speed_10m_20250701_00Z_step024</div>
 
             <h3 id="sec-6-5">6.6 Single File Download (GET /api/gridfile)</h3>
 
-            <p>
-              Returns a temporary <strong>presigned URL</strong> for direct access to a single GRIB2 file — without any bbox parameter.
-              Use this when you want to download the raw file or process it with an external tool.
-            </p>
+              <p>
+                Returns a temporary <strong>presigned URL</strong> for direct access to a single GRIB2 file — without any bbox parameter.
+                Use this when you want to download the raw file or process it with an external tool.
+              </p>
 
-            <div class="note">
-              <b>Computed variables (wind_speed_10m, wind_dir_10m) are not supported.</b><br />
-              These variables have no single source file — they are derived by combining U and V components.
-              Use <code>/api/griddata</code> to retrieve computed wind values.
-            </div>
+              <div class="note">
+                <b>Computed variables (wind_speed_10m, wind_dir_10m) are not supported.</b><br />
+                These variables have no single source file — they are derived by combining U and V components.
+                Use <code>/api/griddata</code> to retrieve computed wind values.
+              </div>
 
-            <h4>Parameters</h4>
-            <div class="table-wrap">
-              <table class="table">
-                <thead>
-                  <tr><th>Parameter</th><th>Required</th><th>Description</th><th>Example</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td><code>source</code></td><td>✓</td><td>Data source</td><td><code>ecmwf</code></td></tr>
-                  <tr><td><code>dataset_code</code></td><td>✓</td><td>Data type</td><td><code>original</code></td></tr>
-                  <tr><td><code>model</code></td><td>✓</td><td>Forecast model</td><td><code>ifs</code></td></tr>
-                  <tr><td><code>variable</code></td><td>✓</td><td>Variable code</td><td><code>swh</code></td></tr>
-                  <tr><td><code>run_time_utc</code></td><td>✓</td><td>Run time (ISO 8601 Z)</td><td><code>2025-07-16T00:00:00Z</code></td></tr>
-                  <tr><td><code>step_hours</code></td><td>✓</td><td>Forecast step (0 – 360)</td><td><code>24</code></td></tr>
-                  <tr><td><code>expires_in</code></td><td></td><td>URL validity in seconds, default 3600 (max 86400)</td><td><code>7200</code></td></tr>
-                </tbody>
-              </table>
-            </div>
+              <h4>Parameters</h4>
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr><th>Parameter</th><th>Required</th><th>Description</th><th>Example</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td><code>source</code></td><td>✓</td><td>Data source</td><td><code>ecmwf</code></td></tr>
+                    <tr><td><code>dataset_code</code></td><td>✓</td><td>Data type</td><td><code>original</code></td></tr>
+                    <tr><td><code>model</code></td><td>✓</td><td>Forecast model</td><td><code>ifs</code></td></tr>
+                    <tr><td><code>variable</code></td><td>✓</td><td>Variable code</td><td><code>swh</code></td></tr>
+                    <tr><td><code>run_time_utc</code></td><td>✓</td><td>Run time (ISO 8601 Z)</td><td><code>2025-07-16T00:00:00Z</code></td></tr>
+                    <tr><td><code>step_hours</code></td><td>✓</td><td>Forecast step (0 – 360)</td><td><code>24</code></td></tr>
+                    <tr><td><code>expires_in</code></td><td></td><td>URL validity in seconds, default 3600 (max 86400)</td><td><code>7200</code></td></tr>
+                  </tbody>
+                </table>
+              </div>
 
-            <h4>Request Example</h4>
-            <div class="code">GET /api/gridfile
-              ?source=ecmwf
-              &amp;dataset_code=original
-              &amp;model=ifs
-              &amp;variable=swh
-              &amp;run_time_utc=2025-07-03T00:00:00Z
-              &amp;step_hours=24
+              <h4>Request Example</h4>
+              <div class="code">GET /api/gridfile
+                ?source=ecmwf
+                &amp;dataset_code=original
+                &amp;model=ifs
+                &amp;variable=swh
+                &amp;run_time_utc=2025-07-03T00:00:00Z
+                &amp;step_hours=24
 
-            <span class="dim"># With custom expiry (2 hours)</span>
-            GET /api/gridfile
-              ?source=ecmwf&amp;dataset_code=original&amp;model=ifs&amp;variable=swh
-              &amp;run_time_utc=2025-07-03T00:00:00Z&amp;step_hours=24&amp;expires_in=7200</div>
+              <span class="dim"># With custom expiry (2 hours)</span>
+              GET /api/gridfile
+                ?source=ecmwf&amp;dataset_code=original&amp;model=ifs&amp;variable=swh
+                &amp;run_time_utc=2025-07-03T00:00:00Z&amp;step_hours=24&amp;expires_in=7200</div>
 
-            <h4>Response Example</h4>
-            <div class="code">{
-              "run_time_utc":   "2025-07-03T00:00:00Z",
-              "step_hours":     24,
-              "valid_time_utc": "2025-07-04T00:00:00Z",
+              <h4>Response Example</h4>
+              <div class="code">{
+                "run_time_utc":   "2025-07-03T00:00:00Z",
+                "step_hours":     24,
+                "valid_time_utc": "2025-07-04T00:00:00Z",
 
-              "source":         "ecmwf",
-              "dataset_code":   "original",
-              "model":          "ifs",
-              "variable":       "swh",
-              "unit":           "m",
-              "name_en":        "Significant height of combined wind waves and swell",
-              "standard_name":  "sea_surface_wave_significant_height",
+                "source":         "ecmwf",
+                "dataset_code":   "original",
+                "model":          "ifs",
+                "variable":       "swh",
+                "unit":           "m",
+                "name_en":        "Significant height of combined wind waves and swell",
+                "standard_name":  "sea_surface_wave_significant_height",
 
-              "file": {
-                "url":              "https://optimal-loads.s3.amazonaws.com/ecmwf/.../swh.grib2?X-Amz-Signature=...",
-                "expires_in_seconds": 3600,
-                "format":           "grib2",
-                "size_bytes":       871165,
-                "s3_key":           "ecmwf/ifs/fc/2025/07/03/00Z/original/swh/original_swh_20250703_00Z_step024.grib2"
-              }
-            }</div>
+                "file": {
+                  "url":              "https://optimal-loads.s3.amazonaws.com/ecmwf/.../swh.grib2?X-Amz-Signature=...",
+                  "expires_in_seconds": 3600,
+                  "format":           "grib2",
+                  "size_bytes":       871165,
+                  "s3_key":           "ecmwf/ifs/fc/2025/07/03/00Z/original/swh/original_swh_20250703_00Z_step024.grib2"
+                }
+              }</div>
 
-            <div class="warn">
-              <b>URL expiry notice:</b> the presigned URL expires after the time specified by <code>expires_in</code> (default 1 hour).
-              Accessing an expired URL returns a <code>403</code> error — call the API again to obtain a fresh URL.
-            </div>
+              <div class="warn">
+                <b>URL expiry notice:</b> the presigned URL expires after the time specified by <code>expires_in</code> (default 1 hour).
+                Accessing an expired URL returns a <code>403</code> error — call the API again to obtain a fresh URL.
+              </div>
 
           </div>
         </section>
