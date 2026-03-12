@@ -561,6 +561,118 @@ async def get_variables(source: str):
     # }
 
 # =============================================================================
+# GET /api/gridfile
+# bbox 없이 단일 GRIB2/NetCDF 파일의 presigned URL 반환
+# =============================================================================
+
+@router.get(
+    "/gridfile",
+    summary="Get presigned S3 URL for a grid file",
+    description="Returns metadata and a temporary presigned URL for direct file download."
+)
+async def get_gridfile(
+    source: str = Query(..., example="ecmwf"),
+    dataset_code: str = Query(..., example="original"),
+    model: str = Query(..., example="ifs"),
+    variable: str = Query(..., example="swh"),
+    run_time_utc: str = Query(..., example="2025-07-16T00:00:00Z"),
+    step_hours: int = Query(..., ge=0, le=360, example=24),
+    expires_in: int = Query(default=3600, ge=60, le=86400, description="presigned URL 유효 시간(초), 기본 1시간"),
+):
+    type_ = "forecast"
+
+    # ---- 변수 정규화 ----
+    norm_var = _norm_var(variable, source)
+
+    # computed wind는 단일 파일이 없으므로 차단
+    if norm_var in ("wind_speed_10m", "wind_dir_10m"):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Computed variables (wind_speed_10m, wind_dir_10m) have no single source file.",
+                "hint": "Use /api/griddata to get computed wind values."
+            }
+        )
+
+    # ---- valid_time 계산 ----
+    run_dt = _parse_utc(run_time_utc)
+    valid_dt = run_dt + timedelta(hours=int(step_hours))
+    valid_time_utc = _to_z(valid_dt)
+
+    # ---- MongoDB에서 메타데이터 조회 ----
+    coll = await get_assets_collection()
+    doc = await _find_by_natural_key(
+        coll,
+        source=source,
+        dataset_code=dataset_code,
+        model=model,
+        type_=type_,
+        variable=norm_var,
+        run_time_utc=_to_z(run_dt),
+        step_hours=step_hours,
+    )
+
+    if not doc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "No matching dataset found for this run+step.",
+                "source": source,
+                "dataset_code": dataset_code,
+                "model": model,
+                "type": type_,
+                "variable": norm_var,
+                "run_time_utc": _to_z(run_dt),
+                "step_hours": int(step_hours),
+            }
+        )
+
+    if "s3" not in doc or "key" not in doc.get("s3", {}):
+        raise HTTPException(
+            status_code=409,
+            detail={"error": "This metadata record has no s3.key", "doc_keys": list(doc.keys())}
+        )
+
+    # ---- Presigned URL 생성 ----
+    s3_key = doc["s3"]["key"]
+    try:
+        presigned_url = await asyncio.to_thread(
+            s3.generate_presigned_url,
+            "get_object",
+            Params={"Bucket": S3_BUCKET, "Key": s3_key},
+            ExpiresIn=expires_in,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail={"error": "Failed to generate presigned URL.", "reason": str(e)}
+        )
+
+    # ---- 응답 ----
+    return {
+        "run_time_utc": _to_z(run_dt),
+        "step_hours": int(step_hours),
+        "valid_time_utc": valid_time_utc,
+
+        "source": source,
+        "dataset_code": dataset_code,
+        "model": model,
+        "variable": norm_var,
+        "unit": doc.get("unit"),
+        "name_en": doc.get("name_en"),
+        "standard_name": doc.get("standard_name"),
+
+        "file": {
+            "url": presigned_url,
+            "expires_in_seconds": expires_in,
+            "format": doc.get("format"),
+            "size_bytes": doc.get("size_bytes"),
+            "s3_key": s3_key,
+        }
+    }
+
+
+# =============================================================================
 # Helpers - 변수명 처리
 # =============================================================================
 
