@@ -358,26 +358,26 @@
     .file-actions {
       opacity: 1;
     }
+  }
+  
+  .api-select {
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    padding: 4px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    color: #475569;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s;
+    max-width: 160px;
+  }
 
-    .api-select {
-      font-size: 12px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      padding: 4px 8px;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      background: white;
-      color: #475569;
-      cursor: pointer;
-      outline: none;
-      transition: border-color 0.15s;
-      max-width: 160px;
-    }
-
-    .api-select:hover,
-    .api-select:focus {
-      border-color: #0284c7;
-      color: #0f172a;
-    }
+  .api-select:hover,
+  .api-select:focus {
+    border-color: #0284c7;
+    color: #0f172a;
   }
 </style>
 
@@ -448,45 +448,39 @@
                 {{ e.name }}
               </a>
             {% else %}
-              <!-- 기존 버튼 3개 있던 자리를 아래로 교체 -->
-              <div class="file-actions">
-                <select
-                  class="api-select"
-                  onchange="onSelectChange(this)"
-                  data-url-center="{{ e.api_url }}"
-                  data-url-corner="{{ e.api_url_corners }}"
-                  data-url-file="{{ e.api_url_file }}"
-                >
-                  <option value="center">📍 Center+Buffer</option>
-                  <option value="corner">📐 NW/SE Corners</option>
-                  <option value="file">📦 File URL</option>
-                </select>
+              <div class="file-info">   {# ← 이게 빠져있음 #}
+                <svg class="file-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+                <span class="file-name">{{ e.name }}</span>
 
-                <button
-                  type="button"
-                  class="icon-btn"
-                  id=""
-                  onclick="copySelected(this)"
-                  aria-label="Copy URL"
-                >
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                  </svg>
-                  <span class="tooltip">복사</span>
-                </button>
+                <div class="file-actions">
+                  <select
+                    class="api-select"
+                    data-url-center="{{ e.api_url }}"
+                    data-url-corner="{{ e.api_url_corners }}"
+                    data-url-file="{{ e.api_url_file }}"
+                  >
+                    <option value="center">📍 Center+Buffer</option>
+                    <option value="corner">📐 NW/SE Corners</option>
+                    <option value="file">📦 File URL</option>
+                  </select>
 
-                <button
-                  type="button"
-                  class="icon-btn"
-                  onclick="openSelected(this)"
-                  aria-label="Open in new tab"
-                >
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                  </svg>
-                  <span class="tooltip">새 탭</span>
-                </button>
-              </div>
+                  <button type="button" class="icon-btn" onclick="copySelected(this)" aria-label="Copy URL">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    <span class="tooltip">복사</span>
+                  </button>
+
+                  <button type="button" class="icon-btn" onclick="openSelected(this)" aria-label="Open in new tab">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                    <span class="tooltip">새 탭</span>
+                  </button>
+                </div>
+              </div> 
             {% endif %}
           </td>
           <td class="muted">{{ e.last_modified or "-" }}</td>
@@ -516,57 +510,45 @@
     const toast = document.getElementById('toast');
     const urlDisplay = document.getElementById('toast-url');
     const titleDisplay = document.getElementById('toast-title');
-    
-    // Update title based on type
-    if (type === 'center') {
-      titleDisplay.textContent = '📍 Center+Buffer URL copied!';
-    } else if (type === 'corner') {
-      titleDisplay.textContent = '📐 Corner (NW/SE) URL copied!';
-    } else {
-      titleDisplay.textContent = 'API URL copied!';
-    }
-    
+    const titles = {
+      center: '📍 Center+Buffer URL copied!',
+      corner: '📐 NW/SE Corners URL copied!',
+      file:   '📦 File URL copied!',
+    };
+    titleDisplay.textContent = titles[type] || 'API URL copied!';
     urlDisplay.textContent = url;
     toast.classList.add('show');
-    
     clearTimeout(toastTimeout);
-    toastTimeout = setTimeout(() => {
-      toast.classList.remove('show');
-    }, 3000);
+    toastTimeout = setTimeout(() => toast.classList.remove('show'), 3000);
   }
 
-  async function copyApiUrl(btn) {
-    const url = btn.dataset.url || "";
-    const type = btn.dataset.type || "";
-    
-    if (!url) return;
+  function _getSelectedUrl(actionBtn) {
+    const actions = actionBtn.closest('.file-actions');
+    const select = actions.querySelector('.api-select');
+    const type = select.value;
+    const urlMap = {
+      center: select.dataset.urlCenter,
+      corner: select.dataset.urlCorner,
+      file:   select.dataset.urlFile,
+    };
+    return { url: urlMap[type] || "", type };
+  }
 
+  async function copySelected(btn) {
+    const { url, type } = _getSelectedUrl(btn);
+    if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
-      
-      // Button feedback
       btn.classList.add('copied');
-      const originalSvg = btn.querySelector('svg').outerHTML;
-      btn.querySelector('svg').outerHTML = `
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-        </svg>
-      `;
-      
-      setTimeout(() => {
-        btn.classList.remove('copied');
-        btn.querySelector('svg').outerHTML = originalSvg;
-      }, 1200);
-      
-      // Show toast with type
+      setTimeout(() => btn.classList.remove('copied'), 1200);
       showToast(url, type);
     } catch (e) {
       window.prompt("Copy this URL:", url);
     }
   }
 
-  function openApiUrl(btn) {
-    const url = btn.dataset.url || "";
+  function openSelected(btn) {
+    const { url } = _getSelectedUrl(btn);
     if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
   }
