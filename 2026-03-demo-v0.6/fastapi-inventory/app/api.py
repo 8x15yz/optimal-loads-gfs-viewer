@@ -12,6 +12,7 @@ from app.db import get_assets_collection, get_directories_collection
 import numpy as np
 import xarray as xr
 import tempfile, os, contextlib, boto3
+import asyncio
 
 # ---- env / S3 ----
 AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
