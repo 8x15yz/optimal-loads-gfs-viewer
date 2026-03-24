@@ -294,14 +294,14 @@ async def noaa_resume():
 
 # ==================== API Endpoints ====================
 
-@router.get("/api/ingestion/control/ecmwf")
+@router.get("/api/ingestion/control/ecmwf", include_in_schema=False)
 async def api_ecmwf_control():
     """ECMWF control 상태 API"""
     control_col = await get_ingestion_control_collection()
     return await control_col.find_one({"_id": CONTROL_DOC_ID_ECMWF}, {"_id": 0}) or {}
 
 
-@router.get("/api/ingestion/control/noaa")
+@router.get("/api/ingestion/control/noaa", include_in_schema=False)
 async def api_noaa_control():
     """NOAA control 상태 API"""
     control_col = await get_ingestion_control_collection()
