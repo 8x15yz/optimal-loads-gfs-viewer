@@ -308,7 +308,7 @@ async def api_noaa_control():
     return await control_col.find_one({"_id": CONTROL_DOC_ID_NOAA}, {"_id": 0}) or {}
 
 
-@router.get("/api/ingestion/runs")
+@router.get("/api/ingestion/runs", include_in_schema=False)
 async def api_ingestion_runs(
     source: Optional[str] = Query(None, description="ecmwf or noaa"),
     status: Optional[str] = None,
@@ -359,7 +359,7 @@ async def api_ingestion_runs(
 
 # ==================== 기존 호환성 유지 (deprecated) ====================
 
-@router.get("/api/ingestion/control")
+@router.get("/api/ingestion/control", include_in_schema=False)
 async def api_ingestion_control_legacy():
     """
     ⚠️ Deprecated: /api/ingestion/control/ecmwf 사용 권장

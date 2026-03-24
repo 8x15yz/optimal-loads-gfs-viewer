@@ -95,15 +95,15 @@ async def get_griddata(
     step_hours: int = Query(..., ge=0, le=360, example=24),
 
     # ---- spatial (방식 1: 중심점 + 버퍼) ----
-    lat: Optional[float] = Query(default=None, example=35.0, description="중심점 위도"),
-    lon: Optional[float] = Query(default=None, example=129.0, description="중심점 경도"),
-    buffer_km: Optional[float] = Query(default=None, ge=0.0, le=500.0, example=50.0, description="버퍼 반경(km)"),
-    
-    # ---- spatial (방식 2: 북서-남동 모서리) ----
-    nw_lon: Optional[float] = Query(default=None, example=128.0, description="북서(좌상단) 경도"),
-    nw_lat: Optional[float] = Query(default=None, example=36.0, description="북서(좌상단) 위도"),
-    se_lon: Optional[float] = Query(default=None, example=130.0, description="남동(우하단) 경도"),
-    se_lat: Optional[float] = Query(default=None, example=34.0, description="남동(우하단) 위도"),
+    lat: Optional[float] = Query(default=None, example=35.0, description="Center point latitude"),
+    lon: Optional[float] = Query(default=None, example=129.0, description="Center point longitude"),
+    buffer_km: Optional[float] = Query(default=None, ge=0.0, le=500.0, example=50.0, description="Buffer radius (km)"),
+
+    # ---- spatial (method 2: NW-SE corners) ----
+    nw_lon: Optional[float] = Query(default=None, example=128.0, description="Northwest (top-left) longitude"),
+    nw_lat: Optional[float] = Query(default=None, example=36.0, description="Northwest (top-left) latitude"),
+    se_lon: Optional[float] = Query(default=None, example=130.0, description="Southeast (bottom-right) longitude"),
+    se_lat: Optional[float] = Query(default=None, example=34.0, description="Southeast (bottom-right) latitude"),
     ) -> GridDataResponse:
     
     type_ = "forecast"
@@ -429,7 +429,7 @@ async def get_griddata(
 # GET /api/sources
 # =============================================================================
 
-@meta_router.get("/sources", summary="사용 가능한 데이터 소스 목록")
+@meta_router.get("/sources", summary="List of available data sources", include_in_schema=False)
 async def get_sources():
     coll = await get_directories_collection()
 
@@ -461,7 +461,7 @@ async def get_sources():
 # GET /api/variables?source=ecmwf
 # =============================================================================
 
-@meta_router.get("/variables", summary="source별 사용 가능한 변수 목록")
+@meta_router.get("/variables", summary="List of available variables per source", include_in_schema=False)
 async def get_variables(source: str):
     source_lower = source.strip().lower()
 
@@ -540,7 +540,7 @@ async def get_gridfile(
     variable: str = Query(..., example="swh"),
     run_time_utc: str = Query(..., example="2025-07-16T00:00:00Z"),
     step_hours: int = Query(..., ge=0, le=360, example=24),
-    expires_in: int = Query(default=3600, ge=60, le=86400, description="presigned URL 유효 시간(초)"),
+    expires_in: int = Query(default=3600, ge=60, le=86400, description="Presigned URL validity duration (seconds)"),
 ):
     type_ = "forecast"
 
