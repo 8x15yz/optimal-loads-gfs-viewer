@@ -147,13 +147,13 @@ def ensure_dirs(p: Path) -> None:
 
 def build_gfs_steps(max_step: int = 384) -> List[int]:
     """
-    GFS step 규칙 (기준 코드와 동일):
-    - 000~119: 1시간 간격
-    - 120~384: 3시간 간격
+    ECMWF IFS 방식과 통일:
+    - 0~144h: 3시간 간격
+    - 150~384h: 6시간 간격
     """
-    steps = list(range(0, min(120, max_step + 1)))  # 0~119
-    if max_step >= 120:
-        steps += list(range(120, max_step + 1, 3))  # 120~384
+    steps = list(range(0, min(144, max_step) + 1, 3))   # 0~144, 3h
+    if max_step >= 150:
+        steps += list(range(150, max_step + 1, 6))       # 150~384, 6h
     return sorted(set(steps))
 
 
