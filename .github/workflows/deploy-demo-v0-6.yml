@@ -44,5 +44,5 @@ jobs:
               --name demo-v0-6-api \
               --restart=always \
               --env-file "$ENV_FILE" \
-              -p 80:8000 \
+              -p 8080:8000 \
               demo-v0-6-api:latest
