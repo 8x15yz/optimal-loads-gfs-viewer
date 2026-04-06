@@ -156,7 +156,7 @@ def _build_api_example(doc: Dict[str, Any], lat: float = 35.0, lon: float = 129.
     step_hours = int(doc.get("step_hours", 0))
 
     return (
-        "http://52.78.244.211/api/griddata"
+        "http://weather-api.bmap.kr/api/griddata"
         f"?source={source}"
         f"&dataset_code={dataset_code}"
         f"&model={model}"
@@ -207,7 +207,7 @@ def _build_api_example_corners(doc: Dict[str, Any], lat: float = 35.0, lon: floa
     se_lat = round(se_lat, 6)
 
     return (
-        "http://52.78.244.211/api/griddata"
+        "http://weather-api.bmap.kr/api/griddata"
         f"?source={source}"
         f"&dataset_code={dataset_code}"
         f"&model={model}"
@@ -232,7 +232,7 @@ def _build_api_example_file(doc: Dict[str, Any]) -> str:
     step_hours = int(doc.get("step_hours", 0))
 
     return (
-        "http://52.78.244.211/api/gridfile"
+        "http://weather-api.bmap.kr/api/gridfile"
         f"?source={source}"
         f"&dataset_code={dataset_code}"
         f"&model={model}"
