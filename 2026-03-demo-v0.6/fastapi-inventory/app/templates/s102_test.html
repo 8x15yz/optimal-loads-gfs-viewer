@@ -329,6 +329,7 @@ let isDrawing = false;
 let startLatLng = null;
 let rectLayer = null;
 let currentBbox = null;
+let tileLayers = [];
 
 map.on('mousedown', function(e) {
   isDrawing = true;
@@ -447,13 +448,15 @@ async function sendRequest() {
       document.getElementById('status-tag').className = 'tag tag-ok';
       document.getElementById('status-tag').textContent = `타일 ${data.tile_count}개 반환됨`;
 
-      // 타일 bbox 오버레이
-      if (rectLayer) { map.removeLayer(rectLayer); rectLayer = null; }
+      // 기존 타일 오버레이 제거 후 새로 추가
+      tileLayers.forEach(l => map.removeLayer(l));
+      tileLayers = [];
       data.tiles.forEach(t => {
-        L.rectangle(
+        const l = L.rectangle(
           [[t.tile_bbox[1], t.tile_bbox[0]], [t.tile_bbox[3], t.tile_bbox[2]]],
           { color: '#16a34a', weight: 1.5, fillColor: '#16a34a', fillOpacity: 0.08 }
         ).bindTooltip(`Tile #${t.tile_number}`, {permanent: false}).addTo(map);
+        tileLayers.push(l);
       });
 
       // 간략 표시
