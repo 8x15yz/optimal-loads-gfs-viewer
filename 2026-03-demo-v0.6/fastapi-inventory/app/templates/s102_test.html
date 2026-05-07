@@ -240,7 +240,17 @@
 
       <!-- API URL -->
       <div>
-        <div class="label">생성된 API URL</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+          <div class="label" style="margin-bottom:0;">생성된 API URL</div>
+          <a id="btn-open" href="#" target="_blank"
+             style="font-size:11px; font-weight:600; color:#0284c7; text-decoration:none;
+                    padding:3px 10px; border:1px solid rgba(2,132,199,0.3); border-radius:5px;
+                    background:rgba(2,132,199,0.05); pointer-events:none; opacity:0.4;
+                    transition:opacity 0.15s;"
+             onclick="return guardOpen(event)">
+            새 탭에서 열기 ↗
+          </a>
+        </div>
         <div class="url-box" id="api-url" onclick="copyUrl()">
           <span class="copy-hint">클릭하여 복사</span>
           <span id="url-text">—</span>
@@ -377,6 +387,11 @@ function updatePanel(bbox) {
 
   document.getElementById('url-text').textContent = url;
 
+  const openBtn = document.getElementById('btn-open');
+  openBtn.href = url;
+  openBtn.style.pointerEvents = 'auto';
+  openBtn.style.opacity = '1';
+
   const cnt = countTiles(bbox.nwLon, bbox.seLat, bbox.seLon, bbox.nwLat);
   document.getElementById('tile-count').textContent = cnt;
 
@@ -394,6 +409,12 @@ function updatePanel(bbox) {
 
   document.getElementById('result').innerHTML = '<span class="info">API 요청 대기 중…</span>';
   document.getElementById('draw-tip').style.display = 'none';
+}
+
+function guardOpen(e) {
+  const btn = document.getElementById('btn-open');
+  if (btn.href === '#' || btn.style.opacity === '0.4') { e.preventDefault(); return false; }
+  return true;
 }
 
 function copyUrl() {
