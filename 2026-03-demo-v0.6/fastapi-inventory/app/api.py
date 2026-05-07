@@ -23,6 +23,157 @@ s3 = boto3.client("s3", region_name=AWS_REGION)
 DATASET_CODE_ALL_STEPS = "original-all-steps"
 
 # =============================================================================
+# S-100 Router
+# =============================================================================
+s100_router = APIRouter(prefix="/api", tags=["s100"])
+
+# ---- S-102 (GEBCO) 타일 그리드 상수 ----
+# 23행 × 45열 = 1,035 타일 / 타일당 ~8° × 8°
+# S3: gebco/s102/2025/Split/102KRTDGEBCO_2025_{N}.h5
+_S102_ROW_SOUTH = [
+     82.0021,  74.0021,  66.0021,  58.0021,  50.0021,  42.0021,  34.0021,
+     26.0021,  18.0021,  10.0021,   2.0021,  -5.9979, -13.9979, -21.9979,
+    -29.9979, -37.9979, -45.9979, -53.9979, -61.9979, -69.9979, -77.9979,
+    -85.9979, -89.9979,
+]
+_S102_ROW_NORTH = [89.9979] + _S102_ROW_SOUTH[:-1]   # row 0 north = 89.9979
+_S102_COL_WEST  = [-179.9979 + i * 8.0 for i in range(45)]
+_S102_COL_EAST  = [-179.9979 + (i + 1) * 8.0 for i in range(45)]
+_S102_S3_PREFIX = "gebco/s102/2025/Split"
+_S102_TILE_LIMIT = 50
+
+
+def _s102_find_tiles(
+    min_lon: float, min_lat: float, max_lon: float, max_lat: float
+) -> list[dict]:
+    tiles = []
+    for r in range(23):
+        if _S102_ROW_SOUTH[r] >= max_lat or _S102_ROW_NORTH[r] <= min_lat:
+            continue
+        for c in range(45):
+            if _S102_COL_WEST[c] >= max_lon or _S102_COL_EAST[c] <= min_lon:
+                continue
+            n = r * 45 + c + 1
+            tiles.append({
+                "tile_number": n,
+                "filename": f"102KRTDGEBCO_2025_{n}.h5",
+                "s3_key": f"{_S102_S3_PREFIX}/102KRTDGEBCO_2025_{n}.h5",
+                "tile_bbox": [
+                    round(_S102_COL_WEST[c], 4),
+                    round(_S102_ROW_SOUTH[r], 4),
+                    round(_S102_COL_EAST[c], 4),
+                    round(_S102_ROW_NORTH[r], 4),
+                ],
+            })
+    return tiles
+
+
+@s100_router.get(
+    "/s100/tiles",
+    summary="Get S-100 tile presigned URLs",
+    description=(
+        "bbox에 걸치는 S-100 타일 목록과 S3 presigned URL을 반환합니다. "
+        "현재 product=s102 (GEBCO 수심) 지원."
+    ),
+)
+async def get_s100_tiles(
+    product: str = Query(..., example="s102", description="S-100 product code"),
+
+    # ---- 공간 방식 1: NW/SE 코너 ----
+    nw_lon: Optional[float] = Query(default=None, example=128.0),
+    nw_lat: Optional[float] = Query(default=None, example=36.0),
+    se_lon: Optional[float] = Query(default=None, example=130.0),
+    se_lat: Optional[float] = Query(default=None, example=34.0),
+
+    # ---- 공간 방식 2: 중심점 + 버퍼 ----
+    lat: Optional[float] = Query(default=None, example=35.0),
+    lon: Optional[float] = Query(default=None, example=129.0),
+    buffer_km: Optional[float] = Query(default=None, ge=0.0, le=5000.0, example=500.0),
+
+    expires_in: int = Query(default=3600, ge=60, le=86400, description="Presigned URL 유효 시간(초)"),
+):
+    if product.lower() != "s102":
+        raise HTTPException(
+            status_code=400,
+            detail={"error": f"Unsupported product '{product}'. Currently only 's102' is available."},
+        )
+
+    # ---- bbox 결정 ----
+    nw_se = [nw_lon, nw_lat, se_lon, se_lat]
+    cb    = [lat, lon, buffer_km]
+
+    if all(p is not None for p in nw_se):
+        if any(p is not None for p in cb):
+            raise HTTPException(
+                status_code=422,
+                detail={"error": "Cannot mix nw/se and lat/lon/buffer params."},
+            )
+        min_lon_v, min_lat_v, max_lon_v, max_lat_v = nw_lon, se_lat, se_lon, nw_lat
+
+    elif lat is not None and lon is not None:
+        buf = buffer_km if buffer_km is not None else 500.0
+        bdlat = buf / 111.0
+        bdlon = buf / (111.0 * np.cos(np.radians(lat)))
+        min_lon_v = lon - bdlon
+        min_lat_v = lat - bdlat
+        max_lon_v = lon + bdlon
+        max_lat_v = lat + bdlat
+
+    else:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "Provide (nw_lon, nw_lat, se_lon, se_lat) or (lat, lon) with optional buffer_km."},
+        )
+
+    tiles = _s102_find_tiles(min_lon_v, min_lat_v, max_lon_v, max_lat_v)
+
+    if not tiles:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "No tiles found in the requested bbox.",
+                "bbox": [min_lon_v, min_lat_v, max_lon_v, max_lat_v],
+            },
+        )
+    if len(tiles) > _S102_TILE_LIMIT:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "error": f"Too many tiles ({len(tiles)}) in bbox. Limit is {_S102_TILE_LIMIT}.",
+                "tile_count": len(tiles),
+                "limit": _S102_TILE_LIMIT,
+                "hint": "Reduce the bbox size.",
+            },
+        )
+
+    result = []
+    for t in tiles:
+        try:
+            url = await asyncio.to_thread(
+                s3.generate_presigned_url,
+                "get_object",
+                Params={"Bucket": S3_BUCKET, "Key": t["s3_key"]},
+                ExpiresIn=expires_in,
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail={"error": "Failed to generate presigned URL.", "tile": t["tile_number"], "reason": str(e)},
+            )
+        result.append({**t, "presigned_url": url})
+
+    return {
+        "product": product.lower(),
+        "tile_count": len(result),
+        "bbox_requested": [
+            round(min_lon_v, 4), round(min_lat_v, 4),
+            round(max_lon_v, 4), round(max_lat_v, 4),
+        ],
+        "expires_in_seconds": expires_in,
+        "tiles": result,
+    }
+
+# =============================================================================
 # 소스별 변수명 ALIASES
 # =============================================================================
 

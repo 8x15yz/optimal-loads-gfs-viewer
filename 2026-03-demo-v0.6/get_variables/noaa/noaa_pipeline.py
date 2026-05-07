@@ -123,11 +123,8 @@ def parse_run_hours(s: str) -> set[int]:
 
 # --------------------- step 스케줄 생성 (GFS 규칙) ---------------------
 def build_gfs_steps(max_step: int) -> list[int]:
-    # 000~119: 1시간, 120~384: 3시간
-    steps = list(range(0, min(119, max_step) + 1, 1))
-    if max_step >= 120:
-        steps += list(range(120, min(384, max_step) + 1, 3))
-    return sorted(set(steps))
+    # 000~384: 3시간 간격
+    return list(range(0, min(384, max_step) + 1, 3))
 
 
 # --------------------- 로컬 폴더 구조 ---------------------

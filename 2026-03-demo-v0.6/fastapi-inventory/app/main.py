@@ -16,7 +16,7 @@ from starlette.middleware.cors import CORSMiddleware
 from app.ingestion import router as ingestion_router
 
 from app.db import get_assets_collection, get_directories_collection
-from app.api import router as api_router, meta_router
+from app.api import router as api_router, meta_router, s100_router
 
 from urllib.parse import quote
 
@@ -60,6 +60,7 @@ async def root_en():
 app.include_router(api_router)
 app.include_router(ingestion_router)
 app.include_router(meta_router)
+app.include_router(s100_router)
 
 # ---- CORS ----
 app.add_middleware(
@@ -245,6 +246,11 @@ def _build_api_example_file(doc: Dict[str, Any]) -> str:
 # =========================================================
 # ✅ /inventory (Index of …) - directories + assets_metadata
 # =========================================================
+
+@app.get("/s102-test", response_class=HTMLResponse, include_in_schema=False)
+async def s102_test(request: Request):
+    return templates.TemplateResponse("s102_test.html", {"request": request})
+
 
 @app.get("/inventory", response_class=HTMLResponse, include_in_schema=False)
 async def inventory_index(
