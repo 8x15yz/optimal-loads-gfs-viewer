@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # depth_conversion_wrapper.py
+# [2026-05-19] parse_tile_idx: \d{3} → \d+ (zero-padding 없는 파일명 대응)
+# [2026-05-19] S111 tile_deg: 35.0 → 20.0
+# [2026-05-19] compute_tile_bbox tiles_per_row: // → math.ceil (DepthConversion 내부 로직 일치)
 """
 DepthConversion CLI wrapper — S-111 / S-413 변환 + S3 업로드 + MongoDB 메타 등록
 
@@ -20,6 +23,7 @@ DepthConversion CLI wrapper — S-111 / S-413 변환 + S3 업로드 + MongoDB �
 """
 from __future__ import annotations
 
+import math
 import os
 import re
 import shutil
@@ -42,7 +46,7 @@ N_LON = 1440
 PRODUCT_META = {
     2: {
         "product":   "s111",
-        "tile_deg":  35.0,
+        "tile_deg":  20.0,
         "variables": {
             "stored": ["surfaceCurrentSpeed", "surfaceCurrentDirection"],
             "source": ["UGRD", "VGRD"],
@@ -93,7 +97,7 @@ def compute_tile_bbox(tile_idx: int, tile_deg: float) -> dict:
     반환: {"idx": int, "north": float, "south": float, "west": float, "east": float}
     """
     n = round(tile_deg / RES)                    # 타일당 격자 수
-    tiles_per_row = N_LON // n                   # 경도 방향 타일 수 (1행)
+    tiles_per_row = math.ceil(N_LON / n)         # 경도 방향 타일 수 (DepthConversion 내부와 동일: ceil)
 
     # tile_idx → (row, col) 0-based
     row = (tile_idx - 1) // tiles_per_row
@@ -120,8 +124,10 @@ def parse_tile_idx(filename: str) -> Optional[int]:
     """
     '413KR00_20260303_12Z_001.h5' → 1
     '111KR00_20260303_12Z_128.h5' → 128
+    '11120260518_06Z_1.h5'        → 1
+    '11120260518_06Z_55.h5'       → 55
     """
-    m = re.search(r"_(\d{3})\.h5$", filename)
+    m = re.search(r"_(\d+)\.h5$", filename)
     return int(m.group(1)) if m else None
 
 

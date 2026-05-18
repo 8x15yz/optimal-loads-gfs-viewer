@@ -884,6 +884,7 @@ def main() -> None:
     summary_vars_success = 0
     summary_vars_failed = 0
     summary_run_time_utc = iso_z(run_dt)
+    conv_failed = False  # ✅ finally에서 접근 가능하도록 외부 선언
 
     s3 = None
     if not args.no_s3:
@@ -1062,7 +1063,6 @@ def main() -> None:
                 heartbeat("conversion start")
 
             all_uploaded_keys: list[str] = []
-            conv_failed = False
 
             for conv_mode in (2, 3):   # 2=S-111, 3=S-413
                 product = "s111" if conv_mode == 2 else "s413"
@@ -1099,8 +1099,21 @@ def main() -> None:
 
     finally:
         # ✅ 로컬 파일 일괄 삭제 (GRIB2 + H5)
+        # 변환 성공 시에만 wave까지 삭제, 실패 시엔 wave 보존 (재시도 가능하도록)
         if not args.no_delete_local:
-            _cleanup_run_set_dir(run_set_dir)
+            if conv_failed:
+                # wave는 남기고 s111/s413만 정리
+                for subdir in ("s111", "s413"):
+                    target = run_set_dir / subdir
+                    if target.exists():
+                        try:
+                            shutil.rmtree(target)
+                            print(f"🧹 삭제 완료: {target}")
+                        except Exception as e:
+                            print(f"⚠️ 삭제 실패: {target} — {e}")
+            else:
+                # 변환 성공(또는 no_convert)이면 wave 포함 전체 정리
+                _cleanup_run_set_dir(run_set_dir)
 
         if not args.no_mongo:
             summary = {
