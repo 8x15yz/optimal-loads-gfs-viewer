@@ -1,0 +1,1721 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Optimal-LOADS • Consortium Preview — Demo v0.6 (ECMWF + NOAA)</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --text: #0f172a;
+      --muted: #475569;
+      --brand: #0284c7;
+      --border: #e2e8f0;
+      --card: #f8fafc;
+      --ok: #16a34a;
+      --warn: #d97706;
+      --danger: #dc2626;
+
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-hover: 0 4px 12px rgba(0,0,0,0.1);
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+    
+    * { box-sizing: border-box; }
+    
+    html { scroll-behavior: smooth; }
+    
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+    }
+    
+    a { color: inherit; text-decoration: none; }
+    
+    .container { 
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 32px 24px 60px;
+    }
+
+    /* Topbar - 더 모던하게 */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(12px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    
+    .topbar-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    
+    .brandline {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+    
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0284c7, #0ea5e9);
+      box-shadow: 0 0 0 4px rgba(2,132,199,0.15);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    
+    .brandline .title {
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: -0.01em;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      background: white;
+      color: var(--text);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+    }
+    
+    .btn:hover {
+      background: var(--card);
+      border-color: #cbd5e1;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .btn:active {
+      transform: translateY(0);
+    }
+    
+    .btn-outline {
+      border-color: rgba(2,132,199,0.3);
+      color: var(--brand);
+      background: rgba(2,132,199,0.05);
+    }
+    
+    .btn-outline:hover {
+      background: rgba(2,132,199,0.1);
+      border-color: var(--brand);
+    }
+
+    .btn-pdf {
+      border-color: rgba(22,163,74,0.3);
+      color: var(--ok);
+      background: rgba(22,163,74,0.05);
+    }
+
+    .btn-pdf:hover {
+      background: rgba(22,163,74,0.12);
+      border-color: var(--ok);
+    }
+
+    /* Layout */
+    .grid {
+      display: grid;
+      gap: 24px;
+      grid-template-columns: 280px 1fr;
+      align-items: start;
+      margin-top: 24px;
+    }
+    
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+      .sidebar { 
+        position: static !important;
+        order: 2;
+      }
+      .content { order: 1; }
+    }
+
+    /* Typography */
+    h1, h2, h3, h4 {
+      line-height: 1.3;
+      margin: 0 0 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    
+    h1 { font-size: 28px; }
+    h2 { font-size: 20px; margin-top: 32px; }
+    h3 { font-size: 17px; margin-top: 24px; }
+    h4 { font-size: 15px; margin-top: 16px; }
+
+    .muted { color: var(--muted); }
+    .small { font-size: 13px; }
+
+    /* Cards - 더 깔끔하게 */
+    .card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 20px;
+      transition: box-shadow 0.2s ease;
+    }
+    
+    .card:hover {
+      box-shadow: var(--shadow-hover);
+    }
+    
+    .card-pad {
+      padding: 24px 28px;
+    }
+    
+    .card-head {
+      padding: 20px 28px;
+      background: linear-gradient(180deg, rgba(248,250,252,0.8), white);
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .card-head .kicker {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--brand);
+      margin-bottom: 4px;
+    }
+
+    /* Hero - 더 현대적으로 */
+    .hero {
+      background: linear-gradient(135deg, 
+        rgba(56,189,248,0.1) 0%, 
+        rgba(186,230,253,0.15) 50%,
+        rgba(224,242,254,0.1) 100%);
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 32px 28px;
+      border: 1px solid rgba(2,132,199,0.2);
+      box-shadow: 0 4px 20px rgba(2,132,199,0.08);
+      margin-bottom: 24px;
+    }
+    
+    .hero .kicker {
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--brand);
+      margin-bottom: 12px;
+    }
+    
+    .hero h1 {
+      margin: 0 0 12px;
+      color: var(--text);
+    }
+    
+    .hero p {
+      color: var(--muted);
+      margin: 0 0 16px;
+      font-size: 15px;
+    }
+    
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: white;
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    /* Notes - 더 부드럽게 */
+    .note, .warn, .danger {
+      padding: 16px 20px;
+      border-radius: var(--radius-sm);
+      margin: 20px 0;
+      border-left: 4px solid;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    
+    .note {
+      background: rgba(224,242,254,0.5);
+      border-color: var(--brand);
+      color: #0c4a6e;
+    }
+    
+    .warn {
+      background: rgba(254,243,199,0.5);
+      border-color: var(--warn);
+      color: #78350f;
+    }
+    
+    .danger {
+      background: rgba(254,226,226,0.5);
+      border-color: var(--danger);
+      color: #7f1d1d;
+    }
+
+    /* Section */
+    .section {
+      scroll-margin-top: 100px;
+    }
+    
+    .h2-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    
+    .h2-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(2,132,199,0.1);
+      border: 1px solid rgba(2,132,199,0.2);
+      color: var(--brand);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 11px;
+      white-space: nowrap;
+      letter-spacing: 0.02em;
+    }
+
+    /* Tables - 더 모던하게 */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin: 20px 0;
+    }
+    
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0;
+      font-size: 14px;
+      background: white;
+    }
+    
+    .table th, .table td {
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+      text-align: left;
+      vertical-align: top;
+    }
+    
+    .table thead th {
+      background: var(--card);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      position: sticky;
+      top: 0;
+    }
+    
+    .table tbody tr {
+      transition: background-color 0.15s ease;
+    }
+    
+    .table tbody tr:hover {
+      background: var(--card);
+    }
+    
+    .table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Code blocks - 더 세련되게 */
+    .code {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      padding: 16px 20px;
+      border-radius: var(--radius-sm);
+      overflow-x: auto;
+      white-space: pre;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      margin: 20px 0;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    
+    .code .dim {
+      color: #94a3b8;
+    }
+
+    /* Links */
+    .link {
+      color: var(--brand);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      text-decoration-thickness: 1px;
+      transition: color 0.15s ease;
+    }
+    
+    .link:hover {
+      color: #0369a1;
+    }
+
+    /* Sidebar / TOC - 더 현대적으로 */
+    .sidebar {
+      position: sticky;
+      top: 100px;
+    }
+    
+    .toc {
+      padding: 16px;
+    }
+    
+    .toc .toc-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    
+    .toc .toc-title b {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    
+    .toc a {
+      display: block;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 13px;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+    }
+    
+    .toc a:hover {
+      background: rgba(2,132,199,0.08);
+      border-color: rgba(2,132,199,0.15);
+      color: var(--brand);
+    }
+    
+    .toc .lvl2 {
+      padding-left: 24px;
+      font-size: 12px;
+    }
+    
+    .toc .lvl3 {
+      padding-left: 40px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    
+    .toc .sep {
+      height: 1px;
+      background: var(--border);
+      margin: 12px 0;
+    }
+
+    /* Content typography */
+    p {
+      margin: 12px 0;
+      line-height: 1.7;
+    }
+    
+    ul {
+      margin: 12px 0;
+      padding-left: 24px;
+    }
+    
+    ol {
+      margin: 12px 0;
+      padding-left: 24px;
+    }
+    
+    li {
+      margin: 6px 0;
+    }
+    
+    code {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+      font-size: 0.9em;
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #e11d48;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 20px 16px 40px;
+      }
+      
+      .topbar-inner {
+        padding: 12px 16px;
+      }
+      
+      .hero {
+        padding: 24px 20px;
+      }
+      
+      .card-pad {
+        padding: 20px;
+      }
+      
+      .card-head {
+        padding: 16px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sticky topbar -->
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brandline" title="Optimal-LOADS • Consortium Preview">
+        <span class="dot" aria-hidden="true"></span>
+        <div class="title">Optimal-LOADS • Consortium Preview</div>
+      </div>
+      <div class="toolbar">
+        <!-- <a class="btn btn-outline" href="/ko" aria-label="한국어로 전환">KO</a> -->
+        <a class="btn btn-outline" href="/inventory" aria-label="Open Metadata Index">Metadata Index</a>
+        <a class="btn btn-outline" href="/docs" aria-label="Open API Documentation">API Documentation</a>
+        <a class="btn btn-pdf" href="/guide/bluemap_weather_service_manual_EN_v0_6.pdf" download aria-label="Download PDF Manual">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          PDF Manual
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- HERO -->
+    <section class="hero">
+      <div class="kicker">Optimal-LOADS • Consortium Preview</div>
+      <h1>BLUEMAP Marine Weather Data Inventory User Manual</h1>
+      <p>This page is the <strong>user guide</strong> for the BLUEMAP Marine Weather Data Inventory service.</p>
+      <div class="badges">
+        <span class="badge">✓ Status: Active</span>
+        <span class="badge">📦 Version: v0.6</span>
+        <span class="badge">🌍 Data Sources: ECMWF Open Data, NOAA GFS</span>
+      </div>
+    </section>
+
+    <div class="grid">
+
+      <!-- SIDEBAR / TOC -->
+      <aside class="sidebar card">
+        <div class="card-head">
+          <div class="kicker">Navigation</div>
+          <div class="muted small">Table of Contents</div>
+        </div>
+        <div class="toc">
+          <div class="toc-title">
+            <b>Table of Contents</b>
+          </div>
+
+          <a href="#sec-1">1. Data Characteristics</a>
+          <a class="lvl2" href="#sec-1-1">1.1 Forecast Time-Series Data</a>
+          <a class="lvl2" href="#sec-1-2">1.2 Run Time and Step</a>
+
+          <div class="sep"></div>
+
+          <a href="#sec-2">2. Data Sources</a>
+          <a class="lvl2" href="#sec-2">2.1 ECMWF</a>
+          <a class="lvl2" href="#sec-2">2.2 NOAA GFS</a>
+
+          <div class="sep"></div>
+
+          <a href="#sec-3">3. Data Availability</a>
+          <a class="lvl2" href="#sec-3-1">3.1 Run Times</a>
+          <a class="lvl2" href="#sec-3-2">3.2 Forecast Step Intervals</a>
+
+          <div class="sep"></div>
+
+          <a href="#sec-4">4. Directory Structure</a>
+          <a class="lvl2" href="#sec-4-1">4.1 Structure Overview</a>
+          <a class="lvl2" href="#sec-4-2">4.2 Meaning of Each Level</a>
+          <a class="lvl2" href="#sec-4-3">4.3 Dataset Code</a>
+          <a class="lvl2" href="#sec-4-4">4.4 File Naming Rules</a>
+          <a class="lvl2" href="#sec-4-5">4.5 Example Storage Layout</a>
+
+          <div class="sep"></div>
+
+          <a href="#sec-5">5. Provided Variables</a>
+          <a class="lvl2" href="#sec-5-1">5.1 Atmosphere</a>
+          <a class="lvl2" href="#sec-5-2">5.2 Wave</a>
+          <a class="lvl2" href="#sec-5-3">5.3 Notes on Direction Variables</a>
+
+          <div class="sep"></div>
+
+          <a href="#sec-6">6. API Usage</a>
+          <a class="lvl2" href="#sec-6-0">6.0 Endpoint List</a>
+          <a class="lvl2" href="#sec-6-meta">6.1 Meta API (sources / variables)</a>
+          <a class="lvl2" href="#sec-6-1">6.2 Grid Data Query</a>
+          <a class="lvl2" href="#sec-6-2">6.3 Request Examples</a>
+          <a class="lvl2" href="#sec-6-3">6.4 run_time_utc Format</a>
+          <a class="lvl2" href="#sec-6-4">6.5 Cell Count Limit</a>
+
+          <div class="sep"></div>
+
+          <a href="#sec-7">7. How to Read the Result Array</a>
+          <a class="lvl2" href="#sec-7-1">7.1 Array Storage Rule</a>
+          <a class="lvl2" href="#sec-7-2">7.2 Example Response Array</a>
+          <a class="lvl2" href="#sec-7-3">7.3 Grid Layout on a Map</a>
+          <a class="lvl2" href="#sec-7-4">7.4 Index-to-Coordinate Mapping</a>
+
+          <div class="sep"></div>
+
+          <a href="#sec-8">8. Wind Speed / Wind Direction</a>
+          <a class="lvl2" href="#sec-8-1">8.1 Wind Speed</a>
+          <a class="lvl2" href="#sec-8-2">8.2 Wind Direction (FROM)</a>
+
+          <div class="sep"></div>
+
+          <a href="#appendix">[Appendix] Wind Speed &amp; Direction Formulas</a>
+          <a class="lvl2" href="#app-1">(1) Meaning of Input Data</a>
+          <a class="lvl2" href="#app-2">(2) Wind Speed Formula</a>
+          <a class="lvl2" href="#app-3">(3) Wind Direction Basics</a>
+          <a class="lvl2" href="#app-4">(4) Why atan2</a>
+          <a class="lvl2" href="#app-5">(5) FROM-Direction Conversion</a>
+          <a class="lvl2" href="#app-6">(6) Modulo 360</a>
+          <a class="lvl2" href="#app-7">(7) Final Summary</a>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT -->
+      <main class="content">
+
+        <!-- OVERVIEW -->
+        <section id="overview" class="section card">
+          <div class="card-head">
+            <div class="kicker">Overview</div>
+            <div class="muted small">Service Overview</div>
+          </div>
+          <div class="card-pad">
+            <div class="note">
+              <b>This service uses ECMWF Open Data and NOAA GFS data.</b><br />
+              ECMWF dataset overview and policies:
+              <a class="link" href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">
+                ECMWF Open Data
+              </a><br />
+              NOAA GFS data:
+              <a class="link" href="https://www.ncei.noaa.gov/products/weather-climate-models/global-forecast" target="_blank" rel="noopener">
+                NOAA GFS
+              </a>
+            </div>
+
+            <p>
+              This demo collects and stores <strong>global gridded data</strong> based on <strong>ECMWF Open Data</strong>
+              and <strong>NOAA GFS</strong>, and provides a static catalog (metadata index), a map preview, and a lightweight API.
+            </p>
+
+            <ul>
+              <li>Global gridded forecast datasets (Atmosphere + Wave) — ECMWF &amp; NOAA</li>
+              <li>Static metadata index + preview</li>
+              <li>Lightweight API for front-end widgets</li>
+              <li>Derived variables: wind_speed_10m, wind_dir_10m (FROM-direction)</li>
+              <li>Meta API: <code>/api/sources</code>, <code>/api/variables</code></li>
+            </ul>
+
+            <div class="warn small">
+              ⚠️ This document is for demonstration purposes. The coverage (time range / resolution / latency) may change depending on the operational environment.
+            </div>
+          </div>
+        </section>
+
+        <!-- 1 -->
+        <section id="sec-1" class="section card">
+          <div class="card-head">
+            <div class="kicker">Section 1</div>
+            <div class="h2-row">
+              <h2 style="margin:0;">1. Data Characteristics</h2>
+              <span class="h2-pill">Data Characteristics</span>
+            </div>
+          </div>
+          <div class="card-pad">
+
+            <h3 id="sec-1-1">1.1 Forecast Time-Series Data</h3>
+            <p>
+              This dataset provides <strong>forecast time-series data</strong> generated by the
+              <strong>ECMWF IFS (Integrated Forecasting System)</strong> and <strong>NOAA GFS (Global Forecast System)</strong> models.
+            </p>
+            <p>
+              All data are defined relative to a specific <strong>run time</strong> and consist of
+              <strong>forecast steps</strong> for future times.
+            </p>
+
+            <h3 id="sec-1-2">1.2 Run Time and Step</h3>
+            <ul>
+              <li><strong>Run time</strong>: the reference time when the forecast model run starts</li>
+              <li><strong>Step</strong>: how many hours after the run time the forecast value represents</li>
+            </ul>
+
+            <div class="note">
+              <b>⇒ Valid time</b> is the actual forecast timestamp computed as <code>run time + step_hours</code>.<br />
+              <span class="muted small">Valid time is not provided as an API parameter; users derive it from run time and step.</span>
+            </div>
+
+            <p><b>Example</b>:</p>
+            <ul>
+              <li><code>run_time_utc = 2025-07-16T00:00:00Z</code></li>
+              <li><code>step_hours = 24</code></li>
+            </ul>
+            <p>→ This indicates the forecast value at <strong>2025-07-17 00:00 (UTC)</strong>.</p>
+
+          </div>
+        </section>
+
+        <!-- 2 -->
+        <section id="sec-2" class="section card">
+          <div class="card-head">
+            <div class="kicker">Section 2</div>
+            <div class="h2-row">
+              <h2 style="margin:0;">2. Data Sources</h2>
+              <span class="h2-pill">Source</span>
+            </div>
+          </div>
+          <div class="card-pad">
+
+            <h3>2.1 ECMWF</h3>
+            <ul>
+              <li>Source dataset: <strong>ECMWF Open Data</strong>:
+                <a class="link" href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">
+                  ECMWF Open Data
+                </a>
+              </li>
+              <li>Forecast models:
+                <ul>
+                  <li>Atmosphere model: IFS Atmosphere (<code>source=ecmwf</code>, <code>model=ifs</code>)</li>
+                  <li>Wave model: IFS Wave Model</li>
+                </ul>
+              </li>
+              <li>Wave model documentation:
+                <a class="link" href="https://www.ecmwf.int/sites/default/files/elibrary/112024/81629-ifs-documentation-cy49r1-part-vii-ecmwf-wave-model.pdf" target="_blank" rel="noopener">
+                  ecmwf-wave-model.pdf
+                </a>
+              </li>
+              <li>Atmosphere model documentation:
+                <a class="link" href="https://www.ecmwf.int/sites/default/files/elibrary/112024/81626-ifs-documentation-cy49r1-part-iv-physical-processes.pdf" target="_blank" rel="noopener">
+                  ecmwf-atmosphere-model.pdf
+                </a>
+              </li>
+            </ul>
+
+            <h3>2.2 NOAA GFS</h3>
+            <ul>
+              <li>Source dataset: <strong>NOAA GFS (Global Forecast System)</strong>:
+                <a class="link" href="https://www.ncei.noaa.gov/products/weather-climate-models/global-forecast" target="_blank" rel="noopener">
+                  NOAA GFS
+                </a>
+              </li>
+              <li>Forecast model: GFS (<code>source=noaa</code>, <code>model=gfs</code>)</li>
+              <li>Available variables: wind (UGRD, VGRD, WIND, WDIR), wave (HTSGW, PERPW, DIRPW)</li>
+            </ul>
+
+            <div class="note">
+              <b>source / model parameter mapping</b>
+              <div class="table-wrap" style="margin-top:12px;">
+                <table class="table">
+                  <thead>
+                    <tr><th>source</th><th>model</th><th>Description</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td><code>ecmwf</code></td><td><code>ifs</code></td><td>ECMWF IFS (Atmosphere + Wave)</td></tr>
+                    <tr><td><code>noaa</code></td><td><code>gfs</code></td><td>NOAA GFS (Atmosphere + Wave)</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- 3 -->
+        <section id="sec-3" class="section card">
+          <div class="card-head">
+            <div class="kicker">Section 3</div>
+            <div class="h2-row">
+              <h2 style="margin:0;">3. Data Availability</h2>
+              <span class="h2-pill">Availability</span>
+            </div>
+          </div>
+          <div class="card-pad">
+
+            <h3 id="sec-3-1">3.1 Run Times</h3>
+            <p>Both sources produce forecasts <strong>four times per day</strong>:</p>
+            <ul>
+              <li>00Z</li>
+              <li>06Z</li>
+              <li>12Z</li>
+              <li>18Z</li>
+            </ul>
+
+            <h3 id="sec-3-2">3.2 Forecast Step Intervals</h3>
+
+            <h4>ECMWF IFS</h4>
+            <ul>
+              <li><strong>00Z / 12Z (extended range, up to 15 days)</strong>
+                <ul>
+                  <li>0–144 hours: <strong>3-hour intervals</strong></li>
+                  <li>150–360 hours: <strong>6-hour intervals</strong></li>
+                </ul>
+              </li>
+              <li><strong>06Z / 18Z (short range, up to 6 days)</strong>
+                <ul>
+                  <li>0–144 hours: <strong>3-hour intervals</strong></li>
+                  <li>No steps beyond 144 hours</li>
+                </ul>
+              </li>
+            </ul>
+            <p class="small">
+              Official schedule:
+              <a class="link" href="https://confluence.ecmwf.int/display/DAC/Dissemination+schedule" target="_blank" rel="noopener">
+                ECMWF Dissemination Schedule
+              </a>
+            </p>
+
+            <h4>NOAA GFS</h4>
+            <ul>
+              <li><strong>00Z / 06Z / 12Z / 18Z (up to 16 days)</strong>
+                <ul>
+                  <li>0–384 hours: <strong>3-hour intervals</strong></li>
+                </ul>
+              </li>
+            </ul>
+            <p class="small">
+              Official schedule:
+              <a class="link" href="https://www.nco.ncep.noaa.gov/pmb/products/gfs/" target="_blank" rel="noopener">
+                NOAA GFS Products
+              </a>
+            </p>
+
+          </div>
+        </section>
+
+        <!-- 4 -->
+        <section id="sec-4" class="section card">
+          <div class="card-head">
+            <div class="kicker">Section 4</div>
+            <div class="h2-row">
+              <h2 style="margin:0;">4. BlueMap Weather Data Directory Structure</h2>
+              <span class="h2-pill">Storage Layout</span>
+            </div>
+          </div>
+          <div class="card-pad">
+
+            <p>
+              This section describes the ECMWF IFS forecast data layout used by the BlueMap Weather Data service:
+              the <strong>directory structure, meaning of each level, data categorization, and file naming rules</strong>.
+            </p>
+
+            <p>
+              The structure is designed to manage forecast time-series data efficiently using the forecast run time and step.
+            </p>
+
+            <h3 id="sec-4-1">4.1 Structure Overview</h3>
+            <p>BlueMap Weather Data stores ECMWF IFS and NOAA GFS forecast data in the following hierarchy.</p>
+
+            <div class="code">{source}/
+└─ {model}/
+   └─ yyyy/                # Forecast run year (e.g., 2025)
+      └─ yyyy-mm/          # Year-month (e.g., 2025-07)
+         └─ yyyy-mm-dd/    # Year-month-day (e.g., 2025-07-01)
+            └─ hhZ/        # Run cycle (00Z, 06Z, 12Z, 18Z)
+               └─ {dataset_code}/
+                  └─ {variable}/
+                     └─ dataset file
+
+<span class="dim"># Example paths</span>
+ecmwf/ifs/2025/2025-07/2025-07-01/00Z/original/swh/
+noaa/gfs/2025/2025-07/2025-07-01/00Z/original/HTSGW/</div>
+
+            <p>
+              This design separates data by <strong>year / month / day / run cycle</strong>,
+              enabling efficient management and retrieval of large forecast archives.
+            </p>
+
+            <ul>
+              <li><strong>yyyy / yyyy-mm / yyyy-mm-dd</strong>
+                <div class="muted small">The date when the forecast run was produced, accumulated as year/month/day directories.</div>
+              </li>
+              <li><strong>hhZ</strong>
+                <div class="muted small">The forecast run cycle in UTC; produced 4 times per day (00Z, 06Z, 12Z, 18Z).</div>
+              </li>
+              <li><strong>dataset_code</strong>
+                <div class="muted small">A directory to classify data type and clearly separate raw vs derived products.</div>
+              </li>
+              <li><strong>variable</strong>
+                <div class="muted small">A directory per variable code.</div>
+              </li>
+              <li><strong>dataset file</strong>
+                <div class="muted small">The actual file for a specific run time and forecast step.</div>
+              </li>
+            </ul>
+
+            <h3 id="sec-4-2">4.2 Meaning of Each Level</h3>
+            <p>The meaning of each directory level is as follows.</p>
+
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Level</th><th>Description</th><th>Example</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>{source}/</code></td><td>Data source root</td><td><code>ecmwf/</code>, <code>noaa/</code></td></tr>
+                  <tr><td><code>{model}/</code></td><td>Forecast model name</td><td><code>ifs/</code>, <code>gfs/</code></td></tr>
+                  <tr><td><code>yyyy/</code></td><td>Forecast run year</td><td><code>2025/</code></td></tr>
+                  <tr><td><code>yyyy-mm/</code></td><td>Forecast run year-month</td><td><code>2025-07/</code></td></tr>
+                  <tr><td><code>yyyy-mm-dd/</code></td><td>Forecast run day</td><td><code>2025-07-01/</code></td></tr>
+                  <tr><td><code>hhZ/</code></td><td>Forecast run cycle (UTC)</td><td><code>00Z/</code>, <code>12Z/</code></td></tr>
+                  <tr><td><code>dataset_code/</code></td><td>Data type classification</td><td><code>original/</code>, <code>computed/</code></td></tr>
+                  <tr><td><code>variable/</code></td><td>Variable code</td><td><code>swh/</code>, <code>HTSGW/</code>, <code>wind_speed_10m/</code></td></tr>
+                  <tr><td><code>dataset file</code></td><td>Actual data file per run cycle + forecast step</td><td></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3 id="sec-4-3">4.3 Dataset Code</h3>
+            <p>The <code>dataset_code</code> directory is used to classify the data type as follows.</p>
+
+            <div class="code">dataset_code
+├─ original
+└─ computed</div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0;">
+              <div class="note">
+                <b>original</b><br />
+                Raw forecast variables provided by each source (not post-processed).<br /><br />
+                ECMWF examples:
+                <ul>
+                  <li><code>10u</code>, <code>10v</code></li>
+                  <li><code>swh</code>, <code>mwp</code>, <code>mwd</code></li>
+                </ul>
+                NOAA examples:
+                <ul>
+                  <li><code>UGRD</code>, <code>VGRD</code>, <code>WIND</code>, <code>WDIR</code></li>
+                  <li><code>HTSGW</code>, <code>PERPW</code>, <code>DIRPW</code></li>
+                </ul>
+              </div>
+              <div class="note">
+                <b>computed</b><br />
+                Derived variables calculated from <code>original</code> variables.<br /><br />
+                Examples (common across sources):
+                <ul>
+                  <li><code>wind_speed_10m</code></li>
+                  <li><code>wind_dir_10m</code></li>
+                </ul>
+              </div>
+            </div>
+
+            <h3 id="sec-4-4">4.4 File Naming Rules</h3>
+            <p>All files follow the naming convention below.</p>
+
+            <div class="code">{dataset_code}_{variable}_{YYYYMMDD}_{hhZ}_step{NNN}[.grib2]</div>
+
+            <p>Each component means:</p>
+            <ul>
+              <li><strong>dataset_code</strong> — data type (<code>original</code> or <code>computed</code>)</li>
+              <li><strong>variable</strong> — variable code</li>
+              <li><strong>YYYYMMDD_hhZ</strong> — forecast run time (run cycle)</li>
+              <li><strong>stepNNN</strong> — forecast step (in hours)</li>
+              <li><strong>Extension</strong>
+                <ul>
+                  <li><code>original</code>: <code>.grib2</code></li>
+                  <li><code>computed</code>: no extension</li>
+                </ul>
+              </li>
+            </ul>
+
+            <h4>Examples</h4>
+            <div class="code">original_swh_20250701_00Z_step024.grib2
+computed_wind_speed_10m_20250701_00Z_step024</div>
+
+            <h3 id="sec-4-5">4.5 Example Storage Layout</h3>
+            <p>Below is an example of the BlueMap Weather Data storage layout.</p>
+
+            <div class="code">ecmwf/ifs/2025/07/01/00Z/
+├─ computed/
+│  ├─ wind_dir_10m/
+│  │  ├─ computed_wind_dir_10m_20250701_00Z_step000
+│  │  ├─ computed_wind_dir_10m_20250701_00Z_step003
+│  └─ wind_speed_10m/
+│     ├─ computed_wind_speed_10m_20250701_00Z_step000
+│     ├─ computed_wind_speed_10m_20250701_00Z_step003
+│
+└─ original/
+   ├─ 10u/
+   │  ├─ original_10u_20250701_00Z_step000.grib2
+   ├─ 10v/
+   ├─ mwd/
+   ├─ mwp/
+   └─ swh/</div>
+
+          </div>
+        </section>
+
+        <!-- 5 -->
+        <section id="sec-5" class="section card">
+          <div class="card-head">
+            <div class="kicker">Section 5</div>
+            <div class="h2-row">
+              <h2 style="margin:0;">5. Provided Variables</h2>
+              <span class="h2-pill">Variables</span>
+            </div>
+          </div>
+          <div class="card-pad">
+
+            <div class="note">
+              This system provides original variables from <strong>ECMWF IFS</strong> and <strong>NOAA GFS</strong>,
+              along with derived variables (<code>wind_speed_10m</code>, <code>wind_dir_10m</code>) computed from them.
+              Variable names differ by source — use the correct variable name for the source you are querying.
+            </div>
+
+            <h3 id="sec-5-1">5.1 Atmosphere</h3>
+
+            <h4>ECMWF IFS</h4>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Variable</th><th>Description</th><th>Unit</th><th>Type</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><b>10u</b></td>
+                    <td>Wind component at 10 m height in the eastward direction</td>
+                    <td>m/s</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>10v</b></td>
+                    <td>Wind component at 10 m height in the northward direction</td>
+                    <td>m/s</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>wind_speed_10m</b></td>
+                    <td>Wind speed magnitude at 10 m computed from <code>10u</code> and <code>10v</code></td>
+                    <td>m/s</td>
+                    <td>computed</td>
+                  </tr>
+                  <tr>
+                    <td><b>wind_dir_10m</b></td>
+                    <td>Wind direction using the <b>FROM-direction</b> convention (0°=North, clockwise)</td>
+                    <td>degree</td>
+                    <td>computed</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h4>NOAA GFS</h4>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Variable</th><th>Description</th><th>Unit</th><th>Type</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><b>UGRD</b></td>
+                    <td>Eastward wind component at 10 m height (alias: <code>u</code>)</td>
+                    <td>m/s</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>VGRD</b></td>
+                    <td>Northward wind component at 10 m height (alias: <code>v</code>)</td>
+                    <td>m/s</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>WIND</b></td>
+                    <td>Wind speed (alias: <code>ws</code>)</td>
+                    <td>m/s</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>WDIR</b></td>
+                    <td>Wind direction (alias: <code>wdir</code>)</td>
+                    <td>degree</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>wind_speed_10m</b></td>
+                    <td>Wind speed computed from UGRD and VGRD</td>
+                    <td>m/s</td>
+                    <td>computed</td>
+                  </tr>
+                  <tr>
+                    <td><b>wind_dir_10m</b></td>
+                    <td>Wind direction computed from UGRD and VGRD (FROM-direction)</td>
+                    <td>degree</td>
+                    <td>computed</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3 id="sec-5-2">5.2 Wave</h3>
+
+            <h4>ECMWF IFS</h4>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Variable</th><th>Description</th><th>Unit</th><th>Type</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><b>swh</b></td>
+                    <td>Significant Wave Height (representative wave height based on wave energy)</td>
+                    <td>m</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>mwp</b></td>
+                    <td>Mean Wave Period</td>
+                    <td>s</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>mwd</b></td>
+                    <td>Mean Wave Direction — <b>FROM-direction</b> convention (direction waves come from)</td>
+                    <td>degree</td>
+                    <td>original</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h4>NOAA GFS</h4>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Variable</th><th>Description</th><th>Unit</th><th>Type</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><b>HTSGW</b></td>
+                    <td>Significant Wave Height (alias: <code>swh</code>)</td>
+                    <td>m</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>PERPW</b></td>
+                    <td>Peak Wave Period (alias: <code>perpw</code>)</td>
+                    <td>s</td>
+                    <td>original</td>
+                  </tr>
+                  <tr>
+                    <td><b>DIRPW</b></td>
+                    <td>Peak Wave Direction (alias: <code>dirpw</code>)</td>
+                    <td>degree</td>
+                    <td>original</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3 id="sec-5-3">5.3 Notes on Direction Variables</h3>
+            <div class="warn">
+              <b>Both wind direction (wind_dir_10m) and wave direction (mwd/DIRPW) use the FROM-direction convention.</b>
+            </div>
+
+            <ul>
+              <li><strong>wind_dir_10m</strong>
+                <ul>
+                  <li>Uses the <strong>FROM-direction</strong> convention (direction the wind is coming from)</li>
+                  <li>Formula: <code>(270 - degrees(arctan2(v, u))) % 360</code></li>
+                </ul>
+              </li>
+              <li><strong>mwd (ECMWF) / DIRPW (NOAA)</strong>
+                <ul>
+                  <li>Uses the <strong>FROM-direction</strong> convention (direction the waves come from)</li>
+                  <li>Follows standard practice in oceanographic and wave applications</li>
+                </ul>
+              </li>
+            </ul>
+
+          </div>
+        </section>
+
+        <!-- 6 -->
+        <section id="sec-6" class="section card">
+          <div class="card-head">
+            <div class="kicker">Section 6</div>
+            <div class="h2-row">
+              <h2 style="margin:0;">6. API Usage</h2>
+              <span class="h2-pill">API</span>
+            </div>
+          </div>
+          <div class="card-pad">
+
+            <h3 id="sec-6-0">6.0 Endpoint List</h3>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Endpoint</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>GET /api/griddata</code></td><td>Retrieve gridded variable data (primary endpoint)</td></tr>
+                  <tr><td><code>GET /api/sources</code></td><td>List available data sources</td></tr>
+                  <tr><td><code>GET /api/variables</code></td><td>List available variables per source</td></tr>
+                  <tr><td><code>GET /api/gridfile</code></td><td>Return a presigned URL for a single file (no bbox)</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3 id="sec-6-meta">6.1 Meta API</h3>
+
+            <h4>GET /api/sources — Source list</h4>
+            <div class="code">GET /api/sources
+
+<span class="dim"># Example response</span>
+{
+  "sources": [
+    {"source": "ecmwf", "model": "ifs"},
+    {"source": "noaa",  "model": "gfs"}
+  ]
+}</div>
+
+            <h4>GET /api/variables — Variable list</h4>
+            <div class="code">GET /api/variables?source=ecmwf
+
+<span class="dim"># Example response</span>
+{
+  "source": "ecmwf",
+  "model": "ifs",
+  "variables": [
+    {"variable": "10u",            "dataset_code": "original"},
+    {"variable": "10v",            "dataset_code": "original"},
+    {"variable": "swh",            "dataset_code": "original"},
+    {"variable": "wind_speed_10m", "dataset_code": "computed"},
+    {"variable": "wind_dir_10m",   "dataset_code": "computed"}
+  ]
+}</div>
+
+            <h3 id="sec-6-1">6.2 Grid Data Query (GET /api/griddata)</h3>
+
+            <h4>Required Parameters</h4>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Parameter</th><th>Description</th><th>Example</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>source</code></td><td>Data source</td><td><code>ecmwf</code>, <code>noaa</code></td></tr>
+                  <tr><td><code>dataset_code</code></td><td>Data type</td><td><code>original</code>, <code>computed</code></td></tr>
+                  <tr><td><code>model</code></td><td>Forecast model</td><td><code>ifs</code>, <code>gfs</code></td></tr>
+                  <tr><td><code>variable</code></td><td>Variable code</td><td><code>swh</code>, <code>HTSGW</code>, <code>wind_speed_10m</code></td></tr>
+                  <tr><td><code>run_time_utc</code></td><td>Forecast run time (ISO 8601 Z)</td><td><code>2025-07-16T00:00:00Z</code></td></tr>
+                  <tr><td><code>step_hours</code></td><td>Forecast step (0 – 360)</td><td><code>24</code></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h4>Spatial Parameters (choose one of three methods)</h4>
+
+            <div class="warn">
+              <b>⚠️ Methods 1 and 2 cannot be used together.</b> Mixing parameters from both methods returns a <code>422</code> error.
+            </div>
+
+            <div style="display: grid; gap: 16px; margin: 20px 0;">
+
+              <div class="note">
+                <b>Method 1: Direct bbox via NW/SE corners</b><br />
+                All four parameters required: <code>nw_lon</code>, <code>nw_lat</code>, <code>se_lon</code>, <code>se_lat</code>
+                <div class="code" style="margin-top:10px;">?nw_lon=128.0&amp;nw_lat=36.0&amp;se_lon=130.0&amp;se_lat=34.0</div>
+              </div>
+
+              <div class="note">
+                <b>Method 2: Center point + buffer (km)</b><br />
+                <code>lat</code> and <code>lon</code> are required. <code>buffer_km</code> is optional (default 50 km). Set to 0 to retrieve the nearest single grid point.
+                <div class="code" style="margin-top:10px;">?lat=35.0&amp;lon=129.0&amp;buffer_km=100.0</div>
+                <div class="code">?lat=35.0&amp;lon=129.0&amp;buffer_km=0   <span class="dim"># single grid point</span></div>
+              </div>
+
+              <div class="note">
+                <b>Method 3: Full domain (no spatial parameters)</b><br />
+                Omit all spatial parameters to return the full allowed domain.
+                <div class="code" style="margin-top:10px;">?source=ecmwf&amp;dataset_code=original&amp;model=ifs&amp;variable=swh
+&amp;run_time_utc=2025-07-03T00:00:00Z&amp;step_hours=24</div>
+                <div class="warn small" style="margin-top:8px;">⚠️ Full-domain requests may exceed the cell count limit (5,250,000).</div>
+              </div>
+
+            </div>
+
+            <h3 id="sec-6-2">6.3 Request Examples</h3>
+
+            <h4>ECMWF — NW/SE corner method</h4>
+            <div class="code">GET /api/griddata
+  ?source=ecmwf
+  &amp;dataset_code=original
+  &amp;model=ifs
+  &amp;variable=swh
+  &amp;run_time_utc=2025-07-03T00:00:00Z
+  &amp;step_hours=24
+  &amp;nw_lon=128.0&amp;nw_lat=36.0&amp;se_lon=130.0&amp;se_lat=34.0</div>
+
+            <h4>NOAA — Center point + buffer method</h4>
+            <div class="code">GET /api/griddata
+  ?source=noaa
+  &amp;dataset_code=original
+  &amp;model=gfs
+  &amp;variable=HTSGW
+  &amp;run_time_utc=2025-07-03T00:00:00Z
+  &amp;step_hours=24
+  &amp;lat=35.0&amp;lon=129.0&amp;buffer_km=200.0</div>
+
+            <h4>Computed variable — NW/SE corner method</h4>
+            <div class="note small">
+              Computed variables such as <code>wind_speed_10m</code> and <code>wind_dir_10m</code> fully support all three spatial parameter methods, including the NW/SE corner method.
+            </div>
+            <div class="code">GET /api/griddata
+  ?source=ecmwf
+  &amp;dataset_code=computed
+  &amp;model=ifs
+  &amp;variable=wind_speed_10m
+  &amp;run_time_utc=2025-07-03T00:00:00Z
+  &amp;step_hours=24
+  &amp;nw_lon=128.0&amp;nw_lat=36.0&amp;se_lon=130.0&amp;se_lat=34.0</div>
+
+            <h4>Computed variable (wind speed) — center + buffer method</h4>
+            <div class="code">GET /api/griddata
+  ?source=ecmwf
+  &amp;dataset_code=computed
+  &amp;model=ifs
+  &amp;variable=wind_speed_10m
+  &amp;run_time_utc=2025-07-03T00:00:00Z
+  &amp;step_hours=24
+  &amp;lat=35.0&amp;lon=129.0&amp;buffer_km=50.0</div>
+
+            <h3 id="sec-6-3">6.4 run_time_utc Format</h3>
+            <ul>
+              <li><strong>ISO 8601 + UTC (Z) format</strong></li>
+              <li><code>2025-07-16T00:00:00Z</code> → July 16, 2025 00:00:00 UTC</li>
+            </ul>
+
+            <p><b>Input rules</b>:</p>
+            <ul>
+              <li>Format must be <code>YYYY-MM-DDTHH:MM:SSZ</code></li>
+              <li><code>HH</code> must be a valid run cycle: <code>00</code>, <code>06</code>, <code>12</code>, or <code>18</code></li>
+              <li><code>step_hours</code> increments in 3-hour or 6-hour intervals</li>
+            </ul>
+
+            <h3 id="sec-6-4">6.5 Cell Count Limit</h3>
+            <div class="warn">
+              If the estimated grid cell count for the requested bbox exceeds <strong>5,250,000</strong>, a <code>413</code> error is returned.
+              Reduce the bbox size or use the center + buffer method to narrow the request area.
+            </div>
+
+            <h3 id="sec-6-5">6.6 Single File Download (GET /api/gridfile)</h3>
+
+              <p>
+                Returns a temporary <strong>presigned URL</strong> for direct access to a single GRIB2 file — without any bbox parameter.
+                Use this when you want to download the raw file or process it with an external tool. 
+              </p>
+
+              <div class="note">
+                <b>Computed variables (wind_speed_10m, wind_dir_10m) are not supported.</b><br />
+                These variables have no single source file — they are derived by combining U and V components.
+                Use <code>/api/griddata</code> to retrieve computed wind values.
+              </div>
+
+              <h4>Parameters</h4>
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr><th>Parameter</th><th>Required</th><th>Description</th><th>Example</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td><code>source</code></td><td>✓</td><td>Data source</td><td><code>ecmwf</code></td></tr>
+                    <tr><td><code>dataset_code</code></td><td>✓</td><td>Data type</td><td><code>original</code></td></tr>
+                    <tr><td><code>model</code></td><td>✓</td><td>Forecast model</td><td><code>ifs</code></td></tr>
+                    <tr><td><code>variable</code></td><td>✓</td><td>Variable code</td><td><code>swh</code></td></tr>
+                    <tr><td><code>run_time_utc</code></td><td>✓</td><td>Run time (ISO 8601 Z)</td><td><code>2025-07-16T00:00:00Z</code></td></tr>
+                    <tr><td><code>step_hours</code></td><td>✓</td><td>Forecast step (0 – 360)</td><td><code>24</code></td></tr>
+                    <tr><td><code>expires_in</code></td><td></td><td>URL validity in seconds, default 3600 (max 86400)</td><td><code>7200</code></td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <h4>Request Example</h4>
+              <div class="code">GET /api/gridfile
+                ?source=ecmwf
+                &amp;dataset_code=original
+                &amp;model=ifs
+                &amp;variable=swh
+                &amp;run_time_utc=2025-07-03T00:00:00Z
+                &amp;step_hours=24
+
+              <span class="dim"># With custom expiry (2 hours)</span>
+              GET /api/gridfile
+                ?source=ecmwf&amp;dataset_code=original&amp;model=ifs&amp;variable=swh
+                &amp;run_time_utc=2025-07-03T00:00:00Z&amp;step_hours=24&amp;expires_in=7200</div>
+
+              <h4>Response Example</h4>
+              <div class="code">{
+                "run_time_utc":   "2025-07-03T00:00:00Z",
+                "step_hours":     24,
+                "valid_time_utc": "2025-07-04T00:00:00Z",
+
+                "source":         "ecmwf",
+                "dataset_code":   "original",
+                "model":          "ifs",
+                "variable":       "swh",
+                "unit":           "m",
+                "name_en":        "Significant height of combined wind waves and swell",
+                "standard_name":  "sea_surface_wave_significant_height",
+
+                "file": {
+                  "url":              "https://optimal-loads.s3.amazonaws.com/ecmwf/.../swh.grib2?X-Amz-Signature=...",
+                  "expires_in_seconds": 3600,
+                  "format":           "grib2",
+                  "size_bytes":       871165,
+                  "s3_key":           "ecmwf/ifs/fc/2025/07/03/00Z/original/swh/original_swh_20250703_00Z_step024.grib2"
+                }
+              }</div>
+
+              <div class="warn">
+                <b>URL expiry notice:</b> the presigned URL expires after the time specified by <code>expires_in</code> (default 1 hour).
+                Accessing an expired URL returns a <code>403</code> error — call the API again to obtain a fresh URL.
+              </div>
+
+          </div>
+        </section>
+
+        <!-- 7 -->
+        <section id="sec-7" class="section card">
+          <div class="card-head">
+            <div class="kicker">Section 7</div>
+            <div class="h2-row">
+              <h2 style="margin:0;">7. How to Read the Result Array (Indexing)</h2>
+              <span class="h2-pill">Indexing</span>
+            </div>
+          </div>
+          <div class="card-pad">
+
+            <div class="note">
+              This system stores gridded values in a 1D array using a row-major, bottom-up order:
+              starting from the southwest grid cell and filling west→east, south→north.
+            </div>
+
+            <h3 id="sec-7-1">7.1 Array Storage Rule</h3>
+            <ul>
+              <li><strong>Row-major</strong>: fill each row from west → east first</li>
+              <li><strong>Bottom-up</strong>: store rows from south → north</li>
+              <li>Values increase from <strong>west → east</strong> within a row</li>
+            </ul>
+
+            <p>Therefore, index 0 corresponds to the <strong>southwest (SW)</strong> grid cell.</p>
+
+            <h3 id="sec-7-2">7.2 Example Response Array (4 × 4 grid)</h3>
+            <div class="code">values = [
+   1,  2,  3,  4,
+   5,  6,  7,  8,
+   9, 10, 11, 12,
+  13, 14, 15, 16
+]</div>
+
+            <ul class="small">
+              <li>Total length = <code>nx × ny = 4 × 4</code></li>
+              <li>Returned as a 1D array</li>
+            </ul>
+
+            <h3 id="sec-7-3">7.3 Meaning of the Grid Layout on a Map</h3>
+            <div class="code">North (N)
+ ↑
+ |   13 ── 14 ── 15 ── 16
+ |    9 ── 10 ── 11 ── 12
+ |    5 ──  6 ──  7 ──  8
+ |    1 ──  2 ──  3 ──  4
+ |
+ └────────────────────────→ East (E)
+     West (W)</div>
+
+            <p class="small"><b>Notes</b>:</p>
+            <ul class="small">
+              <li>The <b>bottom row</b> is the south</li>
+              <li>The <b>top row</b> is the north</li>
+              <li>Within each row, values increase <b>west → east</b></li>
+              <li>
+                Therefore:
+                <ul class="small">
+                  <li><code>values[0]</code> → <b>Southwest (SW)</b></li>
+                  <li><code>values[3]</code> → Southeast (SE)</li>
+                  <li><code>values[12]</code> → Northwest (NW)</li>
+                  <li><code>values[15]</code> → <b>Northeast (NE)</b></li>
+                </ul>
+              </li>
+            </ul>
+
+            <h3 id="sec-7-4">7.4 Relationship Between Array Index and Coordinates</h3>
+            <p>The index is computed as:</p>
+            <div class="code">index = y * nx + x</div>
+
+            <p>Where:</p>
+            <ul>
+              <li><code>x</code>: west → east index (<code>0 … nx-1</code>)</li>
+              <li><code>y</code>: south → north index (<code>0 … ny-1</code>)</li>
+              <li><code>nx</code>: number of grid points in the longitude direction</li>
+            </ul>
+
+            <p>Thus:</p>
+            <ul>
+              <li><code>(x=0, y=0)</code> → Southwest</li>
+              <li><code>(x=nx-1, y=ny-1)</code> → Northeast</li>
+            </ul>
+
+          </div>
+        </section>
+
+        <!-- 8 -->
+        <section id="sec-8" class="section card">
+          <div class="card-head">
+            <div class="kicker">Section 8</div>
+            <div class="h2-row">
+              <h2 style="margin:0;">8. Wind Speed / Wind Direction Formulas</h2>
+              <span class="h2-pill">Derived</span>
+            </div>
+          </div>
+          <div class="card-pad">
+
+            <h3 id="sec-8-1">8.1 Wind Speed</h3>
+            <div class="code">speed = np.hypot(da_u.values, da_v.values)</div>
+
+            <h3 id="sec-8-2">8.2 Wind Direction (FROM-direction)</h3>
+            <div class="code">direc = (270.0 - np.degrees(np.arctan2(da_v.values, da_u.values))) % 360.0</div>
+
+            <ul class="small">
+              <li>0° = wind coming from the North</li>
+              <li>90° = wind coming from the East</li>
+              <li>Increases clockwise</li>
+              <li>Standard meteorological wind direction (FROM-direction)</li>
+            </ul>
+
+          </div>
+        </section>
+
+        <!-- APPENDIX -->
+        <section id="appendix" class="section card">
+          <div class="card-head">
+            <div class="kicker">Appendix</div>
+            <div class="h2-row">
+              <h2 style="margin:0;">[Appendix] Rationale for the Wind Speed & Direction Formulas</h2>
+              <span class="h2-pill">Appendix</span>
+            </div>
+          </div>
+          <div class="card-pad">
+
+            <h3 id="app-1">(1) Meaning of Input Data (U and V components)</h3>
+            <p>This system uses the following wind components from ECMWF IFS and NOAA GFS:</p>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>Source</th><th>U component</th><th>V component</th></tr></thead>
+                <tbody>
+                  <tr><td>ECMWF</td><td><code>10u</code></td><td><code>10v</code></td></tr>
+                  <tr><td>NOAA</td><td><code>UGRD</code></td><td><code>VGRD</code></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <ul>
+              <li><strong>U component</strong>: eastward wind component (positive = blowing east)</li>
+              <li><strong>V component</strong>: northward wind component (positive = blowing north)</li>
+            </ul>
+
+            <p>
+              In other words, the <code>(U, V)</code> vector represents the direction the wind is blowing <strong>toward (TO)</strong>.
+              The meteorological wind direction (FROM) is the opposite of this vector.
+            </p>
+
+            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
+
+            <h3 id="app-2">(2) Wind Speed Formula</h3>
+            <p>Wind speed is defined as the magnitude of the wind vector and is computed as the Euclidean length of the two components.</p>
+            <div class="code">speed = np.hypot(u, v)</div>
+            <p>This is the standard definition commonly used in meteorology and oceanography.</p>
+
+            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
+
+            <h3 id="app-3">(3) Basics of Wind Direction</h3>
+            <p>Wind direction in this system is based on:</p>
+            <ul>
+              <li><strong>Reference direction</strong>: North as 0°</li>
+              <li><strong>Direction of increase</strong>: clockwise (CW)</li>
+            </ul>
+
+            <p>However, the mathematical angle system uses:</p>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Mathematical Angle</th>
+                    <th>This System</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Reference axis</td>
+                    <td>East (+x)</td>
+                    <td>North</td>
+                  </tr>
+                  <tr>
+                    <td>Increase direction</td>
+                    <td>Counterclockwise (CCW)</td>
+                    <td>Clockwise (CW)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <p>So a conversion is required.</p>
+
+            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
+
+            <h3 id="app-4">(4) Why <code>atan2</code>?</h3>
+            <p>We use <code>atan2(v, u)</code> to compute the vector direction.</p>
+            <div class="code">θ = atan2(v, u)</div>
+
+            <p><code>atan2</code> has the following advantages:</p>
+            <ul>
+              <li>Correctly distinguishes all quadrants</li>
+              <li>Works reliably even when <code>u = 0</code></li>
+              <li>Accurately represents the wind vector direction</li>
+            </ul>
+
+            <p>This angle is measured <strong>from the east axis</strong> and increases <strong>counterclockwise</strong>.</p>
+
+            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
+
+            <h3 id="app-5">(5) Conversion to Meteorological Wind Direction (FROM)</h3>
+            <p>The meteorological wind direction is the direction the wind is <strong>coming from (FROM)</strong>, measured clockwise from North.</p>
+            <p>Since the U/V vector represents the TO direction, converting to FROM requires an additional 180° rotation.</p>
+            <ol>
+              <li><strong>Axis change</strong>: east → north (+90°)</li>
+              <li><strong>Rotation direction change</strong>: CCW → CW</li>
+              <li><strong>TO → FROM conversion</strong>: +180° (opposite direction)</li>
+            </ol>
+
+            <p>Combined into a single expression:</p>
+            <div class="code">dir_from = 270.0 - np.degrees(np.arctan2(v, u))</div>
+
+            <p>The result has these properties:</p>
+            <ul>
+              <li>0° = wind coming from the North (northerly wind)</li>
+              <li>90° = wind coming from the East (easterly wind)</li>
+              <li>Increases clockwise</li>
+              <li>Represents the direction the wind is <strong>coming from (FROM)</strong></li>
+              <li>Consistent with the standard meteorological wind direction definition</li>
+            </ul>
+
+            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
+
+            <h3 id="app-6">(6) Angle Normalization (Modulo 360)</h3>
+            <p>The result can be negative or exceed 360°, so we normalize it into the standard bearing range.</p>
+            <div class="code">wind_dir_from = (270.0 - np.degrees(np.arctan2(v, u))) % 360.0</div>
+
+            <p>
+              This does not change the physical direction; it selects the representative value in the range
+              <strong>0 ≤ angle &lt; 360</strong>.
+            </p>
+
+            <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
+
+            <h3 id="app-7">(7) Final Formula Summary</h3>
+            <div class="code">wind_speed      = np.hypot(u, v)
+wind_dir_from   = (270.0 - np.degrees(np.arctan2(v, u))) % 360.0</div>
+
+            <p>These formulas ensure:</p>
+            <ul>
+              <li>Full consistency with ECMWF 10u/10v and NOAA UGRD/VGRD definitions</li>
+              <li>Wind direction computed using the FROM-direction (meteorological) convention</li>
+              <li>North-referenced, clockwise-bearing convention</li>
+              <li>API outputs ready for map rendering and client applications</li>
+            </ul>
+
+          </div>
+        </section>
+
+        <!-- CONTACT -->
+        <section class="section card">
+          <div class="card-head">
+            <div class="kicker">Contact</div>
+            <div class="muted small">Inquiry</div>
+          </div>
+          <div class="card-pad">
+            <h2 style="margin-top:0;">Contact</h2>
+            <p>
+              BlueMap <b>Kim (Hyunju Kim)</b><br>
+              ✉️ <a><span>hjk@bluemap.dev</span></a>
+            </p>
+            <p class="muted">For partner-only inquiries (testbeds, expanding data scope, standards compliance), please contact us by email.</p>
+          </div>
+        </section>
+
+        <footer>
+          <p>© 2025 BlueMap / Optimal-LOA

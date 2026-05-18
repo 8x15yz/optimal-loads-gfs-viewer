@@ -1,0 +1,164 @@
+{# app/templates/ingestion_runs_table.html - 재사용 가능한 partial #}
+{# 
+  사용법:
+  {% set runs = runs_ecmwf %}  또는  {% set runs = runs_noaa %}
+  {% include 'ingestion_runs_table.html' %}
+#}
+
+<table style="width:100%; border-collapse:collapse;">
+  <thead>
+    <tr>
+      <th align="left">run_time_utc</th>
+      <th align="left">stream</th>
+      <th align="left">variable</th>
+      <th align="left">status</th>
+      <th align="left">started_at</th>
+      <th align="left">finished_at</th>
+      <th align="left">downloaded</th>
+      <th align="left">uploaded</th>
+      <th align="left">mongo</th>
+      <th align="left">failed</th>
+      <th align="left">attempts</th>
+      <th align="left">errors</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% for r in runs %}
+      {% set run_idx = loop.index %}
+      {% set has_attempts = (r.attempts is defined) and (r.attempts|length > 0) %}
+      
+      {% set started = (r.started_at_last if r.started_at_last is defined and r.started_at_last else r.started_at) %}
+      {% set finished = (r.finished_at_last if r.finished_at_last is defined and r.finished_at_last else r.finished_at) %}
+
+      {% if r.counters_last is defined and r.counters_last %}
+        {% set counters = r.counters_last %}
+      {% elif r.counters is defined and r.counters %}
+        {% set counters = r.counters %}
+      {% else %}
+        {% set counters = {} %}
+      {% endif %}
+
+      {% set attempts_cnt = (r.attempts_cnt if r.attempts_cnt is defined else (r.attempts|length if has_attempts else 0)) %}
+
+      <!-- 메인 row -->
+      <tr>
+        <td>{{ r.run_time_utc }}</td>
+        <td>{{ r.stream }}</td>
+        <td>{{ r.variable }}</td>
+        <td class="{{ r.status }}">{{ r.status }}</td>
+        <td>{{ started }}</td>
+        <td>{{ finished }}</td>
+        <td>{{ counters.downloaded | default(0) }}</td>
+        <td>{{ counters.uploaded | default(0) }}</td>
+        <td>{{ counters.mongo_written | default(0) }}</td>
+        <td>{{ counters.failed | default(0) }}</td>
+        <td>
+          {% if has_attempts %}
+            <button type="button"
+                  class="toggle-btn js-toggle"
+                  data-target="att-{{ table_id }}-{{ run_idx }}"
+                  aria-expanded="false">
+            <span class="chev">▸</span>
+            <span class="cnt">{{ attempts_cnt }}</span>
+          </button>
+          {% else %}
+            -
+          {% endif %}
+        </td>
+        <td>
+          {% if r.errors_cnt is defined and r.errors_cnt > 0 %}
+            <button type="button"
+                  class="toggle-btn danger js-toggle"
+                  data-target="err-{{ table_id }}-{{ run_idx }}"
+                  aria-expanded="false">
+            <span class="chev">▸</span>
+            <span class="cnt">{{ r.errors_cnt }}</span>
+          </button>
+          {% else %}
+            -
+          {% endif %}
+        </td>
+      </tr>
+
+      <!-- attempts 상세 row -->
+      {% if has_attempts %}
+      <tr id="att-{{ table_id }}-{{ run_idx }}" class="att-row" hidden>
+        <td colspan="12" style="padding:10px; background:#fcfcfc; border-top:1px solid #eee;">
+          <div style="font-weight:700; margin-bottom:8px;">
+            Attempts ({{ attempts_cnt }})
+          </div>
+
+          <table style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead>
+              <tr style="border-bottom:1px solid #ddd;">
+                <th align="left">no</th>
+                <th align="left">attempt_id</th>
+                <th align="left">status</th>
+                <th align="left">trigger</th>
+                <th align="left">started_at</th>
+                <th align="left">finished_at</th>
+                <th align="left">dur</th>
+                <th align="left">downloaded</th>
+                <th align="left">existed</th>
+                <th align="left">uploaded</th>
+                <th align="left">mongo</th>
+                <th align="left">failed</th>
+                <th align="left">errors</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for a in r.attempts %}
+                {% set a_err_cnt = (a.errors|length if a.errors is defined else 0) %}
+                <tr style="border-bottom:1px solid #f0f0f0;">
+                  <td>{{ a.attempt_no }}</td>
+                  <td style="font-family:ui-monospace, Menlo, Consolas, monospace;">{{ a.attempt_id }}</td>
+                  <td class="{{ a.status }}">{{ a.status }}</td>
+                  <td>{{ a.trigger }}</td>
+                  <td>{{ a.started_at }}</td>
+                  <td>{{ a.finished_at }}</td>
+                  <td>{{ a.duration_sec }}</td>
+                  <td>{{ (a.counters.downloaded if a.counters is defined else 0) | default(0) }}</td>
+                  <td>{{ (a.counters.existed if a.counters is defined else 0) | default(0) }}</td>
+                  <td>{{ (a.counters.uploaded if a.counters is defined else 0) | default(0) }}</td>
+                  <td>{{ (a.counters.mongo_written if a.counters is defined else 0) | default(0) }}</td>
+                  <td>{{ (a.counters.failed if a.counters is defined else 0) | default(0) }}</td>
+                  <td>
+                    {% if a_err_cnt > 0 %}
+                      <button type="button"
+                              class="toggle-btn danger js-toggle"
+                              data-target="att-err-{{ table_id }}-{{ run_idx }}-{{ loop.index }}"
+                              aria-expanded="false">
+                        <span class="chev">▸</span>
+                        <span class="cnt">{{ a_err_cnt }}</span>
+                      </button>
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                </tr>
+
+                <!-- attempt 에러 상세 -->
+                <tr id="att-err-{{ table_id }}-{{ run_idx }}-{{ loop.index }}" hidden>
+                  <td colspan="13">
+                    <pre style="margin:0; padding:10px; background:#f7f7f7; border:1px solid #eee; overflow:auto; white-space:pre-wrap;">{{ a.errors | tojson(indent=2) }}</pre>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      {% endif %}
+
+      <!-- 에러 상세 row -->
+      <tr id="err-{{ table_id }}-{{ run_idx }}" class="err-row" hidden>
+        <td colspan="12">
+          <pre class="err-box" style="margin:0; padding:10px; background:#f7f7f7; border:1px solid #eee; overflow:auto; white-space:pre-wrap;">{{ r.errors | tojson(indent=2) }}</pre>
+        </td>
+      </tr>
+
+    {% endfor %}
+  </tbody>
+</table>

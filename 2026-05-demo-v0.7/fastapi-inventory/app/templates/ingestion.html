@@ -1,0 +1,455 @@
+{# app/templates/ingestion.html - 탭 버전 #}
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Ingestion</h2>
+
+<style>
+  /* ==================== 탭 스타일 ==================== */
+  .tabs-container {
+    margin-bottom: 20px;
+  }
+  
+  .tab-buttons {
+    display: flex;
+    gap: 4px;
+    border-bottom: 2px solid #e6e6e6;
+    margin-bottom: 16px;
+  }
+  
+  .tab-btn {
+    padding: 10px 24px;
+    border: none;
+    background: transparent;
+    color: #666;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+    position: relative;
+    bottom: -2px;
+  }
+  
+  .tab-btn:hover {
+    color: #333;
+    background: #f9f9f9;
+  }
+  
+  .tab-btn.active {
+    color: #0066cc;
+    border-bottom-color: #0066cc;
+  }
+  
+  .tab-content {
+    display: none;
+  }
+  
+  .tab-content.active {
+    display: block;
+  }
+  
+  /* 상태 뱃지 */
+  .status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 8px;
+  }
+  
+  .status-badge.running {
+    background: #e3f2fd;
+    color: #1976d2;
+  }
+  
+  .status-badge.idle {
+    background: #f1f3f4;
+    color: #5f6368;
+  }
+  
+  .status-badge.error {
+    background: #fce4ec;
+    color: #c62828;
+  }
+
+  /* ==================== 기존 스타일 ==================== */
+  .tz-board {
+    display: grid;
+    grid-template-columns: repeat(9, minmax(140px, 1fr));
+    gap: 10px;
+    margin: 12px 0 16px 0;
+  }
+  .tz-card {
+    border: 1px solid #e6e6e6;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fafafa;
+  }
+  .tz-name {
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .tz-time {
+    margin-top: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+  .tz-offset {
+    font-size: 12px;
+    color: #999;
+    white-space: nowrap;
+  }
+
+  .toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid #e2e2e2;
+    border-radius: 999px;
+    background: #fff;
+    color: #222;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    transition: transform .06s ease, background .15s ease, border-color .15s ease;
+  }
+  .toggle-btn:hover { background: #f6f6f6; border-color: #d6d6d6; }
+  .toggle-btn:active { transform: translateY(1px); }
+  .toggle-btn .chev {
+    display: inline-block;
+    width: 14px;
+    text-align: center;
+    transition: transform .15s ease;
+    opacity: .75;
+  }
+  .toggle-btn[aria-expanded="true"] .chev {
+    transform: rotate(90deg);
+    opacity: 1;
+  }
+  .toggle-btn .cnt {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+  .toggle-btn.danger { border-color: #f0d6d6; }
+  .toggle-btn.danger:hover { background: #fff5f5; border-color: #e8bcbc; }
+
+  .control-box {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    background: #fafafa;
+  }
+  
+  .control-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .control-item {
+    font-size: 13px;
+  }
+  
+  .control-item b {
+    color: #666;
+    font-weight: 600;
+  }
+</style>
+
+{# ==================== 탭 버튼 ==================== #}
+<div class="tabs-container">
+  <div class="tab-buttons">
+    <button class="tab-btn active" data-tab="ecmwf">
+      ECMWF
+      <span class="status-badge {{ control_ecmwf.status if control_ecmwf else 'idle' }}">
+        {{ control_ecmwf.status if control_ecmwf else 'N/A' }}
+      </span>
+    </button>
+    
+    <button class="tab-btn" data-tab="noaa">
+      NOAA
+      <span class="status-badge {{ control_noaa.status if control_noaa else 'idle' }}">
+        {{ control_noaa.status if control_noaa else 'N/A' }}
+      </span>
+    </button>
+  </div>
+
+  {# ==================== ECMWF 탭 ==================== #}
+  <div class="tab-content active" id="tab-ecmwf">
+    <h3>ECMWF IFS</h3>
+    
+    {# Control 정보 #}
+    <div class="control-box">
+      <div class="control-grid">
+        <div class="control-item"><b>enabled</b>: {{ control_ecmwf.enabled if control_ecmwf else 'N/A' }}</div>
+        <div class="control-item"><b>running</b>: {{ control_ecmwf.running if control_ecmwf else 'N/A' }}</div>
+        <div class="control-item"><b>status</b>: {{ control_ecmwf.status if control_ecmwf else 'N/A' }}</div>
+        <div class="control-item"><b>last_started_at</b>: {{ control_ecmwf.last_started_at if control_ecmwf else 'N/A' }}</div>
+        <div class="control-item"><b>last_finished_at</b>: {{ control_ecmwf.last_finished_at if control_ecmwf else 'N/A' }}</div>
+        <div class="control-item"><b>last_heartbeat_at</b>: {{ control_ecmwf.last_heartbeat_at if control_ecmwf else 'N/A' }}</div>
+      </div>
+      
+      {% if control_ecmwf and control_ecmwf.error %}
+        <div style="color:#b00020; margin-top: 8px;"><b>error</b>: {{ control_ecmwf.error }}</div>
+      {% endif %}
+
+      <div style="margin-top: 12px;">
+        {% if control_ecmwf and control_ecmwf.enabled %}
+          <form method="post" action="/ingestion/ecmwf/pause" style="display:inline;">
+            <button type="submit">Pause ECMWF</button>
+          </form>
+        {% else %}
+          <form method="post" action="/ingestion/ecmwf/resume" style="display:inline;">
+            <button type="submit">Resume ECMWF</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {# 타임존 보드 #}
+    <div class="tz-board" id="tz-board-ecmwf"></div>
+
+    {# 필터 #}
+    <form method="get" action="/ingestion/ecmwf" style="margin-bottom:12px;">
+      <label>Status:</label>
+      <select name="status">
+        <option value="">(all)</option>
+        {% for s in statuses_ecmwf %}
+          <option value="{{ s }}" {% if filters_ecmwf.status==s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+
+      <label style="margin-left:10px;">Variable:</label>
+      <select name="variable">
+        <option value="">(all)</option>
+        {% for v in vars_ecmwf %}
+          <option value="{{ v }}" {% if filters_ecmwf.variable==v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+
+      <label style="margin-left:10px;">Stream:</label>
+      <select name="stream">
+        <option value="">(all)</option>
+        {% for s in streams_ecmwf %}
+          <option value="{{ s }}" {% if filters_ecmwf.stream==s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+
+      <label style="margin-left:10px;">Limit:</label>
+      <input name="limit" value="{{ filters_ecmwf.limit }}" style="width:70px;" />
+
+      <button type="submit" style="margin-left:10px;">Apply</button>
+    </form>
+
+    {# 실행 로그 테이블 #}
+    {% set runs = runs_ecmwf %}
+    {% set table_id = 'ecmwf' %}
+    {% include 'ingestion_runs_table.html' %}
+  </div>
+
+  {# ==================== NOAA 탭 ==================== #}
+  <div class="tab-content" id="tab-noaa">
+    <h3>NOAA GFS Wave</h3>
+    
+    {# Control 정보 #}
+    <div class="control-box">
+      <div class="control-grid">
+        <div class="control-item"><b>enabled</b>: {{ control_noaa.enabled if control_noaa else 'N/A' }}</div>
+        <div class="control-item"><b>running</b>: {{ control_noaa.running if control_noaa else 'N/A' }}</div>
+        <div class="control-item"><b>status</b>: {{ control_noaa.status if control_noaa else 'N/A' }}</div>
+        <div class="control-item"><b>last_started_at</b>: {{ control_noaa.last_started_at if control_noaa else 'N/A' }}</div>
+        <div class="control-item"><b>last_finished_at</b>: {{ control_noaa.last_finished_at if control_noaa else 'N/A' }}</div>
+        <div class="control-item"><b>last_heartbeat_at</b>: {{ control_noaa.last_heartbeat_at if control_noaa else 'N/A' }}</div>
+      </div>
+      
+      {% if control_noaa and control_noaa.error %}
+        <div style="color:#b00020; margin-top: 8px;"><b>error</b>: {{ control_noaa.error }}</div>
+      {% endif %}
+
+      <div style="margin-top: 12px;">
+        {% if control_noaa and control_noaa.enabled %}
+          <form method="post" action="/ingestion/noaa/pause" style="display:inline;">
+            <button type="submit">Pause NOAA</button>
+          </form>
+        {% else %}
+          <form method="post" action="/ingestion/noaa/resume" style="display:inline;">
+            <button type="submit">Resume NOAA</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {# 타임존 보드 #}
+    <div class="tz-board" id="tz-board-noaa"></div>
+
+    {# 필터 #}
+    <form method="get" action="/ingestion/noaa" style="margin-bottom:12px;">
+      <label>Status:</label>
+      <select name="status">
+        <option value="">(all)</option>
+        {% for s in statuses_noaa %}
+          <option value="{{ s }}" {% if filters_noaa.status==s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+
+      <label style="margin-left:10px;">Variable:</label>
+      <select name="variable">
+        <option value="">(all)</option>
+        {% for v in vars_noaa %}
+          <option value="{{ v }}" {% if filters_noaa.variable==v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+
+      <label style="margin-left:10px;">Stream:</label>
+      <select name="stream">
+        <option value="">(all)</option>
+        {% for s in streams_noaa %}
+          <option value="{{ s }}" {% if filters_noaa.stream==s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+
+      <label style="margin-left:10px;">Limit:</label>
+      <input name="limit" value="{{ filters_noaa.limit }}" style="width:70px;" />
+
+      <button type="submit" style="margin-left:10px;">Apply</button>
+    </form>
+
+    {# 실행 로그 테이블 #}
+    {% set runs = runs_noaa %}
+    {% set table_id = 'noaa' %}
+    {% include 'ingestion_runs_table.html' %}
+  </div>
+</div>
+
+{# ==================== JavaScript ==================== #}
+<script>
+  // ==================== 탭 전환 ====================
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-tab');
+      
+      // 모든 탭 버튼/컨텐츠 비활성화
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      
+      // 선택된 탭 활성화
+      btn.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    });
+  });
+
+  // ==================== 토글 버튼 ====================
+  document.querySelectorAll(".js-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-target");
+      const row = document.getElementById(id);
+      if (!row) return;
+
+      const willOpen = row.hidden;
+      row.hidden = !willOpen;
+      btn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    });
+  });
+
+  // ==================== 타임존 보드 ====================
+  const TZS = [
+    { key: "UTC", label: "UTC💥", tz: "UTC" },
+    { key: "PT", label: "포르투갈(포르토)", tz: "Europe/Lisbon" },
+    { key: "DE", label: "독일(본)", tz: "Europe/Berlin" },
+    { key: "IT", label: "이탈리아(볼로냐)", tz: "Europe/Rome" },
+    { key: "DK", label: "덴마크", tz: "Europe/Copenhagen" },
+    { key: "NO", label: "노르웨이(오슬로)", tz: "Europe/Oslo" },
+    { key: "TR", label: "튀르키예", tz: "Europe/Istanbul" },
+    { key: "SG", label: "싱가포르", tz: "Asia/Singapore" },
+    { key: "KR", label: "한국", tz: "Asia/Seoul" },
+  ];
+
+  function safeDate(iso) {
+    if (!iso) return null;
+    const s = String(iso).trim().replace(" ", "T");
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function fmt(iso, tz) {
+    const d = safeDate(iso);
+    if (!d) return "-";
+    const f = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    return f.format(d).replace(" ", " ");
+  }
+
+  function offsetLabel(tz) {
+    try {
+      const d = new Date();
+      const parts = new Intl.DateTimeFormat("en", {
+        timeZone: tz,
+        timeZoneName: "shortOffset",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }).formatToParts(d);
+      const p = parts.find(x => x.type === "timeZoneName");
+      return p ? p.value : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function renderBoard(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    
+    el.innerHTML = "";
+    TZS.forEach(z => {
+      const card = document.createElement("div");
+      card.className = "tz-card";
+
+      const name = document.createElement("div");
+      name.className = "tz-name";
+      name.innerHTML = `<span>${z.label}</span><span class="tz-offset">${offsetLabel(z.tz)}</span>`;
+
+      const time = document.createElement("div");
+      time.className = "tz-time";
+      time.setAttribute("data-tz", z.tz);
+
+      card.appendChild(name);
+      card.appendChild(time);
+      el.appendChild(card);
+    });
+  }
+
+  function tickBoard() {
+    document.querySelectorAll(".tz-time[data-tz]").forEach(node => {
+      const tz = node.getAttribute("data-tz");
+      node.textContent = fmt(new Date().toISOString(), tz);
+    });
+  }
+
+  // Init
+  renderBoard('tz-board-ecmwf');
+  renderBoard('tz-board-noaa');
+  tickBoard();
+  setInterval(tickBoard, 1000);
+</script>
+
+{% endblock %}

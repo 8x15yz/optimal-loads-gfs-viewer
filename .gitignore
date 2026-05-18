@@ -2,6 +2,7 @@
 *.nc
 *.grib2
 *.grib
+2026-03-demo-v0.6/get_variables/noaa/local_download/
 
 
 # Node modules
