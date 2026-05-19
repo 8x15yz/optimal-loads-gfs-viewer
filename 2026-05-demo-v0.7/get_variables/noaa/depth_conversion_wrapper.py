@@ -189,6 +189,73 @@ def build_s100_doc(
 
 # ── 롤백 ──────────────────────────────────────────────────────────────────────
 
+def _norm_dir(d: str) -> str:
+    d = (d or "").strip().lstrip("/")
+    if d and not d.endswith("/"):
+        d += "/"
+    return d
+
+
+def _split_dir(d: str) -> tuple[Optional[str], str]:
+    d = _norm_dir(d)
+    if not d:
+        return None, ""
+    parts = [p for p in d.strip("/").split("/") if p]
+    if not parts:
+        return None, ""
+    name = parts[-1]
+    if len(parts) == 1:
+        return None, name
+    parent = "/".join(parts[:-1]) + "/"
+    return parent, name
+
+
+def upsert_s100_directories(*, product: str, run_time_utc: datetime, dir_col) -> None:
+    """directories 컬렉션에 s111/s413 경로 트리를 등록한다."""
+    if dir_col is None:
+        return
+
+    root_dir = f"{product}/"
+    leaf_dir = _norm_dir(f"{product}/{run_time_utc:%Y/%m/%d/%H}Z")
+    now = utc_now()
+    cur = leaf_dir
+
+    while cur and cur.startswith(root_dir):
+        parent, name = _split_dir(cur)
+
+        dir_col.update_one(
+            {"_id": cur},
+            {
+                "$setOnInsert": {"dir": cur, "parent": parent, "name": name,
+                                 "children_dirs": [], "created_at": now},
+                "$max": {"last_modified": now},
+                "$set": {"updated_at": now},
+            },
+            upsert=True,
+        )
+
+        if parent and parent.startswith(root_dir):
+            p_parent, p_name = _split_dir(parent)
+            dir_col.update_one(
+                {"_id": parent},
+                {
+                    "$setOnInsert": {"dir": parent, "parent": p_parent, "name": p_name,
+                                     "children_dirs": [], "created_at": now},
+                    "$max": {"last_modified": now},
+                    "$set": {"updated_at": now},
+                },
+                upsert=True,
+            )
+            dir_col.update_one(
+                {"_id": parent},
+                {"$addToSet": {"children_dirs": name + "/"},
+                 "$max": {"last_modified": now},
+                 "$set": {"updated_at": now}},
+            )
+
+        cur = parent
+
+
 def rollback_s3(s3_client, keys: list[str]) -> None:
     """
     S3에 업로드된 s100 파일들을 삭제한다.
@@ -213,6 +280,7 @@ def run_conversion(
     run_set_dir: Path,
     s3_client,
     s100_col,
+    dir_col=None,
 ) -> tuple[bool, list[str]]:
     """
     DepthConversion CLI 실행 → S3 업로드 → MongoDB upsert.
@@ -378,7 +446,11 @@ def run_conversion(
         f"성공: {cnt_ok}, 실패: {cnt_fail} / 전체: {len(h5_files)}"
     )
 
-    # ── 4. staging 폴더 정리 ──────────────────────────────────────────────────
+    # ── 4. directories 등록 ───────────────────────────────────────────────────
+    if cnt_fail == 0:
+        upsert_s100_directories(product=product, run_time_utc=run_time_utc, dir_col=dir_col)
+
+    # ── 5. staging 폴더 정리 ──────────────────────────────────────────────────
     if stage_dir.exists():
         try:
             shutil.rmtree(stage_dir)

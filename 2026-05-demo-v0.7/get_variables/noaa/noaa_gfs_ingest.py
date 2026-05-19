@@ -1058,7 +1058,12 @@ def main() -> None:
             overall_status = "failed"
 
         # ✅ conversion phase (원본 수집 성공/partial일 때만 시도)
-        if not args.no_convert and overall_status in ("success", "partial"):
+        wave_dir = run_set_dir / "wave"
+        wave_files_exist = wave_dir.exists() and any(wave_dir.rglob("*.grib2"))
+        if not wave_files_exist:
+            print("⏭️ conversion 스킵: 로컬 wave 파일 없음 (이전 런에서 이미 정리됨)")
+
+        if not args.no_convert and overall_status in ("success", "partial") and wave_files_exist:
             if not args.no_mongo:
                 heartbeat("conversion start")
 
@@ -1074,6 +1079,7 @@ def main() -> None:
                     run_set_dir=run_set_dir,
                     s3_client=s3,
                     s100_col=s100_col if not args.no_mongo else None,
+                    dir_col=dir_col if not args.no_mongo else None,
                 )
                 all_uploaded_keys.extend(keys)
 
