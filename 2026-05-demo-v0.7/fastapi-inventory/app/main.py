@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import json
 import math
 from datetime import datetime, timezone
@@ -15,7 +16,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
 from app.ingestion import router as ingestion_router
 
-from app.db import get_assets_collection, get_directories_collection
+from app.db import get_assets_collection, get_directories_collection, get_s100_assets_collection
 from app.api import router as api_router, meta_router, s100_router
 
 from urllib.parse import quote
@@ -140,6 +141,32 @@ def _fmt_lm(v: Any) -> Optional[str]:
         except Exception:
             return None
     return None
+
+
+# =========================================================
+# S-100 helper
+# =========================================================
+
+_S100_PREFIXES = ("s111/", "s413/", "s102/", "gebco/s102/")
+
+
+def _is_s100_path(prefix_dir: str) -> bool:
+    return any(prefix_dir.startswith(p) for p in _S100_PREFIXES)
+
+
+def _build_s100_tile_api_url(doc: Dict[str, Any]) -> str:
+    product = doc.get("product", "")
+    run_time = doc.get("run_time_utc", "")
+    tile = doc.get("tile", {})
+    return (
+        "http://weather-api.bmap.kr/api/s100/forecast-tiles"
+        f"?product={product}"
+        f"&run_time_utc={run_time}"
+        f"&nw_lon={tile.get('west', '')}"
+        f"&nw_lat={tile.get('north', '')}"
+        f"&se_lon={tile.get('east', '')}"
+        f"&se_lat={tile.get('south', '')}"
+    )
 
 
 def _build_api_example(doc: Dict[str, Any], lat: float = 35.0, lon: float = 129.0, buffer_km: float = 50.0) -> str:
@@ -344,6 +371,49 @@ async def inventory_index(
             "last_modified": _fmt_lm(d.get("created_at")),
             "size_human": _human_size(d.get("size_bytes")),
         })
+
+    # -----------------------------
+    # 3) ✅ S-100 파일 목록: s100assets_metadata에서 조회 (s3.key prefix 매칭)
+    # -----------------------------
+    if prefix_dir and _is_s100_path(prefix_dir):
+        s100_coll = await get_s100_assets_collection()
+        pattern = f"^{re.escape(prefix_dir)}[^/]+$"
+        s100_docs = await s100_coll.find(
+            {"s3.key": {"$regex": pattern}},
+            {
+                "natural_key": 1,
+                "product": 1,
+                "run_time_utc": 1,
+                "tile": 1,
+                "steps": 1,
+                "variables": 1,
+                "size_bytes": 1,
+                "created_at": 1,
+                "s3": 1,
+            }
+        ).sort([("s3.key", 1)]).to_list(length=5000)
+
+        for d in s100_docs:
+            s3_key = (d.get("s3") or {}).get("key", "")
+            filename = s3_key.split("/")[-1] if s3_key else "(unnamed)"
+            tile = d.get("tile", {})
+            api_url = _build_s100_tile_api_url(d)
+            entries.append({
+                "name": filename,
+                "is_dir": False,
+                "is_s100": True,
+                "path": None,
+                "api_url": api_url,
+                "api_url_corners": api_url,
+                "api_url_file": api_url,
+                "file_id": d.get("natural_key"),
+                "last_modified": _fmt_lm(d.get("created_at")),
+                "size_human": _human_size(d.get("size_bytes")),
+                "product": d.get("product", ""),
+                "tile_idx": tile.get("idx"),
+                "steps_count": (d.get("steps") or {}).get("count"),
+                "variables": (d.get("variables") or {}).get("stored", []),
+            })
 
     entries.sort(key=lambda x: (0 if x["is_dir"] else 1, x["name"]))
 
