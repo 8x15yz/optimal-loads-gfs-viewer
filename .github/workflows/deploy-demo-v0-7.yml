@@ -31,8 +31,7 @@ jobs:
             # Update code
             cd "$PROJECT_ROOT"
             git fetch origin
-            git checkout -B main origin/main
-            git pull origin main
+            git reset --hard origin/main
 
             # Deploy FastAPI
             cd "$DEMO_DIR/fastapi-inventory"
