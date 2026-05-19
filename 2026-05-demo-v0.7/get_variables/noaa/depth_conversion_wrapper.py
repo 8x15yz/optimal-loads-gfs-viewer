@@ -28,6 +28,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -370,8 +371,22 @@ def run_conversion(
         print(f"[wrapper] ❌ {product.upper()} 변환 실패 — S3/MongoDB 업로드 스킵")
         return False, []
 
-    # ── 3. H5 파일 목록 수집 ──────────────────────────────────────────────────
-    h5_files = sorted(output_dir.glob("*.h5"))
+    # ── 3. H5 파일 목록 수집 (변환툴 staging→output 이동 완료 대기) ──────────
+    _wait_limit = 30
+    for _ in range(_wait_limit):
+        h5_files = sorted(output_dir.glob("*.h5"))
+        if not h5_files:
+            time.sleep(1.0)
+            continue
+        snap_before = {f.name: f.stat().st_size for f in h5_files if f.exists()}
+        time.sleep(1.0)
+        h5_files = sorted(output_dir.glob("*.h5"))  # 재수집 (stale 방지)
+        snap_after = {f.name: f.stat().st_size for f in h5_files if f.exists()}
+        if snap_before == snap_after:
+            break
+    else:
+        print(f"[wrapper] ⚠️ {product.upper()} 파일 안정화 대기 초과 ({_wait_limit}s)")
+
     if not h5_files:
         print(f"[wrapper] ❌ {output_dir} 에 .h5 파일이 없습니다.")
         return False, []
@@ -393,6 +408,11 @@ def run_conversion(
         tile_idx = parse_tile_idx(h5_path.name)
         if tile_idx is None:
             print(f"[wrapper] ⚠️ 타일 인덱스 파싱 실패: {h5_path.name} → 스킵")
+            cnt_fail += 1
+            continue
+
+        if not h5_path.exists():
+            print(f"[wrapper] ⚠️ 파일 없음 (race): {h5_path.name} → 스킵")
             cnt_fail += 1
             continue
 
