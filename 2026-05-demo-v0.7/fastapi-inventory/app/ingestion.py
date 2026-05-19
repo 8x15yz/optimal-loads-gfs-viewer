@@ -9,7 +9,7 @@ from fastapi import APIRouter, Request, Query, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app.db import get_ingestion_control_collection, get_ingestion_runs_collection
+from app.db import get_ingestion_control_collection, get_ingestion_runs_collection, get_s100_assets_collection
 
 # ✅ 두 모델의 control doc ID
 CONTROL_DOC_ID_ECMWF = os.getenv("CONTROL_DOC_ID_ECMWF", "ecmwf_ifs_ingestion")
@@ -49,12 +49,19 @@ async def _get_control_data(control_id: str) -> Dict[str, Any]:
     """특정 모델의 control 문서 가져오기"""
     control_col = await get_ingestion_control_collection()
     doc = await control_col.find_one({"_id": control_id}) or {}
-    
+
+    def _to_iso(v: Any) -> str:
+        if isinstance(v, datetime):
+            return v.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return str(v) if v else ""
+
     return {
         **doc,
         "last_started_at": _fmt_dt(doc.get("last_started_at")),
         "last_finished_at": _fmt_dt(doc.get("last_finished_at")),
         "last_heartbeat_at": _fmt_dt(doc.get("last_heartbeat_at")),
+        "last_heartbeat_at_iso": _to_iso(doc.get("last_heartbeat_at")),
+        "last_started_at_iso": _to_iso(doc.get("last_started_at")),
     }
 
 
@@ -92,6 +99,7 @@ async def _get_runs_data(
         "running": 1,
 
         # new schema
+        "schedule": 1,
         "attempts_cnt": 1,
         "started_at_last": 1,
         "finished_at_last": 1,
@@ -169,6 +177,19 @@ async def _get_runs_data(
     return runs, vars_, streams_, statuses_
 
 
+async def _get_s100_stats(run_time_utc: Optional[str]) -> Dict[str, Any]:
+    """최신 run의 S-111 / S-413 타일 업로드 수 반환"""
+    if not run_time_utc:
+        return {"s111": None, "s413": None}
+    try:
+        s100 = await get_s100_assets_collection()
+        s111 = await s100.count_documents({"product": "s111", "run_time_utc": run_time_utc})
+        s413 = await s100.count_documents({"product": "s413", "run_time_utc": run_time_utc})
+        return {"s111": s111, "s413": s413}
+    except Exception:
+        return {"s111": None, "s413": None}
+
+
 # ==================== 통합 페이지 (탭 버전) ====================
 
 @router.get("/ingestion", response_class=HTMLResponse, include_in_schema=False)
@@ -210,6 +231,11 @@ async def ingestion_page(
         limit=limit_noaa,
     )
 
+    # NOAA: 최신 run 변수별 진행 현황 + S-100 변환 타일 수
+    latest_run_utc_noaa = runs_noaa[0]["run_time_utc"] if runs_noaa else None
+    current_run_noaa = [r for r in runs_noaa if r.get("run_time_utc") == latest_run_utc_noaa]
+    s100_stats = await _get_s100_stats(latest_run_utc_noaa)
+
     return templates.TemplateResponse(
         "ingestion.html",
         {
@@ -231,6 +257,8 @@ async def ingestion_page(
             # NOAA
             "control_noaa": control_noaa,
             "runs_noaa": runs_noaa,
+            "current_run_noaa": current_run_noaa,
+            "s100_stats": s100_stats,
             "filters_noaa": {
                 "status": status_noaa or "",
                 "variable": variable_noaa or "",
