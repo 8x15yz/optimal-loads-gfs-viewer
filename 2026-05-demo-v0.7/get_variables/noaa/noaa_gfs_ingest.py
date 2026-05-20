@@ -1059,9 +1059,32 @@ def main() -> None:
 
         # ✅ conversion phase (원본 수집 성공/partial일 때만 시도)
         wave_dir = run_set_dir / "wave"
-        wave_files_exist = wave_dir.exists() and any(wave_dir.rglob("*.grib2"))
-        if not wave_files_exist:
-            print("⏭️ conversion 스킵: 로컬 wave 파일 없음 (이전 런에서 이미 정리됨)")
+
+        # S-111 변환에 필요한 UGRD, VGRD 로컬 파일이 모두 있는지 확인
+        # (이전 런에서 "already success" 스킵된 변수는 로컬 파일이 없으므로 반드시 체크)
+        s111_source_ready = all(
+            (wave_dir / var).exists() and any((wave_dir / var).glob("*.grib2"))
+            for var in ("UGRD", "VGRD")
+        )
+
+        # s100assets_metadata 에 이 run 의 S-111 타일이 이미 등록돼 있으면 변환 스킵
+        already_converted = False
+        if s100_col is not None and not args.no_mongo:
+            already_converted = (
+                s100_col.count_documents(
+                    {"product": "s111", "run_time_utc": iso_z(run_dt)}
+                ) > 0
+            )
+
+        if already_converted:
+            print("⏭️ conversion 스킵: 이미 변환 완료된 run (s100assets_metadata 확인)")
+        elif not s111_source_ready:
+            print(
+                "⏭️ conversion 스킵: UGRD/VGRD 로컬 파일 없음 "
+                "(이전 런에서 정리됐거나 다운로드 실패)"
+            )
+
+        wave_files_exist = s111_source_ready and not already_converted
 
         if not args.no_convert and overall_status in ("success", "partial") and wave_files_exist:
             if not args.no_mongo:

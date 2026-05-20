@@ -138,8 +138,20 @@ def main() -> None:
     ]
 
     if args.extra_args.strip():
-        # 문자열로 들어온 extra_args를 쉘 파싱처럼 분해 (간단 split)
-        cmd += args.extra_args.strip().split()
+        import shlex
+        extra = shlex.split(args.extra_args.strip())
+        # --trigger 중복 방지: extra_args 에 --trigger 가 이미 들어있으면 제거
+        filtered: list[str] = []
+        skip_next = False
+        for tok in extra:
+            if skip_next:
+                skip_next = False
+                continue
+            if tok == "--trigger":
+                skip_next = True   # 다음 토큰(값)도 건너뜀
+                continue
+            filtered.append(tok)
+        cmd += filtered
 
     print("[gate] ✅ chosen run:", iso_z(chosen))
     print("[gate] ▶ calling:", " ".join(cmd))

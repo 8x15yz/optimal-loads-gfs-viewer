@@ -324,6 +324,20 @@ def run_conversion(
     monitor_log = run_set_dir / f"{product}_monitor.log"
     name       = run_time_utc.strftime("%Y%m%d_%HZ")
 
+    # ── 0. 사전 검사: 소스 변수 로컬 파일 존재 확인 ───────────────────────────
+    missing_vars = [
+        var for var in variables["source"]
+        if not (input_dir / var).exists()
+        or not any((input_dir / var).glob("*.grib2"))
+    ]
+    if missing_vars:
+        print(
+            f"[wrapper] ❌ {product.upper()} 변환 스킵 — "
+            f"로컬 소스 파일 없음: {missing_vars} "
+            f"(이전 런에서 정리됐거나 already-success 스킵됨)"
+        )
+        return False, []
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # ── 1. CLI 실행 ────────────────────────────────────────────────────────────
