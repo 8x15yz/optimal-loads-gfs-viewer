@@ -202,13 +202,29 @@ async def get_s100_tiles(
             },
         )
 
+    # ---- MongoDB에서 s3_key 조회 ----
+    coll = await get_s100_assets_collection()
+    tile_idx_list = [f"{t['tile_number']:04d}" for t in tiles]
+    docs = await coll.find(
+        {"product": "s102", "tile.idx": {"$in": tile_idx_list}},
+        {"tile": 1, "s3": 1, "_id": 0},
+    ).to_list(length=_S102_TILE_LIMIT + 10)
+    doc_map = {d["tile"]["idx"]: d for d in docs}
+
     result = []
+    missing = []
     for t in tiles:
+        tile_idx_str = f"{t['tile_number']:04d}"
+        doc = doc_map.get(tile_idx_str)
+        if doc is None:
+            missing.append(t["tile_number"])
+            continue
+        s3_key = doc["s3"]["key"]
         try:
             url = await asyncio.to_thread(
                 s3.generate_presigned_url,
                 "get_object",
-                Params={"Bucket": S3_BUCKET, "Key": t["s3_key"]},
+                Params={"Bucket": S3_BUCKET, "Key": s3_key},
                 ExpiresIn=expires_in,
             )
         except Exception as e:
@@ -216,11 +232,12 @@ async def get_s100_tiles(
                 status_code=502,
                 detail={"error": "Failed to generate presigned URL.", "tile": t["tile_number"], "reason": str(e)},
             )
-        result.append({**t, "presigned_url": url})
+        result.append({**t, "s3_key": s3_key, "presigned_url": url})
 
     return {
         "product": product.lower(),
         "tile_count": len(result),
+        "missing_tiles": missing,
         "bbox_requested": [
             round(min_lon_v, 4), round(min_lat_v, 4),
             round(max_lon_v, 4), round(max_lat_v, 4),

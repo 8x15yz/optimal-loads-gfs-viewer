@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}S-102 Tile Test{% endblock %}
+{% block title %}S-100 Tile Test{% endblock %}
 
 {% block content %}
 <style>
@@ -11,7 +11,6 @@
     overflow: hidden;
   }
 
-  /* ── 사이드 패널 ── */
   .side {
     width: 340px;
     min-width: 280px;
@@ -58,6 +57,63 @@
     letter-spacing: 0.05em;
     margin-bottom: 6px;
   }
+
+  /* product 버튼 */
+  .prod-btns { display: flex; gap: 6px; }
+
+  .prod-btn {
+    flex: 1;
+    padding: 7px 0;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .prod-btn:hover { border-color: #0284c7; color: #0284c7; }
+
+  .prod-btn.active {
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #fff;
+  }
+
+  /* run time */
+  .run-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .run-row input[type="date"] {
+    flex: 1;
+    padding: 7px 9px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #0f172a;
+    background: #f8fafc;
+    outline: none;
+  }
+
+  .run-row input[type="date"]:focus { border-color: #0284c7; }
+
+  .run-row select {
+    width: 72px;
+    padding: 7px 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #0f172a;
+    background: #f8fafc;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .run-row select:focus { border-color: #0284c7; }
 
   .coord-grid {
     display: grid;
@@ -146,40 +202,19 @@
     flex: 1;
   }
 
-  .result-box .ok  { color: #4ade80; }
-  .result-box .err { color: #f87171; }
+  .result-box .ok   { color: #4ade80; }
+  .result-box .err  { color: #f87171; }
   .result-box .info { color: #60a5fa; }
 
-  .tag {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-  }
-
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
   .tag-wait { background: #fef9c3; color: #854d0e; }
   .tag-ok   { background: #dcfce7; color: #166534; }
   .tag-err  { background: #fee2e2; color: #991b1b; }
 
-  .tile-count {
-    font-size: 20px;
-    font-weight: 800;
-    color: #0284c7;
-  }
+  .tile-count { font-size: 20px; font-weight: 800; color: #0284c7; }
 
-  /* ── 지도 ── */
-  .map-wrap {
-    position: relative;
-    flex: 1;
-    height: 100%;
-  }
-
-  #map {
-    width: 100%;
-    height: 100%;
-    cursor: crosshair;
-  }
+  .map-wrap { position: relative; flex: 1; height: 100%; }
+  #map { width: 100%; height: 100%; cursor: crosshair; }
 
   .draw-tip {
     position: absolute;
@@ -197,14 +232,9 @@
     backdrop-filter: blur(4px);
   }
 
-  .divider {
-    border: none;
-    border-top: 1px solid #e2e8f0;
-    margin: 0;
-  }
+  .divider { border: none; border-top: 1px solid #e2e8f0; margin: 0; }
 </style>
 
-<!-- Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -213,11 +243,35 @@
   <!-- ── 사이드 패널 ── -->
   <div class="side">
     <div class="side-header">
-      <h2>S-102 Tile Test</h2>
+      <h2>S-100 Tile Test</h2>
       <p>지도에서 드래그해 범위를 선택하면 타일 목록과 presigned URL을 반환합니다.</p>
     </div>
 
     <div class="side-body">
+
+      <!-- Product -->
+      <div>
+        <div class="label">Product</div>
+        <div class="prod-btns">
+          <button class="prod-btn active" data-prod="s102" onclick="setProduct('s102')">S-102</button>
+          <button class="prod-btn"        data-prod="s111" onclick="setProduct('s111')">S-111</button>
+          <button class="prod-btn"        data-prod="s413" onclick="setProduct('s413')">S-413</button>
+        </div>
+      </div>
+
+      <!-- Run Time (S-111 / S-413 전용) -->
+      <div id="run-time-section" style="display:none;">
+        <div class="label">Run Time (UTC)</div>
+        <div class="run-row">
+          <input type="date" id="run-date" value="2026-05-20" oninput="onRunTimeChange()">
+          <select id="run-hour" onchange="onRunTimeChange()">
+            <option value="00">00Z</option>
+            <option value="06">06Z</option>
+            <option value="12">12Z</option>
+            <option value="18">18Z</option>
+          </select>
+        </div>
+      </div>
 
       <!-- 상태 -->
       <div>
@@ -293,7 +347,7 @@ const map = L.map('map', {
   center: [35.0, 128.0],
   zoom: 5,
   zoomControl: true,
-  boxZoom: false,       // 기본 box zoom 비활성 (우리가 직접 구현)
+  boxZoom: false,
 });
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -301,7 +355,12 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap contributors',
 }).addTo(map);
 
-// ── 타일 그리드 상수 (api.py와 동일) ──
+// ── 상태 ──
+let currentProduct = 's102';
+let currentBbox    = null;
+let tileLayers     = [];
+
+// ── S-102 타일 그리드 상수 (api.py와 동일) ──
 const S102_ROW_SOUTH = [
    82.0021,  74.0021,  66.0021,  58.0021,  50.0021,  42.0021,  34.0021,
    26.0021,  18.0021,  10.0021,   2.0021,  -5.9979, -13.9979, -21.9979,
@@ -312,7 +371,12 @@ const S102_ROW_NORTH = [89.9979, ...S102_ROW_SOUTH.slice(0, -1)];
 const S102_COL_WEST  = Array.from({length: 45}, (_, i) => -179.9979 + i * 8.0);
 const S102_COL_EAST  = Array.from({length: 45}, (_, i) => -179.9979 + (i + 1) * 8.0);
 
-function countTiles(minLon, minLat, maxLon, maxLat) {
+// ── S-111/S-413 타일 그리드 (20°, _s1x1_find_tiles와 동일 로직) ──
+const FORECAST_N   = 80;   // round(20.0 / 0.25)
+const FORECAST_TPR = 18;   // 1440 // 80
+const FORECAST_ROWS = 9;   // 799 // 80
+
+function countS102Tiles(minLon, minLat, maxLon, maxLat) {
   let n = 0;
   for (let r = 0; r < 23; r++) {
     if (S102_ROW_SOUTH[r] >= maxLat || S102_ROW_NORTH[r] <= minLat) continue;
@@ -324,12 +388,106 @@ function countTiles(minLon, minLat, maxLon, maxLat) {
   return n;
 }
 
-// ── 사각형 드래그 그리기 ──
+function countForecastTiles(minLon, minLat, maxLon, maxLat) {
+  let n = 0;
+  for (let row = 0; row < FORECAST_ROWS; row++) {
+    const ls    = 720 - row * FORECAST_N;
+    const le    = Math.max(ls - FORECAST_N + 1, 0);
+    const north = -90 + ls * 0.25;
+    const south = -90 + le * 0.25;
+    if (south >= maxLat || north <= minLat) continue;
+    for (let col = 0; col < FORECAST_TPR; col++) {
+      const js   = col * FORECAST_N;
+      const je   = Math.min(js + FORECAST_N - 1, 1439);
+      const west = -180 + js * 0.25;
+      const east = -180 + je * 0.25;
+      if (west >= maxLon || east <= minLon) continue;
+      n++;
+    }
+  }
+  return n;
+}
+
+function countTiles(minLon, minLat, maxLon, maxLat) {
+  return currentProduct === 's102'
+    ? countS102Tiles(minLon, minLat, maxLon, maxLat)
+    : countForecastTiles(minLon, minLat, maxLon, maxLat);
+}
+
+// ── run_time_utc 조합 ──
+function getRunTimeUtc() {
+  const date = document.getElementById('run-date').value;  // "2026-05-20"
+  const hour = document.getElementById('run-hour').value;  // "00"
+  return `${date}T${hour}:00:00Z`;
+}
+
+// ── API URL 빌드 ──
+function buildUrl(bbox) {
+  const q = `&nw_lon=${r4(bbox.nwLon)}&nw_lat=${r4(bbox.nwLat)}`
+          + `&se_lon=${r4(bbox.seLon)}&se_lat=${r4(bbox.seLat)}`;
+  if (currentProduct === 's102') {
+    return `/api/s100/tiles?product=s102${q}`;
+  }
+  return `/api/s100/forecast-tiles?product=${currentProduct}&run_time_utc=${getRunTimeUtc()}${q}`;
+}
+
+// ── product 전환 ──
+function setProduct(prod) {
+  currentProduct = prod;
+  document.querySelectorAll('.prod-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.prod === prod);
+  });
+  document.getElementById('run-time-section').style.display =
+    prod === 's102' ? 'none' : '';
+
+  if (currentBbox) updatePanel(currentBbox);
+}
+
+function onRunTimeChange() {
+  if (currentBbox) updatePanel(currentBbox);
+}
+
+// ── 패널 업데이트 ──
+function r4(v) { return Math.round(v * 10000) / 10000; }
+
+function updatePanel(bbox) {
+  document.getElementById('c-nw-lat').textContent = r4(bbox.nwLat);
+  document.getElementById('c-nw-lon').textContent = r4(bbox.nwLon);
+  document.getElementById('c-se-lat').textContent = r4(bbox.seLat);
+  document.getElementById('c-se-lon').textContent = r4(bbox.seLon);
+
+  const url = buildUrl(bbox);
+  document.getElementById('url-text').textContent = url;
+
+  const openBtn = document.getElementById('btn-open');
+  openBtn.href = url;
+  openBtn.style.pointerEvents = 'auto';
+  openBtn.style.opacity = '1';
+
+  const cnt = countTiles(bbox.nwLon, bbox.seLat, bbox.seLon, bbox.nwLat);
+  document.getElementById('tile-count').textContent = cnt;
+
+  const limit = currentProduct === 's102' ? 50 : 30;
+  const tag   = document.getElementById('status-tag');
+  if (cnt === 0) {
+    tag.className = 'tag tag-err'; tag.textContent = '타일 없음';
+    document.getElementById('btn-req').disabled = true;
+  } else if (cnt > limit) {
+    tag.className = 'tag tag-err'; tag.textContent = `타일 ${cnt}개 — 제한 초과 (${limit})`;
+    document.getElementById('btn-req').disabled = true;
+  } else {
+    tag.className = 'tag tag-ok'; tag.textContent = `타일 ${cnt}개 선택됨`;
+    document.getElementById('btn-req').disabled = false;
+  }
+
+  document.getElementById('result').innerHTML = '<span class="info">API 요청 대기 중…</span>';
+  document.getElementById('draw-tip').style.display = 'none';
+}
+
+// ── 드래그 bbox 선택 ──
 let isDrawing = false;
 let startLatLng = null;
 let rectLayer = null;
-let currentBbox = null;
-let tileLayers = [];
 
 map.on('mousedown', function(e) {
   isDrawing = true;
@@ -352,64 +510,107 @@ map.on('mouseup', function(e) {
   if (!isDrawing) return;
   isDrawing = false;
   map.dragging.enable();
-
   if (!startLatLng) return;
 
-  const s = startLatLng;
-  const f = e.latlng;
-
-  const minLat = Math.min(s.lat, f.lat);
-  const maxLat = Math.max(s.lat, f.lat);
-  const minLon = Math.min(s.lng, f.lng);
-  const maxLon = Math.max(s.lng, f.lng);
+  const s = startLatLng, f = e.latlng;
+  const minLat = Math.min(s.lat, f.lat), maxLat = Math.max(s.lat, f.lat);
+  const minLon = Math.min(s.lng, f.lng), maxLon = Math.max(s.lng, f.lng);
 
   if (Math.abs(maxLat - minLat) < 0.01 || Math.abs(maxLon - minLon) < 0.01) {
-    // 너무 작으면 무시
     if (rectLayer) { map.removeLayer(rectLayer); rectLayer = null; }
     return;
   }
 
-  // NW = (maxLat, minLon), SE = (minLat, maxLon)
   currentBbox = { nwLat: maxLat, nwLon: minLon, seLat: minLat, seLon: maxLon };
   updatePanel(currentBbox);
 });
 
-function r4(v) { return Math.round(v * 10000) / 10000; }
+// ── API 요청 ──
+async function sendRequest() {
+  if (!currentBbox) return;
+  const url = buildUrl(currentBbox);
+  const btn    = document.getElementById('btn-req');
+  const result = document.getElementById('result');
+  btn.disabled = true;
+  btn.textContent = '요청 중…';
+  result.innerHTML = '<span class="info">요청 중...</span>';
 
-function updatePanel(bbox) {
-  document.getElementById('c-nw-lat').textContent = r4(bbox.nwLat);
-  document.getElementById('c-nw-lon').textContent = r4(bbox.nwLon);
-  document.getElementById('c-se-lat').textContent = r4(bbox.seLat);
-  document.getElementById('c-se-lon').textContent = r4(bbox.seLon);
+  try {
+    const res  = await fetch(url);
+    const data = await res.json();
 
-  const url = `/api/s100/tiles?product=s102`
-    + `&nw_lon=${r4(bbox.nwLon)}&nw_lat=${r4(bbox.nwLat)}`
-    + `&se_lon=${r4(bbox.seLon)}&se_lat=${r4(bbox.seLat)}`;
+    if (res.ok) {
+      document.getElementById('status-tag').className = 'tag tag-ok';
+      document.getElementById('status-tag').textContent = `타일 ${data.tile_count}개 반환됨`;
 
-  document.getElementById('url-text').textContent = url;
+      tileLayers.forEach(l => map.removeLayer(l));
+      tileLayers = [];
 
-  const openBtn = document.getElementById('btn-open');
-  openBtn.href = url;
-  openBtn.style.pointerEvents = 'auto';
-  openBtn.style.opacity = '1';
+      if (currentProduct === 's102') {
+        // S-102: tile_bbox = [west, south, east, north]
+        data.tiles.forEach(t => {
+          const b = t.tile_bbox;
+          const l = L.rectangle([[b[1], b[0]], [b[3], b[2]]], {
+            color: '#16a34a', weight: 1.5, fillColor: '#16a34a', fillOpacity: 0.08,
+          }).bindTooltip(`Tile #${t.tile_number}`, {permanent: false}).addTo(map);
+          tileLayers.push(l);
+        });
 
-  const cnt = countTiles(bbox.nwLon, bbox.seLat, bbox.seLon, bbox.nwLat);
-  document.getElementById('tile-count').textContent = cnt;
+        const summary = {
+          product: data.product,
+          tile_count: data.tile_count,
+          missing_tiles: data.missing_tiles,
+          bbox_requested: data.bbox_requested,
+          tiles: data.tiles.map(t => ({
+            tile_number: t.tile_number,
+            tile_bbox: t.tile_bbox,
+            presigned_url: t.presigned_url.substring(0, 80) + '…',
+          })),
+        };
+        result.innerHTML = '<span class="ok">' + esc(JSON.stringify(summary, null, 2)) + '</span>';
 
-  const tag = document.getElementById('status-tag');
-  if (cnt === 0) {
-    tag.className = 'tag tag-err'; tag.textContent = '타일 없음 (육지)';
-    document.getElementById('btn-req').disabled = true;
-  } else if (cnt > 50) {
-    tag.className = 'tag tag-err'; tag.textContent = `타일 ${cnt}개 — 제한 초과`;
-    document.getElementById('btn-req').disabled = true;
-  } else {
-    tag.className = 'tag tag-ok'; tag.textContent = `타일 ${cnt}개 선택됨`;
-    document.getElementById('btn-req').disabled = false;
+      } else {
+        // S-111/S-413: bbox = [west, south, east, north]
+        data.tiles.forEach(t => {
+          const b = t.bbox;
+          const l = L.rectangle([[b[1], b[0]], [b[3], b[2]]], {
+            color: '#7c3aed', weight: 1.5, fillColor: '#7c3aed', fillOpacity: 0.08,
+          }).bindTooltip(`Tile #${t.tile_idx}`, {permanent: false}).addTo(map);
+          tileLayers.push(l);
+        });
+
+        const summary = {
+          product: data.product,
+          run_time_utc: data.run_time_utc,
+          tile_count: data.tile_count,
+          missing_tiles: data.missing_tiles,
+          tiles: data.tiles.map(t => ({
+            tile_idx: t.tile_idx,
+            bbox: t.bbox,
+            steps: t.steps,
+            presigned_url: t.presigned_url.substring(0, 80) + '…',
+          })),
+        };
+        result.innerHTML = '<span class="ok">' + esc(JSON.stringify(summary, null, 2)) + '</span>';
+      }
+
+    } else {
+      document.getElementById('status-tag').className = 'tag tag-err';
+      document.getElementById('status-tag').textContent = `오류 ${res.status}`;
+      result.innerHTML = '<span class="err">' + esc(JSON.stringify(data, null, 2)) + '</span>';
+    }
+  } catch(e) {
+    document.getElementById('status-tag').className = 'tag tag-err';
+    document.getElementById('status-tag').textContent = '네트워크 오류';
+    result.innerHTML = `<span class="err">fetch 오류: ${e.message}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'API 요청';
   }
+}
 
-  document.getElementById('result').innerHTML = '<span class="info">API 요청 대기 중…</span>';
-  document.getElementById('draw-tip').style.display = 'none';
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function guardOpen(e) {
@@ -426,68 +627,6 @@ function copyUrl() {
     box.style.background = '#dcfce7';
     setTimeout(() => { box.style.background = ''; }, 800);
   });
-}
-
-async function sendRequest() {
-  if (!currentBbox) return;
-  const url = `/api/s100/tiles?product=s102`
-    + `&nw_lon=${r4(currentBbox.nwLon)}&nw_lat=${r4(currentBbox.nwLat)}`
-    + `&se_lon=${r4(currentBbox.seLon)}&se_lat=${r4(currentBbox.seLat)}`;
-
-  const btn = document.getElementById('btn-req');
-  const result = document.getElementById('result');
-  btn.disabled = true;
-  btn.textContent = '요청 중…';
-  result.innerHTML = '<span class="info">요청 중...</span>';
-
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-
-    if (res.ok) {
-      document.getElementById('status-tag').className = 'tag tag-ok';
-      document.getElementById('status-tag').textContent = `타일 ${data.tile_count}개 반환됨`;
-
-      // 기존 타일 오버레이 제거 후 새로 추가
-      tileLayers.forEach(l => map.removeLayer(l));
-      tileLayers = [];
-      data.tiles.forEach(t => {
-        const l = L.rectangle(
-          [[t.tile_bbox[1], t.tile_bbox[0]], [t.tile_bbox[3], t.tile_bbox[2]]],
-          { color: '#16a34a', weight: 1.5, fillColor: '#16a34a', fillOpacity: 0.08 }
-        ).bindTooltip(`Tile #${t.tile_number}`, {permanent: false}).addTo(map);
-        tileLayers.push(l);
-      });
-
-      // 간략 표시
-      const summary = {
-        product: data.product,
-        tile_count: data.tile_count,
-        bbox_requested: data.bbox_requested,
-        expires_in_seconds: data.expires_in_seconds,
-        tiles: data.tiles.map(t => ({
-          tile_number: t.tile_number,
-          filename: t.filename,
-          tile_bbox: t.tile_bbox,
-          presigned_url: t.presigned_url.substring(0, 80) + '…',
-        })),
-      };
-      result.innerHTML = '<span class="ok">' + JSON.stringify(summary, null, 2)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>';
-    } else {
-      document.getElementById('status-tag').className = 'tag tag-err';
-      document.getElementById('status-tag').textContent = `오류 ${res.status}`;
-      result.innerHTML = '<span class="err">' + JSON.stringify(data, null, 2)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>';
-    }
-  } catch(e) {
-    document.getElementById('status-tag').className = 'tag tag-err';
-    document.getElementById('status-tag').textContent = '네트워크 오류';
-    result.innerHTML = `<span class="err">fetch 오류: ${e.message}</span>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'API 요청';
-  }
 }
 </script>
 {% endblock %}
