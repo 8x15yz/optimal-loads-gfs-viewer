@@ -26,6 +26,7 @@ from pymongo import MongoClient, ASCENDING
 MONGO_URI  = os.environ.get("MONGO_URI")
 MONGO_DB   = os.environ.get("MONGO_DB",       "optimal_loads")
 MONGO_S100 = os.environ.get("MONGO_S100_COL", "s100assets_metadata")
+MONGO_DIR  = os.environ.get("MONGO_DIR_COL",  "directories")
 S3_BUCKET  = os.environ.get("S3_BUCKET",      "optimal-loads")
 AWS_REGION = os.environ.get("AWS_REGION",     "ap-northeast-2")
 
@@ -106,6 +107,53 @@ def ensure_indexes(col):
     col.create_index([("product", ASCENDING), ("tile.idx", ASCENDING)])
 
 
+# ── directories 등록 ─────────────────────────────────────────────
+# gebco/ → gebco/s102/ → gebco/s102/2025/ → gebco/s102/2025/Split/
+_DIR_TREE = [
+    ("s102/",       "",       "s102",  "2025/"),
+    ("s102/2025/",  "s102/",  "2025",  None),
+]
+
+_STALE_DIRS = [
+    "gebco/",
+    "gebco/s102/",
+    "gebco/s102/2025/",
+    "gebco/s102/2025/Split/",
+    "s102/2025/Split/",
+]
+
+def register_directories(dir_col, dry_run: bool):
+    print("\n── 구 gebco/ 디렉토리 삭제 ──────────────────────────")
+    if dry_run:
+        for d in _STALE_DIRS:
+            print(f"  [DRY] delete {d}")
+    else:
+        result = dir_col.delete_many({"_id": {"$in": _STALE_DIRS}})
+        print(f"  삭제: {result.deleted_count}개")
+
+    print("\n── directories 등록 ─────────────────────────────────")
+    now = datetime.now(UTC)
+    for _id, parent, name, child in _DIR_TREE:
+        if dry_run:
+            print(f"  [DRY] {_id}  (parent={parent!r}  child={child!r})")
+            continue
+        dir_col.update_one(
+            {"_id": _id},
+            {
+                "$setOnInsert": {"dir": _id, "parent": parent, "name": name,
+                                 "children_dirs": [], "created_at": now},
+                "$set": {"updated_at": now},
+            },
+            upsert=True,
+        )
+        if child:
+            dir_col.update_one(
+                {"_id": _id},
+                {"$addToSet": {"children_dirs": child}},
+            )
+        print(f"  [OK] {_id}")
+
+
 # ── main ─────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description="S-102 메타데이터 생성")
@@ -132,8 +180,11 @@ def main():
             print("[ERROR] MONGO_URI 환경변수가 없습니다.", file=sys.stderr)
             sys.exit(1)
         client = MongoClient(MONGO_URI)
-        col = client[MONGO_DB][MONGO_S100]
+        col     = client[MONGO_DB][MONGO_S100]
+        dir_col = client[MONGO_DB][MONGO_DIR]
         ensure_indexes(col)
+    else:
+        dir_col = None
 
     ok = skip = fail = 0
 
@@ -158,7 +209,7 @@ def main():
             try:
                 col.update_one(
                     {"natural_key": doc["natural_key"]},
-                    {"$set": doc},
+                    {"$setOnInsert": doc},
                     upsert=True,
                 )
                 print(f"  [OK] tile={n:04d}  {s3_key}")
@@ -169,6 +220,8 @@ def main():
 
     print()
     print(f"  완료 — OK: {ok}  SKIP: {skip}  FAIL: {fail}  합계: {ok+skip+fail}")
+
+    register_directories(dir_col, dry_run)
 
     if not dry_run:
         client.close()

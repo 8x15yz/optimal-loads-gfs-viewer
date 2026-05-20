@@ -377,7 +377,13 @@ async def inventory_index(
     # -----------------------------
     if prefix_dir and _is_s100_path(prefix_dir):
         s100_coll = await get_s100_assets_collection()
-        pattern = f"^{re.escape(prefix_dir)}[^/]+$"
+        if prefix_dir.startswith("s102/"):
+            # s102/YYYY/ → gebco/s102/YYYY/Split/ (파일이 Split/ 안에 있음)
+            parts = prefix_dir.rstrip("/").split("/")
+            s3_prefix = f"gebco/s102/{parts[1]}/Split/" if len(parts) == 2 else f"gebco/{prefix_dir}"
+        else:
+            s3_prefix = prefix_dir
+        pattern = f"^{re.escape(s3_prefix)}[^/]+$"
         s100_docs = await s100_coll.find(
             {"s3.key": {"$regex": pattern}},
             {
