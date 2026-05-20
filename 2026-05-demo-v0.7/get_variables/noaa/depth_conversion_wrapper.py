@@ -159,11 +159,14 @@ def build_s100_doc(
     size_bytes: int,
 ) -> dict:
     tile_idx = tile_bbox["idx"]
+    tile_idx_str = f"{tile_idx:03d}"  # 001, 002 ... 128
     natural_key = (
         f"{product}|forecast"
         f"|run={iso_z(run_time_utc)}"
-        f"|tile={tile_idx:03d}"
+        f"|tile={tile_idx_str}"
     )
+    # tile.idx: int -> zero-pad str (001, 002 ...) for consistent sort/query
+    tile_meta = {**tile_bbox, "idx": tile_idx_str}
     return {
         "natural_key":   natural_key,
         "product":       product,
@@ -173,7 +176,7 @@ def build_s100_doc(
         "run_time_utc":  iso_z(run_time_utc),
         "year":          run_time_utc.year,
         "month":         run_time_utc.month,
-        "tile":          tile_bbox,
+        "tile":          tile_meta,
         "steps":         steps_info,
         "variables":     variables,
         "s3": {
