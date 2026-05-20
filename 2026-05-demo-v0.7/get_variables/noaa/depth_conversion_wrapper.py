@@ -55,7 +55,7 @@ PRODUCT_META = {
     },
     3: {
         "product":   "s413",
-        "tile_deg":  22.5,
+        "tile_deg":  20.0,
         "variables": {
             "stored": ["significantWaveHeight", "peakWaveDirection",
                        "windDirection", "windSpeed"],

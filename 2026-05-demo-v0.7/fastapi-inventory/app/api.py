@@ -48,7 +48,7 @@ _RES        = 0.25
 _N_LAT      = 721
 _N_LON      = 1440
 _S111_TILE_DEG  = 20.0
-_S413_TILE_DEG  = 22.5
+_S413_TILE_DEG  = 20.0
 _S1X1_TILE_LIMIT = 30   # presigned URL 한 번에 최대 타일 수
 
 _S1X1_TILE_DEG = {
