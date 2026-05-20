@@ -156,16 +156,19 @@ def _is_s100_path(prefix_dir: str) -> bool:
 
 def _build_s100_tile_api_url(doc: Dict[str, Any]) -> str:
     product = doc.get("product", "")
-    run_time = doc.get("run_time_utc", "")
     tile = doc.get("tile", {})
-    return (
-        "http://weather-api.bmap.kr/api/s100/forecast-tiles"
-        f"?product={product}"
-        f"&run_time_utc={run_time}"
+    bbox = (
         f"&nw_lon={tile.get('west', '')}"
         f"&nw_lat={tile.get('north', '')}"
         f"&se_lon={tile.get('east', '')}"
         f"&se_lat={tile.get('south', '')}"
+    )
+    if product == "s102":
+        return f"http://weather-api.bmap.kr/api/s100/tiles?product=s102{bbox}"
+    run_time = doc.get("run_time_utc", "")
+    return (
+        f"http://weather-api.bmap.kr/api/s100/forecast-tiles"
+        f"?product={product}&run_time_utc={run_time}{bbox}"
     )
 
 
