@@ -416,7 +416,7 @@ async def inventory_index(
                 "last_modified": _fmt_lm(d.get("created_at")),
                 "size_human": _human_size(d.get("size_bytes")),
                 "product": d.get("product", ""),
-                "tile_idx": tile.get("idx"),
+                "tile_idx": int(tile["idx"]) if tile.get("idx") is not None else None,
                 "steps_count": (d.get("steps") or {}).get("count"),
                 "variables": (d.get("variables") or {}).get("stored", []),
             })
