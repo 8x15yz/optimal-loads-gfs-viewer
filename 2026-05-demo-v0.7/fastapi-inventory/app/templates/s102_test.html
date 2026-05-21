@@ -371,10 +371,11 @@ const S102_ROW_NORTH = [89.9979, ...S102_ROW_SOUTH.slice(0, -1)];
 const S102_COL_WEST  = Array.from({length: 45}, (_, i) => -179.9979 + i * 8.0);
 const S102_COL_EAST  = Array.from({length: 45}, (_, i) => -179.9979 + (i + 1) * 8.0);
 
-// ── S-111/S-413 타일 그리드 (20°, _s1x1_find_tiles와 동일 로직) ──
-const FORECAST_N   = 80;   // round(20.0 / 0.25)
-const FORECAST_TPR = 18;   // 1440 // 80
-const FORECAST_ROWS = 10;  // (721 + 79) // 80 = 800 // 80
+// ── S-111/S-413 타일 그리드 (20°×20° 균등 격자, view_tiles.py와 동일) ──
+// 전지구: lat 90→-90 (9행), lon -180→180 (18열)
+const FORECAST_TILE_DEG = 20;   // 타일 한 변 크기 (도)
+const FORECAST_ROWS     = 9;    // 180 / 20
+const FORECAST_COLS     = 18;   // 360 / 20
 
 function countS102Tiles(minLon, minLat, maxLon, maxLat) {
   let n = 0;
@@ -389,18 +390,19 @@ function countS102Tiles(minLon, minLat, maxLon, maxLat) {
 }
 
 function countForecastTiles(minLon, minLat, maxLon, maxLat) {
+  // view_tiles.py 기준:
+  //   타일 북쪽 = 90 - row * 20
+  //   타일 남쪽 = 90 - (row+1) * 20  (마지막 행은 -90 클램프)
+  //   타일 서쪽 = -180 + col * 20
+  //   타일 동쪽 = -180 + (col+1) * 20
   let n = 0;
   for (let row = 0; row < FORECAST_ROWS; row++) {
-    const ls    = 720 - row * FORECAST_N;
-    const le    = Math.max(ls - FORECAST_N + 1, 0);
-    const north = -90 + ls * 0.25;
-    const south = -90 + le * 0.25;
+    const north = 90 - row * FORECAST_TILE_DEG;
+    const south = Math.max(90 - (row + 1) * FORECAST_TILE_DEG, -90);
     if (south >= maxLat || north <= minLat) continue;
-    for (let col = 0; col < FORECAST_TPR; col++) {
-      const js   = col * FORECAST_N;
-      const je   = Math.min(js + FORECAST_N - 1, 1439);
-      const west = -180 + js * 0.25;
-      const east = -180 + je * 0.25;
+    for (let col = 0; col < FORECAST_COLS; col++) {
+      const west = -180 + col * FORECAST_TILE_DEG;
+      const east = west + FORECAST_TILE_DEG;
       if (west >= maxLon || east <= minLon) continue;
       n++;
     }
