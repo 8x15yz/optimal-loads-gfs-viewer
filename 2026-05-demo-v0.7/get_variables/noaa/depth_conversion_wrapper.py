@@ -33,6 +33,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
+import h5py
+
 UTC = timezone.utc
 
 # ── 상수 ──────────────────────────────────────────────────────────────────────
@@ -93,22 +95,27 @@ def build_gfs_steps(max_step: int = 384) -> list[int]:
 
 def compute_tile_bbox(tile_idx: int, tile_deg: float) -> dict:
     """
-    tile_idx (1-based) → 타일 지리 경계 반환.
-    타일 경계: 북 = 90 - row*tile_deg, 남 = 90 - (row+1)*tile_deg
-               서 = -180 + col*tile_deg, 동 = -180 + (col+1)*tile_deg
-    _s1x1_find_tiles(api.py) / countForecastTiles(JS)와 동일한 20° 균등 격자.
-
+    depth_convert.py compute_tiles() 와 동일한 로직.
+    tile_idx: 1-based
     반환: {"idx": int, "north": float, "south": float, "west": float, "east": float}
     """
-    tiles_per_row = round(360.0 / tile_deg)   # 18
+    n = round(tile_deg / RES)                    # 타일당 격자 수
+    tiles_per_row = math.ceil(N_LON / n)         # 경도 방향 타일 수 (DepthConversion 내부와 동일: ceil)
 
+    # tile_idx → (row, col) 0-based
     row = (tile_idx - 1) // tiles_per_row
     col = (tile_idx - 1) %  tiles_per_row
 
-    north = round(90.0 - row * tile_deg, 4)
-    south = round(max(90.0 - (row + 1) * tile_deg, -90.0), 4)
-    west  = round(-180.0 + col * tile_deg, 4)
-    east  = round(west + tile_deg, 4)
+    # depth_convert.py: 북 → 남 스캔, lat[0]=-90 기준
+    ls = (N_LAT - 1) - row * n                   # 북쪽 위도 인덱스
+    le = max(ls - n + 1, 0)                      # 남쪽 위도 인덱스
+    js = col * n                                 # 서쪽 경도 인덱스
+    je = min(js + n - 1, N_LON - 1)             # 동쪽 경도 인덱스
+
+    north = round(-90.0 + ls * RES, 4)
+    south = round(-90.0 + le * RES, 4)
+    west  = round(-180.0 + js * RES, 4)
+    east  = round(-180.0 + je * RES, 4)
 
     return {"idx": tile_idx, "north": north, "south": south,
             "west": west, "east": east}
@@ -125,6 +132,56 @@ def parse_tile_idx(filename: str) -> Optional[int]:
     """
     m = re.search(r"_(\d+)\.h5$", filename)
     return int(m.group(1)) if m else None
+
+
+# ── monitor log에서 스킵된 격자 idx 파싱 ──────────────────────────────────────
+
+def parse_skipped_grid_idxs(log_path: Path) -> list[int]:
+    """
+    monitor log에서 변환기가 스킵한 격자 idx 목록을 추출한다.
+    라인별로 읽어 대용량 로그(수십만 줄)에도 메모리 부담 없이 동작한다.
+
+    로그 형식:
+      [Info] Skipping empty S-111 tile 032: no valid surface-current cells ...
+      [Info] Skipping empty S-413 tile 049: ...
+
+    반환: 오름차순 정렬된 격자 idx 리스트 (예: [32, 33, 49, 50])
+    """
+    skipped = []
+    try:
+        with open(log_path, encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                m = re.search(r"Skipping empty S-\d+ tile (\d+)", line)
+                if m:
+                    skipped.append(int(m.group(1)))
+    except OSError as e:
+        print(f"[wrapper] ⚠️ monitor log 읽기 실패: {e}")
+    return sorted(set(skipped))
+
+
+def file_seq_to_grid_idx(file_seq: int, skipped: list[int]) -> int:
+    """
+    파일 순번(file_seq) → 격자 idx 역산.
+
+    변환기는 스킵된 격자를 건너뛰고 다음 파일에 순번을 이어서 매긴다.
+    따라서 file_seq에 "file_seq 이하인 스킵된 격자 수"를 누적해서 더하면
+    격자 idx가 된다.
+
+    예)  skipped=[32, 33]
+         file_seq=32 → 격자 32+2=34  (32, 33이 스킵됐으므로)
+         file_seq=33 → 격자 33+2=35
+
+    스킵 목록이 삽입되면서 격자 idx가 밀릴 수 있으므로 수렴할 때까지 반복한다.
+    """
+    idx = file_seq
+    while True:
+        # 현재 idx 이하(포함)인 스킵 수
+        offset = sum(1 for s in skipped if s <= idx)
+        new_idx = file_seq + offset
+        if new_idx == idx:
+            break
+        idx = new_idx
+    return idx
 
 
 # ── S3 키 ──────────────────────────────────────────────────────────────────────
@@ -371,9 +428,14 @@ def run_conversion(
     # ── 2. 성공 확인 (monitor log에서 Result: SUCCESS 확인) ───────────────────
     success = False
     if monitor_log.exists():
-        log_text = monitor_log.read_text(encoding="utf-8", errors="ignore")
-        if "Result" in log_text and "SUCCESS" in log_text:
-            success = True
+        try:
+            with open(monitor_log, encoding="utf-8", errors="ignore") as _lf:
+                for _line in _lf:
+                    if "Result" in _line and "SUCCESS" in _line:
+                        success = True
+                        break
+        except OSError:
+            pass
     # monitor log 없으면 returncode로 판단
     if not success and result.returncode == 0:
         h5_files = list(output_dir.glob("*.h5"))
@@ -405,6 +467,13 @@ def run_conversion(
 
     print(f"[wrapper] {product.upper()} 타일 {len(h5_files)}개 처리 시작")
 
+    # ── monitor log에서 스킵된 격자 idx 파싱 ──────────────────────────────────
+    skipped_grid_idxs: list[int] = []
+    if monitor_log.exists():
+        skipped_grid_idxs = parse_skipped_grid_idxs(monitor_log)
+        if skipped_grid_idxs:
+            print(f"[wrapper] 스킵된 격자 {len(skipped_grid_idxs)}개: {skipped_grid_idxs}")
+
     # steps 정보 (모든 타일 공통)
     steps_list = build_gfs_steps()
     steps_info = {
@@ -417,30 +486,34 @@ def run_conversion(
     uploaded_keys: list[str] = []   # 롤백용 누적
 
     for h5_path in h5_files:
-        tile_idx = parse_tile_idx(h5_path.name)
-        if tile_idx is None:
+        file_seq = parse_tile_idx(h5_path.name)
+        if file_seq is None:
             print(f"[wrapper] ⚠️ 타일 인덱스 파싱 실패: {h5_path.name} → 스킵")
             cnt_fail += 1
             continue
 
-        # ── S-111 파일명 zero-pad 정규화 ────────────────────────────────────
-        # 예: 11120260520_18Z_1.h5  →  11120260520_18Z_001.h5
+        # ── 파일 순번 → 격자 idx 역산 (S-111만 해당) ────────────────────────
+        # S-111: 변환기가 파일명에 생성 순번을 매김 → 격자 idx로 역산 후 rename 필요
+        # S-413: 변환기가 파일명에 이미 격자 idx를 씀 → 그대로 사용
         if product == "s111":
-            stem = h5_path.stem                    # '11120260520_18Z_1'
-            # _숫자 suffix를 _NNN 으로 교체
-            new_stem = re.sub(r"_(\d+)$", lambda m: f"_{int(m.group(1)):03d}", stem)
+            grid_idx = file_seq_to_grid_idx(file_seq, skipped_grid_idxs)
+            stem = h5_path.stem
+            new_stem = re.sub(r"_(\d+)$", f"_{grid_idx:03d}", stem)
             if new_stem != stem:
                 new_path = h5_path.with_name(new_stem + ".h5")
                 h5_path.rename(new_path)
                 h5_path = new_path
-        # ────────────────────────────────────────────────────────────────────
+                print(f"[wrapper] rename: {stem}.h5 → {new_stem}.h5  (파일순번={file_seq} → 격자={grid_idx})")
+        else:
+            # S-413은 파일명의 숫자가 곧 격자 idx
+            grid_idx = file_seq
 
         if not h5_path.exists():
             print(f"[wrapper] ⚠️ 파일 없음 (race): {h5_path.name} → 스킵")
             cnt_fail += 1
             continue
 
-        tile_bbox  = compute_tile_bbox(tile_idx, tile_deg)
+        tile_bbox  = compute_tile_bbox(grid_idx, tile_deg)
         s3_key     = build_s100_s3_key(product, run_time_utc, h5_path.name)
         size_bytes = h5_path.stat().st_size
 
@@ -455,7 +528,7 @@ def run_conversion(
                 )
                 uploaded_keys.append(s3_key)
             except Exception as e:
-                print(f"[wrapper] ❌ S3 업로드 실패 tile={tile_idx:03d}: {e}")
+                print(f"[wrapper] ❌ S3 업로드 실패 tile={grid_idx:03d}: {e}")
                 cnt_fail += 1
                 continue
 
@@ -478,12 +551,52 @@ def run_conversion(
                     upsert=True,
                 )
             except Exception as e:
-                print(f"[wrapper] ❌ MongoDB upsert 실패 tile={tile_idx:03d}: {e}")
+                print(f"[wrapper] ❌ MongoDB upsert 실패 tile={grid_idx:03d}: {e}")
                 cnt_fail += 1
                 continue
 
         cnt_ok += 1
-        print(f"[wrapper] ✅ tile={tile_idx:03d} s3={s3_key}")
+        print(f"[wrapper] ✅ tile={grid_idx:03d} s3={s3_key}")
+
+    # ── 스킵된 격자 → MongoDB에 missing 메타 등록 ────────────────────────────
+    for grid_idx in skipped_grid_idxs:
+        tile_bbox = compute_tile_bbox(grid_idx, tile_deg)
+        tile_idx_str = f"{grid_idx:03d}"
+        natural_key = (
+            f"{product}|forecast"
+            f"|run={iso_z(run_time_utc)}"
+            f"|tile={tile_idx_str}"
+        )
+        tile_meta = {**tile_bbox, "idx": tile_idx_str}
+        missing_doc = {
+            "natural_key":  natural_key,
+            "product":      product,
+            "source":       SOURCE,
+            "model":        MODEL,
+            "type":         "forecast",
+            "run_time_utc": iso_z(run_time_utc),
+            "year":         run_time_utc.year,
+            "month":        run_time_utc.month,
+            "tile":         tile_meta,
+            "missing":      True,   # ← 내륙/데이터 없음 표시
+            "steps":        steps_info,
+            "variables":    meta["variables"],
+            "s3":           None,
+            "size_bytes":   0,
+            "format":       "hdf5",
+            "content_type": "application/x-hdf5",
+            "created_at":   utc_now(),
+        }
+        if s100_col is not None:
+            try:
+                s100_col.update_one(
+                    {"natural_key": natural_key},
+                    {"$setOnInsert": missing_doc},
+                    upsert=True,
+                )
+                print(f"[wrapper] 🏝️  missing tile={tile_idx_str} 메타 등록 (내륙/무데이터)")
+            except Exception as e:
+                print(f"[wrapper] ⚠️ missing 메타 등록 실패 tile={tile_idx_str}: {e}")
 
     print(
         f"[wrapper] {product.upper()} 완료 — "
