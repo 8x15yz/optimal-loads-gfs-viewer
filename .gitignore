@@ -70,3 +70,5 @@ Thumbs.db
 
 # MongoDB dump files (if any)
 dump/
+2026-05-demo-v0.7/.venv_wsl/
+2026-05-demo-v0.7/fix_s100/staging/

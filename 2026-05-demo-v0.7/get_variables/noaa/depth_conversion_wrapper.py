@@ -414,10 +414,15 @@ def run_conversion(
     try:
         result = subprocess.run(
             cmd,
-            capture_output=False,   # stdout/stderr 그대로 출력
+            capture_output=True,    # stdout/stderr 캡처 (스킵 파싱용)
             text=True,
             cwd=str(converter.parent),
         )
+        # 변환기 출력을 그대로 화면에도 표시
+        if result.stdout:
+            print(result.stdout, end="")
+        if result.stderr:
+            print(result.stderr, end="", file=__import__("sys").stderr)
     except Exception as e:
         print(f"[wrapper] ❌ subprocess 실행 오류: {e}")
         return False, []
@@ -425,9 +430,15 @@ def run_conversion(
     elapsed = (utc_now() - start).total_seconds()
     print(f"[wrapper] 변환 완료 ({elapsed:.0f}s) returncode={result.returncode}")
 
-    # ── 2. 성공 확인 (monitor log에서 Result: SUCCESS 확인) ───────────────────
+    # ── 2. 성공 확인 ─────────────────────────────────────────────────────────
+    # stdout 우선 확인, 없으면 monitor log, 마지막에 returncode로 판단
     success = False
-    if monitor_log.exists():
+    conv_stdout = result.stdout or ""
+    for _line in conv_stdout.splitlines():
+        if "Result" in _line and "SUCCESS" in _line:
+            success = True
+            break
+    if not success and monitor_log.exists():
         try:
             with open(monitor_log, encoding="utf-8", errors="ignore") as _lf:
                 for _line in _lf:
@@ -436,7 +447,6 @@ def run_conversion(
                         break
         except OSError:
             pass
-    # monitor log 없으면 returncode로 판단
     if not success and result.returncode == 0:
         h5_files = list(output_dir.glob("*.h5"))
         success = len(h5_files) > 0
@@ -467,12 +477,20 @@ def run_conversion(
 
     print(f"[wrapper] {product.upper()} 타일 {len(h5_files)}개 처리 시작")
 
-    # ── monitor log에서 스킵된 격자 idx 파싱 ──────────────────────────────────
+    # ── subprocess stdout에서 스킵된 격자 idx 파싱 ──────────────────────────
+    # 변환기가 --monitor-log 경로를 무시하고 자체 경로에 쓰는 경우에도
+    # stdout 캡처로 안정적으로 파싱할 수 있음
     skipped_grid_idxs: list[int] = []
-    if monitor_log.exists():
+    for line in conv_stdout.splitlines():
+        m = re.search(r"Skipping empty S-\d+ tile (\d+)", line)
+        if m:
+            skipped_grid_idxs.append(int(m.group(1)))
+    skipped_grid_idxs = sorted(set(skipped_grid_idxs))
+    # stdout 파싱이 비었으면 monitor_log 파일에서 fallback 시도
+    if not skipped_grid_idxs and monitor_log.exists():
         skipped_grid_idxs = parse_skipped_grid_idxs(monitor_log)
-        if skipped_grid_idxs:
-            print(f"[wrapper] 스킵된 격자 {len(skipped_grid_idxs)}개: {skipped_grid_idxs}")
+    if skipped_grid_idxs:
+        print(f"[wrapper] 스킵된 격자 {len(skipped_grid_idxs)}개: {skipped_grid_idxs}")
 
     # steps 정보 (모든 타일 공통)
     steps_list = build_gfs_steps()
