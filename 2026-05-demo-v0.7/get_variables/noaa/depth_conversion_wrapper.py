@@ -4,6 +4,8 @@
 # [2026-05-19] parse_tile_idx: \d{3} → \d+ (zero-padding 없는 파일명 대응)
 # [2026-05-19] S111 tile_deg: 35.0 → 20.0
 # [2026-05-19] compute_tile_bbox tiles_per_row: // → math.ceil (DepthConversion 내부 로직 일치)
+# [2026-05-21] S-111 rename: 루프 내 순차 rename → 루프 전 역순 일괄 rename (cascade overwrite 방지)
+# [2026-05-21] H5 파일 목록 정렬: 문자열 정렬 → 타일 번호 숫자 정렬 (100~104 재이동/덮어쓰기 방지)
 """
 DepthConversion CLI wrapper — S-111 / S-413 변환 + S3 업로드 + MongoDB 메타 등록
 
@@ -134,6 +136,22 @@ def parse_tile_idx(filename: str) -> Optional[int]:
     return int(m.group(1)) if m else None
 
 
+def sort_h5_by_tile_idx(paths, *, reverse: bool = False) -> list[Path]:
+    """
+    H5 파일명을 사전순이 아니라 타일 번호 숫자 기준으로 정렬한다.
+
+    주의:
+      sorted(glob("*.h5")) 는 문자열 정렬이므로 _99.h5 가 _100.h5 보다 뒤에 올 수 있다.
+      S-111 스킵 타일 보정 rename에서는 이 순서 오류가 cascade overwrite를 만들 수 있으므로
+      모든 H5 파일 목록은 이 헬퍼를 통해 숫자 정렬한다.
+    """
+    return sorted(
+        paths,
+        key=lambda p: (parse_tile_idx(p.name) is None, parse_tile_idx(p.name) or 0, p.name),
+        reverse=reverse,
+    )
+
+
 # ── monitor log에서 스킵된 격자 idx 파싱 ──────────────────────────────────────
 
 def parse_skipped_grid_idxs(log_path: Path) -> list[int]:
@@ -161,26 +179,16 @@ def parse_skipped_grid_idxs(log_path: Path) -> list[int]:
 
 def file_seq_to_grid_idx(file_seq: int, skipped: list[int]) -> int:
     """
-    파일 순번(file_seq) → 격자 idx 역산.
-
-    변환기는 스킵된 격자를 건너뛰고 다음 파일에 순번을 이어서 매긴다.
-    따라서 file_seq에 "file_seq 이하인 스킵된 격자 수"를 누적해서 더하면
-    격자 idx가 된다.
-
-    예)  skipped=[32, 33]
-         file_seq=32 → 격자 32+2=34  (32, 33이 스킵됐으므로)
-         file_seq=33 → 격자 33+2=35
-
-    스킵 목록이 삽입되면서 격자 idx가 밀릴 수 있으므로 수렴할 때까지 반복한다.
+    file_seq (1-based, skipped 제외 순번) → 실제 grid_idx 반환.
+    skipped에 없는 양의 정수 중 file_seq번째 값을 구한다.
     """
-    idx = file_seq
-    while True:
-        # 현재 idx 이하(포함)인 스킵 수
-        offset = sum(1 for s in skipped if s <= idx)
-        new_idx = file_seq + offset
-        if new_idx == idx:
-            break
-        idx = new_idx
+    skipped_set = set(skipped)
+    count = 0
+    idx = 0
+    while count < file_seq:
+        idx += 1
+        if idx not in skipped_set:
+            count += 1
     return idx
 
 
@@ -458,13 +466,13 @@ def run_conversion(
     # ── 3. H5 파일 목록 수집 (변환툴 staging→output 이동 완료 대기) ──────────
     _wait_limit = 30
     for _ in range(_wait_limit):
-        h5_files = sorted(output_dir.glob("*.h5"))
+        h5_files = sort_h5_by_tile_idx(output_dir.glob("*.h5"))
         if not h5_files:
             time.sleep(1.0)
             continue
         snap_before = {f.name: f.stat().st_size for f in h5_files if f.exists()}
         time.sleep(1.0)
-        h5_files = sorted(output_dir.glob("*.h5"))  # 재수집 (stale 방지)
+        h5_files = sort_h5_by_tile_idx(output_dir.glob("*.h5"))  # 재수집 (stale 방지)
         snap_after = {f.name: f.stat().st_size for f in h5_files if f.exists()}
         if snap_before == snap_after:
             break
@@ -492,6 +500,34 @@ def run_conversion(
     if skipped_grid_idxs:
         print(f"[wrapper] 스킵된 격자 {len(skipped_grid_idxs)}개: {skipped_grid_idxs}")
 
+    # ── S-111 파일명 일괄 rename (루프 전 역순 처리 — cascade overwrite 방지) ──
+    # grid_idx >= file_seq 가 항상 성립하므로, 높은 순번부터 rename하면
+    # rename 대상 슬롯이 이미 비어있어 충돌이 발생하지 않는다.
+    if product == "s111" and skipped_grid_idxs:
+        rename_map: list[tuple[Path, Path]] = []
+        for h5_path in h5_files:
+            file_seq = parse_tile_idx(h5_path.name)
+            if file_seq is None:
+                continue
+            grid_idx = file_seq_to_grid_idx(file_seq, skipped_grid_idxs)
+            stem = h5_path.stem
+            new_stem = re.sub(r"_(\d+)$", f"_{grid_idx:03d}", stem)
+            if new_stem != stem:
+                rename_map.append((h5_path, h5_path.with_name(new_stem + ".h5")))
+
+        # 숫자 기준 높은 file_seq부터 rename해야 _100~_104 같은 대상 슬롯 재이동/덮어쓰기를 막을 수 있다.
+        rename_map.sort(
+            key=lambda pair: parse_tile_idx(pair[0].name) or 0,
+            reverse=True,
+        )
+        for old_path, new_path in rename_map:
+            if old_path.exists():
+                old_path.rename(new_path)
+                print(f"[wrapper] rename: {old_path.name} → {new_path.name}")
+
+        # rename 반영된 파일 목록 재수집
+        h5_files = sort_h5_by_tile_idx(output_dir.glob("*.h5"))
+
     # steps 정보 (모든 타일 공통)
     steps_list = build_gfs_steps()
     steps_info = {
@@ -504,27 +540,12 @@ def run_conversion(
     uploaded_keys: list[str] = []   # 롤백용 누적
 
     for h5_path in h5_files:
-        file_seq = parse_tile_idx(h5_path.name)
-        if file_seq is None:
+        # pre-rename 완료 후이므로 파일명 = 격자 idx (s111/s413 공통)
+        grid_idx = parse_tile_idx(h5_path.name)
+        if grid_idx is None:
             print(f"[wrapper] ⚠️ 타일 인덱스 파싱 실패: {h5_path.name} → 스킵")
             cnt_fail += 1
             continue
-
-        # ── 파일 순번 → 격자 idx 역산 (S-111만 해당) ────────────────────────
-        # S-111: 변환기가 파일명에 생성 순번을 매김 → 격자 idx로 역산 후 rename 필요
-        # S-413: 변환기가 파일명에 이미 격자 idx를 씀 → 그대로 사용
-        if product == "s111":
-            grid_idx = file_seq_to_grid_idx(file_seq, skipped_grid_idxs)
-            stem = h5_path.stem
-            new_stem = re.sub(r"_(\d+)$", f"_{grid_idx:03d}", stem)
-            if new_stem != stem:
-                new_path = h5_path.with_name(new_stem + ".h5")
-                h5_path.rename(new_path)
-                h5_path = new_path
-                print(f"[wrapper] rename: {stem}.h5 → {new_stem}.h5  (파일순번={file_seq} → 격자={grid_idx})")
-        else:
-            # S-413은 파일명의 숫자가 곧 격자 idx
-            grid_idx = file_seq
 
         if not h5_path.exists():
             print(f"[wrapper] ⚠️ 파일 없음 (race): {h5_path.name} → 스킵")
