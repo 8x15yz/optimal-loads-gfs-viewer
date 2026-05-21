@@ -350,7 +350,7 @@ async def get_forecast_tiles(
     coll = await get_s100_assets_collection()
     run_str = _to_z(run_dt)
 
-    tile_idx_list = [t["tile_idx"] for t in candidate_tiles]
+    tile_idx_list = [f"{t['tile_idx']:03d}" for t in candidate_tiles]
     docs = await coll.find(
         {
             "product":       product_lower,
@@ -368,7 +368,7 @@ async def get_forecast_tiles(
     missing = []
 
     for t in candidate_tiles:
-        idx = t["tile_idx"]
+        idx = f"{t['tile_idx']:03d}"
         doc = doc_map.get(idx)
 
         if doc is None:
