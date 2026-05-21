@@ -469,7 +469,9 @@ function updatePanel(bbox) {
   const cnt = countTiles(bbox.nwLon, bbox.seLat, bbox.seLon, bbox.nwLat);
   document.getElementById('tile-count').textContent = cnt;
 
-  const limit = currentProduct === 's102' ? 50 : 30;
+  //const limit = currentProduct === 's102' ? 50 : 30;
+  // 제한 임시 해제
+  const limit = 9999;
   const tag   = document.getElementById('status-tag');
   if (cnt === 0) {
     tag.className = 'tag tag-err'; tag.textContent = '타일 없음';
