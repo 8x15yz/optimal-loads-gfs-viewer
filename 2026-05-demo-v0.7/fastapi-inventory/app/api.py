@@ -366,7 +366,7 @@ async def get_forecast_tiles(
         idx = f"{t['tile_idx']:03d}"
         doc = doc_map.get(idx)
 
-        if doc is None or doc.get("missing"):
+        if doc is None or doc.get("missing") or doc.get("s3") is None:
             missing.append(idx)
             continue
 
