@@ -428,6 +428,18 @@ def run_conversion(
             cnt_fail += 1
             continue
 
+        # ── S-111 파일명 zero-pad 정규화 ────────────────────────────────────
+        # 예: 11120260520_18Z_1.h5  →  11120260520_18Z_001.h5
+        if product == "s111":
+            stem = h5_path.stem                    # '11120260520_18Z_1'
+            # _숫자 suffix를 _NNN 으로 교체
+            new_stem = re.sub(r"_(\d+)$", lambda m: f"_{int(m.group(1)):03d}", stem)
+            if new_stem != stem:
+                new_path = h5_path.with_name(new_stem + ".h5")
+                h5_path.rename(new_path)
+                h5_path = new_path
+        # ────────────────────────────────────────────────────────────────────
+
         if not h5_path.exists():
             print(f"[wrapper] ⚠️ 파일 없음 (race): {h5_path.name} → 스킵")
             cnt_fail += 1
