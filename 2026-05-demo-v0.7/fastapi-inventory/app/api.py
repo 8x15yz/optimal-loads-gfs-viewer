@@ -63,30 +63,25 @@ def _s1x1_find_tiles(
 ) -> list[dict]:
     """
     bbox에 걸치는 S-111/S-413 타일 목록 반환.
-    wrapper의 compute_tile_bbox()와 동일한 계산 로직.
+    타일 경계: 북 = 90 - row*tile_deg, 남 = 90 - (row+1)*tile_deg
+               서 = -180 + col*tile_deg, 동 = -180 + (col+1)*tile_deg
+    view_tiles.py / countForecastTiles(JS)와 동일한 20° 균등 격자.
     """
-    n = round(tile_deg / _RES)
-    tiles_per_row = _N_LON // n
-    total_rows    = (_N_LAT - 1 + n - 1) // n   # 위도 방향 타일 수
+    total_rows    = round(180.0 / tile_deg)   # 9
+    tiles_per_row = round(360.0 / tile_deg)   # 18
 
     result = []
     for row in range(total_rows):
-        ls = (_N_LAT - 1) - row * n
-        le = max(ls - n + 1, 0)
-        north = round(-90.0 + ls * _RES, 4)
-        south = round(-90.0 + le * _RES, 4)
+        north = round(90.0 - row * tile_deg, 4)
+        south = round(max(90.0 - (row + 1) * tile_deg, -90.0), 4)
 
-        # 위도 범위 교차 여부
         if south >= max_lat or north <= min_lat:
             continue
 
         for col in range(tiles_per_row):
-            js   = col * n
-            je   = min(js + n - 1, _N_LON - 1)
-            west = round(-180.0 + js * _RES, 4)
-            east = round(-180.0 + je * _RES, 4)
+            west = round(-180.0 + col * tile_deg, 4)
+            east = round(west + tile_deg, 4)
 
-            # 경도 범위 교차 여부
             if west >= max_lon or east <= min_lon:
                 continue
 

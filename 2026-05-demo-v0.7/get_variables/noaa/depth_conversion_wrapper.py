@@ -93,27 +93,22 @@ def build_gfs_steps(max_step: int = 384) -> list[int]:
 
 def compute_tile_bbox(tile_idx: int, tile_deg: float) -> dict:
     """
-    depth_convert.py compute_tiles() 와 동일한 로직.
-    tile_idx: 1-based
+    tile_idx (1-based) → 타일 지리 경계 반환.
+    타일 경계: 북 = 90 - row*tile_deg, 남 = 90 - (row+1)*tile_deg
+               서 = -180 + col*tile_deg, 동 = -180 + (col+1)*tile_deg
+    _s1x1_find_tiles(api.py) / countForecastTiles(JS)와 동일한 20° 균등 격자.
+
     반환: {"idx": int, "north": float, "south": float, "west": float, "east": float}
     """
-    n = round(tile_deg / RES)                    # 타일당 격자 수
-    tiles_per_row = math.ceil(N_LON / n)         # 경도 방향 타일 수 (DepthConversion 내부와 동일: ceil)
+    tiles_per_row = round(360.0 / tile_deg)   # 18
 
-    # tile_idx → (row, col) 0-based
     row = (tile_idx - 1) // tiles_per_row
     col = (tile_idx - 1) %  tiles_per_row
 
-    # depth_convert.py: 북 → 남 스캔, lat[0]=-90 기준
-    ls = (N_LAT - 1) - row * n                   # 북쪽 위도 인덱스
-    le = max(ls - n + 1, 0)                      # 남쪽 위도 인덱스
-    js = col * n                                 # 서쪽 경도 인덱스
-    je = min(js + n - 1, N_LON - 1)             # 동쪽 경도 인덱스
-
-    north = round(-90.0 + ls * RES, 4)
-    south = round(-90.0 + le * RES, 4)
-    west  = round(-180.0 + js * RES, 4)
-    east  = round(-180.0 + je * RES, 4)
+    north = round(90.0 - row * tile_deg, 4)
+    south = round(max(90.0 - (row + 1) * tile_deg, -90.0), 4)
+    west  = round(-180.0 + col * tile_deg, 4)
+    east  = round(west + tile_deg, 4)
 
     return {"idx": tile_idx, "north": north, "south": south,
             "west": west, "east": east}
