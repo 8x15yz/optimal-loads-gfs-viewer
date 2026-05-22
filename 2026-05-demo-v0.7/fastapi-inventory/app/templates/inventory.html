@@ -526,6 +526,9 @@
           <a class="source-item{% if current_path.startswith('/ecmwf') %} active{% endif %}" href="/inventory?path={{ '/ecmwf/'|urlencode }}">
             <span>ecmwf / ifs</span><span class="badge">weather</span>
           </a>
+          <a class="source-item{% if current_path.startswith('/eot20') %} active{% endif %}" href="/inventory?path={{ '/eot20/'|urlencode }}">
+            <span>eot20</span><span class="badge">tiles</span>
+          </a>
           <a class="source-item{% if current_path.startswith('/s102') %} active{% endif %}" href="/inventory?path={{ '/s102/'|urlencode }}">
             <span>s102</span><span class="badge">tiles</span>
           </a>
