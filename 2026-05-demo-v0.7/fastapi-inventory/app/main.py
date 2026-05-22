@@ -46,6 +46,7 @@ It reads ocean gridded data (e.g., CMEMS wave data) from S3 and provides it as J
 )
 
 app.mount("/guide", StaticFiles(directory="app/templates/static/guide"), name="guide")
+app.mount("/svgs", StaticFiles(directory="app/templates/svgs"), name="svgs")
 
 
 @app.get("/ko", response_class=HTMLResponse, include_in_schema=False)
