@@ -10,7 +10,7 @@ from typing import Optional, Any, Dict, List
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Query, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
@@ -49,13 +49,34 @@ app.mount("/guide", StaticFiles(directory="app/templates/static/guide"), name="g
 
 
 @app.get("/ko", response_class=HTMLResponse, include_in_schema=False)
-async def root_ko():
-    return FileResponse("app/templates/static/guide/index_ko.html")
+async def root_ko(request: Request):
+    return templates.TemplateResponse(
+        "guide/index_ko.html",
+        {
+            "request": request,
+            "active_nav": "manual",
+            "show_lang_switch": True,
+            "lang_switch_href": "/",
+            "lang_switch_label": "EN",
+            "lang_switch_aria": "Switch to English",
+        },
+    )
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def root_en():
-    return FileResponse("app/templates/static/guide/index_en.html")
+async def root_en(request: Request):
+    return templates.TemplateResponse(
+        "guide/index_en.html",
+        {
+            "request": request,
+            "active_nav": "manual",
+            "show_lang_switch": True,
+            "lang_switch_href": "/ko",
+            "lang_switch_label": "KO",
+            "lang_switch_aria": "Switch to Korean",
+            "show_pdf_manual": True,
+        },
+    )
 
 
 app.include_router(api_router)
@@ -279,7 +300,7 @@ def _build_api_example_file(doc: Dict[str, Any]) -> str:
 
 @app.get("/s102-test", response_class=HTMLResponse, include_in_schema=False)
 async def s102_test(request: Request):
-    return templates.TemplateResponse("s102_test.html", {"request": request})
+    return templates.TemplateResponse("s102_test.html", {"request": request, "active_nav": "s102"})
 
 
 @app.get("/inventory", response_class=HTMLResponse, include_in_schema=False)
@@ -430,6 +451,7 @@ async def inventory_index(
         "inventory.html",
         {
             "request": request,
+            "active_nav": "inventory",
             "current_path": current_path,
             "parent_path": parent_path,
             "entries": entries,
@@ -515,6 +537,7 @@ async def inventory_file(request: Request, key: str = Query(..., description="S3
         "inventory_file.html",
         {
             "request": request,
+            "active_nav": "inventory",
             "key": key,
             "nk": nk,
             "display_name": display_name,

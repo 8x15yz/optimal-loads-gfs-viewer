@@ -240,6 +240,7 @@ async def ingestion_page(
         "ingestion.html",
         {
             "request": request,
+            "active_nav": "ingestion",
             
             # ECMWF
             "control_ecmwf": control_ecmwf,
