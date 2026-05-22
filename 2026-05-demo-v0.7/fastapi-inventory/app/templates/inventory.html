@@ -91,6 +91,21 @@
     background: #257047;
     color: #fff;
   }
+  .guide-launch.explorer {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    border-color: #0f2a44;
+    background: linear-gradient(180deg, #1f4f78, #0f2a44);
+    color: #fff;
+    box-shadow: 0 10px 22px rgba(15, 42, 68, 0.16);
+  }
+  .guide-launch.explorer:hover {
+    border-color: #075c90;
+    background: linear-gradient(180deg, #24628f, #123756);
+    color: #fff;
+  }
   .source-item {
     display: flex;
     align-items: center;
@@ -578,6 +593,7 @@
           <p class="source-group-title">Derived S-100 Datasets</p>
           <p class="source-group-note">Calculated and reorganized outputs from NOAA-based variables.</p>
           <button type="button" class="guide-launch s100" id="s100GuideNavButton" onclick="showS100GuideSection()">S-100 Dataset Guide</button>
+          <a class="guide-launch explorer" href="/s102-test">S-100 Explorer</a>
           <div class="source-list">
             {% for source in source_nav if source.group == 's100' %}
               <a class="source-item{% if current_path.startswith(source.path) %} active{% endif %}" href="/inventory?path={{ source.path|urlencode }}">
