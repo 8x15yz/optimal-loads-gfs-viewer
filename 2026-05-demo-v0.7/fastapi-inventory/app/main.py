@@ -23,7 +23,7 @@ from urllib.parse import quote
 
 load_dotenv()
 
-APP_TITLE = os.getenv("APP_TITLE", "Inventory")
+APP_TITLE = os.getenv("APP_TITLE", "Marine Weather API")
 templates = Jinja2Templates(directory="app/templates")
 
 
@@ -36,7 +36,7 @@ app = FastAPI(
     title=APP_TITLE,
     version="0.1.0",
     description="""
-It reads ocean gridded data (e.g., CMEMS wave data) from S3 and provides it as JSON.
+It reads ocean gridded data (e.g., gfs wave data) from S3 and provides it as JSON.
 
 - Indexing: row-major, bottom-up (south → north)
 """,
