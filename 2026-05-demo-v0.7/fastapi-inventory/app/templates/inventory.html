@@ -66,6 +66,7 @@
   }
   .filter-grid input,
   .filter-grid select,
+  .filter-grid button,
   .table-toolbar input {
     width: 100%;
     min-height: 44px;
@@ -74,6 +75,31 @@
     padding: 0 12px;
     background: #fff;
     color: var(--text);
+  }
+  .filter-grid button {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: #fff;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .filter-grid button.secondary {
+    border-color: #b7dcef;
+    background: var(--surface-2);
+    color: #075c90;
+  }
+  .filter-grid button:disabled,
+  .filter-grid select:disabled {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+    color: #94a3b8;
+    cursor: not-allowed;
+  }
+  .filter-grid .quick-status {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.45;
   }
   .main-panel {
     overflow: hidden;
@@ -274,24 +300,22 @@
         </div>
       </section>
       <section class="side-section">
-        <h2>Quick Filter</h2>
-        <p class="hint">Client-side draft controls. API wiring can be added later.</p>
+        <h2>Quick Navigation</h2>
+        <p class="hint">Jump by source and inspect weather variables from the metadata API.</p>
         <div class="filter-grid">
-          <label>Variable
-            <select>
-              <option>All variables</option>
-              <option>HTSGW</option>
-              <option>swh</option>
-              <option>wind_speed_10m</option>
+          <label>Source
+            <select id="quick-source" onchange="onQuickSourceChange()">
+              <option value="">Loading sources...</option>
             </select>
           </label>
-          <label>Run date <input type="date"></label>
-          <label>Cycle
-            <select><option>All cycles</option><option>00Z</option><option>06Z</option><option>12Z</option><option>18Z</option></select>
+          <button type="button" onclick="openQuickSource()">Open Source Folder</button>
+          <label>Weather Variable
+            <select id="quick-variable" disabled>
+              <option value="">Select ECMWF or NOAA first</option>
+            </select>
           </label>
-          <label>Step
-            <select><option>All steps</option><option>step024</option><option>step120</option><option>step384</option></select>
-          </label>
+          <button type="button" class="secondary" id="quick-variable-search" onclick="searchQuickVariable()" disabled>Search Current Folder</button>
+          <p class="quick-status" id="quick-status">Sources are loaded from /api/sources.</p>
         </div>
       </section>
     </aside>
@@ -425,6 +449,89 @@
 
 <script>
   let toastTimeout;
+  const currentInventoryPath = {{ current_path|tojson }};
+  let quickSources = [];
+
+  function sourceInventoryPath(sourceInfo) {
+    const source = sourceInfo.source;
+    if (!source) return '/';
+    if (sourceInfo.model) return `/${source}/${sourceInfo.model}/`;
+    return `/${source}/`;
+  }
+
+  function setQuickStatus(message) {
+    document.getElementById('quick-status').textContent = message;
+  }
+
+  async function loadQuickSources() {
+    const sourceSelect = document.getElementById('quick-source');
+    try {
+      const res = await fetch('/api/sources');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to load sources.');
+      quickSources = data.sources || [];
+      sourceSelect.innerHTML = quickSources.map((item) => {
+        const label = item.model ? `${item.source} / ${item.model}` : item.source;
+        return `<option value="${escAttr(item.source)}">${esc(label)}</option>`;
+      }).join('');
+      const currentSource = currentInventoryPath.split('/').filter(Boolean)[0];
+      if (currentSource && quickSources.some((item) => item.source === currentSource)) {
+        sourceSelect.value = currentSource;
+      }
+      onQuickSourceChange();
+    } catch (e) {
+      sourceSelect.innerHTML = '<option value="">Sources unavailable</option>';
+      setQuickStatus(`Could not load /api/sources: ${e.message}`);
+    }
+  }
+
+  async function onQuickSourceChange() {
+    const source = document.getElementById('quick-source').value;
+    const variableSelect = document.getElementById('quick-variable');
+    const variableSearch = document.getElementById('quick-variable-search');
+    variableSearch.disabled = true;
+
+    if (!['ecmwf', 'noaa'].includes(source)) {
+      variableSelect.disabled = true;
+      variableSelect.innerHTML = '<option value="">Variables API is for ECMWF/NOAA</option>';
+      setQuickStatus(source ? `${source} can be opened as a source folder.` : 'Choose a source.');
+      return;
+    }
+
+    variableSelect.disabled = true;
+    variableSelect.innerHTML = '<option value="">Loading variables...</option>';
+    try {
+      const res = await fetch(`/api/variables?source=${encodeURIComponent(source)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to load variables.');
+      const variables = data.variables || [];
+      variableSelect.innerHTML = '<option value="">All variables</option>' + variables.map((item) => {
+        const label = `${item.variable} (${item.dataset_code})`;
+        return `<option value="${escAttr(item.variable)}">${esc(label)}</option>`;
+      }).join('');
+      variableSelect.disabled = false;
+      variableSearch.disabled = false;
+      setQuickStatus(`Variables loaded from /api/variables?source=${source}.`);
+    } catch (e) {
+      variableSelect.innerHTML = '<option value="">Variables unavailable</option>';
+      setQuickStatus(`Could not load variables: ${e.message}`);
+    }
+  }
+
+  function openQuickSource() {
+    const source = document.getElementById('quick-source').value;
+    const sourceInfo = quickSources.find((item) => item.source === source);
+    if (!sourceInfo) return;
+    location.href = `/inventory?path=${encodeURIComponent(sourceInventoryPath(sourceInfo))}`;
+  }
+
+  function searchQuickVariable() {
+    const variable = document.getElementById('quick-variable').value;
+    if (!variable) return;
+    const search = document.getElementById('entrySearch');
+    search.value = variable;
+    filterEntries();
+  }
 
   function showToast(url, type) {
     const toast = document.getElementById('toast');
@@ -489,6 +596,16 @@
       row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
     });
   }
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function escAttr(s) {
+    return esc(s).replace(/"/g, '&quot;');
+  }
+
+  loadQuickSources();
 </script>
 
 {% endblock %}
