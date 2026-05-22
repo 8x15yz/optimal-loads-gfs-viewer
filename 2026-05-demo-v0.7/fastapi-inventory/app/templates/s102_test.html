@@ -270,6 +270,10 @@
     maxZoom: 18,
     attribution: '&copy; OpenStreetMap contributors',
   }).addTo(map);
+  map.createPane('returnedTilePane');
+  map.getPane('returnedTilePane').style.zIndex = 430;
+  map.createPane('selectionPane');
+  map.getPane('selectionPane').style.zIndex = 650;
 
   let currentProduct = 's102';
   let currentBbox = null;
@@ -343,10 +347,12 @@
     currentProduct = prod;
     document.querySelectorAll('.prod-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.prod === prod));
     document.getElementById('run-time-section').style.display = prod === 's102' ? 'none' : '';
+    clearReturnedTiles();
     if (currentBbox) updatePanel(currentBbox);
   }
 
   function onRunTimeChange() {
+    clearReturnedTiles();
     if (currentBbox) updatePanel(currentBbox);
   }
 
@@ -395,12 +401,15 @@
     if (!isDrawing || !startLatLng) return;
     if (rectLayer) map.removeLayer(rectLayer);
     rectLayer = L.rectangle([startLatLng, e.latlng], {
+      pane: 'selectionPane',
+      interactive: false,
       color: '#0877b9',
       weight: 2,
       fillColor: '#0877b9',
       fillOpacity: 0.08,
       dashArray: '5 4',
     }).addTo(map);
+    rectLayer.bringToFront();
   });
 
   map.on('mouseup', function(e) {
@@ -457,12 +466,13 @@
   }
 
   function drawReturnedTiles(data) {
-    tileLayers.forEach((layer) => map.removeLayer(layer));
-    tileLayers = [];
+    clearReturnedTiles();
     (data.tiles || []).forEach((tile) => {
       const b = tile.tile_bbox || tile.bbox;
       if (!b || b.length < 4) return;
       const layer = L.rectangle([[b[1], b[0]], [b[3], b[2]]], {
+        pane: 'returnedTilePane',
+        interactive: false,
         color: '#11855a',
         weight: 1.5,
         fillColor: '#11855a',
@@ -470,6 +480,11 @@
       }).addTo(map);
       tileLayers.push(layer);
     });
+  }
+
+  function clearReturnedTiles() {
+    tileLayers.forEach((layer) => map.removeLayer(layer));
+    tileLayers = [];
   }
 
   function esc(s) {
