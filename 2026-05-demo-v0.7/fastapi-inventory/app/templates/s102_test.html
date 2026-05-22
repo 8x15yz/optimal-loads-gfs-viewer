@@ -201,6 +201,12 @@
     background: var(--brand);
     color: #fff;
   }
+  .mode-btn.clear {
+    color: var(--red);
+  }
+  .mode-btn.clear:hover {
+    background: #fdeceb;
+  }
   .draw-tip {
     position: absolute;
     bottom: 22px;
@@ -296,6 +302,7 @@
     <div class="map-mode-toggle" aria-label="Map interaction mode">
       <button type="button" class="mode-btn active" id="mode-select" onclick="setMapMode('select')">Select</button>
       <button type="button" class="mode-btn" id="mode-pan" onclick="setMapMode('pan')">Move</button>
+      <button type="button" class="mode-btn clear" onclick="clearSelection()">Clear</button>
     </div>
     <div class="draw-tip" id="draw-tip">Drag on the map to select a bounding box</div>
   </section>
@@ -426,6 +433,35 @@
     }
     document.getElementById('result').innerHTML = '<span class="info">Ready to request API.</span>';
     document.getElementById('draw-tip').style.display = 'none';
+  }
+
+  function clearSelection() {
+    currentBbox = null;
+    isDrawing = false;
+    startLatLng = null;
+    if (rectLayer) {
+      map.removeLayer(rectLayer);
+      rectLayer = null;
+    }
+    clearReturnedTiles();
+    document.getElementById('c-nw-lat').textContent = '-';
+    document.getElementById('c-nw-lon').textContent = '-';
+    document.getElementById('c-se-lat').textContent = '-';
+    document.getElementById('c-se-lon').textContent = '-';
+    document.getElementById('tile-count').textContent = '0';
+    document.getElementById('status-tag').className = 'tag tag-wait';
+    document.getElementById('status-tag').textContent = 'Waiting';
+    document.getElementById('url-text').textContent = 'Draw a bbox on the map.';
+    document.getElementById('btn-open').href = '#';
+    document.getElementById('btn-open').style.pointerEvents = 'none';
+    document.getElementById('btn-open').style.opacity = '0.45';
+    document.getElementById('btn-req').disabled = true;
+    document.getElementById('result').innerHTML = '<span class="info">No request yet.</span>';
+    const tip = document.getElementById('draw-tip');
+    tip.textContent = mapMode === 'pan'
+      ? 'Move mode: drag the map to browse'
+      : 'Select mode: drag on the map to select a bounding box';
+    tip.style.display = '';
   }
 
   function setMapMode(mode) {
