@@ -162,7 +162,44 @@
   #map {
     width: 100%;
     height: 100%;
+  }
+  #map.mode-select {
     cursor: crosshair;
+  }
+  #map.mode-pan {
+    cursor: grab;
+  }
+  #map.mode-pan:active {
+    cursor: grabbing;
+  }
+  .map-mode-toggle {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 1000;
+    display: inline-flex;
+    overflow: hidden;
+    border: 1px solid #bfd3e2;
+    border-radius: var(--radius);
+    background: #fff;
+    box-shadow: var(--shadow);
+  }
+  .mode-btn {
+    min-height: 40px;
+    padding: 0 14px;
+    border: 0;
+    border-right: 1px solid var(--line);
+    background: #fff;
+    color: var(--text);
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .mode-btn:last-child {
+    border-right: 0;
+  }
+  .mode-btn.active {
+    background: var(--brand);
+    color: #fff;
   }
   .draw-tip {
     position: absolute;
@@ -256,6 +293,10 @@
 
   <section class="map-wrap">
     <div id="map"></div>
+    <div class="map-mode-toggle" aria-label="Map interaction mode">
+      <button type="button" class="mode-btn active" id="mode-select" onclick="setMapMode('select')">Select</button>
+      <button type="button" class="mode-btn" id="mode-pan" onclick="setMapMode('pan')">Move</button>
+    </div>
     <div class="draw-tip" id="draw-tip">Drag on the map to select a bounding box</div>
   </section>
 </main>
@@ -281,6 +322,7 @@
   let isDrawing = false;
   let startLatLng = null;
   let rectLayer = null;
+  let mapMode = 'select';
 
   const S102_ROW_SOUTH = [
     85.0511, 80, 72, 64, 56, 48, 40, 32, 24, 16, 8, 0,
@@ -386,7 +428,24 @@
     document.getElementById('draw-tip').style.display = 'none';
   }
 
+  function setMapMode(mode) {
+    mapMode = mode;
+    isDrawing = false;
+    startLatLng = null;
+    map.dragging[mode === 'pan' ? 'enable' : 'disable']();
+    document.getElementById('map').classList.toggle('mode-select', mode === 'select');
+    document.getElementById('map').classList.toggle('mode-pan', mode === 'pan');
+    document.getElementById('mode-select').classList.toggle('active', mode === 'select');
+    document.getElementById('mode-pan').classList.toggle('active', mode === 'pan');
+    const tip = document.getElementById('draw-tip');
+    tip.textContent = mode === 'pan'
+      ? 'Move mode: drag the map to browse'
+      : 'Select mode: drag on the map to select a bounding box';
+    tip.style.display = '';
+  }
+
   map.on('mousedown', function(e) {
+    if (mapMode !== 'select') return;
     isDrawing = true;
     startLatLng = e.latlng;
     if (rectLayer) {
@@ -398,6 +457,7 @@
   });
 
   map.on('mousemove', function(e) {
+    if (mapMode !== 'select') return;
     if (!isDrawing || !startLatLng) return;
     if (rectLayer) map.removeLayer(rectLayer);
     rectLayer = L.rectangle([startLatLng, e.latlng], {
@@ -413,9 +473,10 @@
   });
 
   map.on('mouseup', function(e) {
+    if (mapMode !== 'select') return;
     if (!isDrawing) return;
     isDrawing = false;
-    map.dragging.enable();
+    map.dragging.disable();
     if (!startLatLng) return;
     const s = startLatLng;
     const f = e.latlng;
@@ -433,6 +494,8 @@
     currentBbox = { nwLat: maxLat, nwLon: minLon, seLat: minLat, seLon: maxLon };
     updatePanel(currentBbox);
   });
+
+  setMapMode('select');
 
   async function sendRequest() {
     if (!currentBbox) return;
