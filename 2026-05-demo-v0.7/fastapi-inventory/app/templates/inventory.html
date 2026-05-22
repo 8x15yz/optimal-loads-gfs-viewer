@@ -34,6 +34,22 @@
     gap: 8px;
     margin-top: 14px;
   }
+  .guide-launch {
+    width: 100%;
+    min-height: 46px;
+    margin-top: 14px;
+    border: 1px solid #76b8dc;
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, #e8f7ff, #d9effb);
+    color: #075c90;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 8px 18px rgba(8, 119, 185, 0.12);
+  }
+  .guide-launch:hover {
+    border-color: var(--brand);
+    background: #dff3ff;
+  }
   .source-item {
     display: flex;
     align-items: center;
@@ -136,28 +152,6 @@
     color: #075c90;
     font-weight: 800;
   }
-  .variable-guide {
-    padding: 18px;
-    border-bottom: 1px solid var(--line);
-    background: #fbfdff;
-  }
-  .section-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 14px;
-  }
-  .section-head h2 {
-    margin: 0;
-    font-size: 1.08rem;
-    letter-spacing: -0.01em;
-  }
-  .section-head p {
-    margin: 4px 0 0;
-    color: var(--muted);
-    font-size: 0.9rem;
-  }
   .guide-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -204,8 +198,7 @@
     font-size: 0.84rem;
     line-height: 1.45;
   }
-  .variable-tags,
-  .model-vars {
+  .variable-tags {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
@@ -213,8 +206,7 @@
   .variable-tags {
     margin-top: 10px;
   }
-  .variable-tags code,
-  .model-vars code {
+  .variable-tags code {
     padding: 3px 6px;
     border-radius: 6px;
     background: #eef6fc;
@@ -223,15 +215,51 @@
     font-weight: 900;
   }
   .model-vars {
+    display: grid;
+    gap: 7px;
     margin-top: 9px;
   }
-  .model-vars span {
+  .model-vars-title {
     width: 100%;
     color: var(--muted);
     font-size: 0.74rem;
     font-weight: 900;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+  }
+  .model-var-row {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    align-items: center;
+    gap: 7px;
+  }
+  .model-var-model {
+    min-height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: #e7f4fb;
+    color: #075c90;
+    font-size: 0.72rem;
+    font-weight: 900;
+  }
+  .model-var-model.noaa {
+    background: #f0f7ed;
+    color: #257047;
+  }
+  .model-var-codes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .model-var-codes code {
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: #f4f7fa;
+    color: #21445d;
+    font-size: 0.76rem;
+    font-weight: 900;
   }
   .table-toolbar {
     display: flex;
@@ -368,6 +396,12 @@
   .guide-modal.show {
     display: flex;
   }
+  .guide-library-modal {
+    z-index: 115;
+  }
+  .guide-detail-modal {
+    z-index: 125;
+  }
   .guide-modal-panel {
     width: min(1080px, 100%);
     max-height: min(92vh, 880px);
@@ -412,6 +446,9 @@
     overflow: auto;
     padding: 18px;
   }
+  .guide-library-panel {
+    width: min(1180px, 100%);
+  }
   .guide-modal-body img {
     display: block;
     width: 100%;
@@ -440,7 +477,6 @@
   }
   @media (max-width: 720px) {
     .main-title,
-    .section-head,
     .table-toolbar {
       align-items: stretch;
       flex-direction: column;
@@ -458,6 +494,7 @@
       <section class="side-section">
         <h2>Data Sources</h2>
         <p class="hint">Root folders and common products.</p>
+        <button type="button" class="guide-launch" onclick="openGuideLibrary()">Variable Guide</button>
         <div class="source-list">
           <a class="source-item{% if current_path.startswith('/noaa') %} active{% endif %}" href="/inventory?path={{ '/noaa/'|urlencode }}">
             <span>noaa / gfs</span><span class="badge">weather</span>
@@ -524,82 +561,6 @@
           {{ description }}
         </div>
       {% endif %}
-
-      <section class="variable-guide" aria-labelledby="variable-guide-title">
-        <div class="section-head">
-          <div>
-            <h2 id="variable-guide-title">Variable Guide</h2>
-            <p>Click a card to enlarge the diagram and see which model variables it explains.</p>
-          </div>
-          <span class="badge">ECMWF IFS + NOAA GFS</span>
-        </div>
-        <div class="guide-grid">
-          <button
-            type="button"
-            class="guide-card"
-            onclick="openGuideModal(this)"
-            data-title="Significant Wave Height"
-            data-desc="Representative wave height based on wave energy. NOAA HTSGW is used as an alias of significant wave height."
-            data-src="/svgs/significant_wave_height_v6_EN.svg"
-            data-vars="ECMWF IFS: swh (original, m); NOAA GFS: HTSGW (original, m)">
-            <img src="/svgs/significant_wave_height_v6_EN.svg" alt="Significant wave height measured from trough to crest">
-            <div class="guide-copy">
-              <h3>Significant Wave Height</h3>
-              <p>Representative wave height, commonly used as the main wave-height variable.</p>
-              <div class="variable-tags"><code>swh</code><code>HTSGW</code></div>
-              <div class="model-vars"><span>Model variables</span><code>ECMWF IFS: swh</code><code>NOAA GFS: HTSGW</code></div>
-            </div>
-          </button>
-          <button
-            type="button"
-            class="guide-card"
-            onclick="openGuideModal(this)"
-            data-title="Wave Period"
-            data-desc="Time between wave crests. ECMWF mwp is mean wave period, while NOAA PERPW is peak wave period."
-            data-src="/svgs/wave_period_comparison_v2_EN.svg"
-            data-vars="ECMWF IFS: mwp (original, s); NOAA GFS: PERPW (original, s)">
-            <img src="/svgs/wave_period_comparison_v2_EN.svg" alt="Short and long wave period comparison">
-            <div class="guide-copy">
-              <h3>Wave Period</h3>
-              <p>Period variables describe how quickly wave crests pass a fixed point.</p>
-              <div class="variable-tags"><code>mwp</code><code>PERPW</code></div>
-              <div class="model-vars"><span>Model variables</span><code>ECMWF IFS: mwp</code><code>NOAA GFS: PERPW</code></div>
-            </div>
-          </button>
-          <button
-            type="button"
-            class="guide-card"
-            onclick="openGuideModal(this)"
-            data-title="Direction Convention"
-            data-desc="Direction values use the FROM-direction convention: the degree points to where wind or waves come from."
-            data-src="/svgs/from_direction_convention_EN.svg"
-            data-vars="ECMWF IFS: mwd (original, degree), wind_dir_10m (computed, degree); NOAA GFS: DIRPW, WDIR (original, degree), wind_dir_10m (computed, degree)">
-            <img src="/svgs/from_direction_convention_EN.svg" alt="From direction convention on a compass">
-            <div class="guide-copy">
-              <h3>Direction Convention</h3>
-              <p>Wave and wind direction values indicate the source direction, not the destination.</p>
-              <div class="variable-tags"><code>mwd</code><code>DIRPW</code><code>WDIR</code><code>wind_dir_10m</code></div>
-              <div class="model-vars"><span>Model variables</span><code>ECMWF IFS: mwd</code><code>NOAA GFS: DIRPW, WDIR</code></div>
-            </div>
-          </button>
-          <button
-            type="button"
-            class="guide-card"
-            onclick="openGuideModal(this)"
-            data-title="U/V Components"
-            data-desc="U is the eastward wind component and V is the northward wind component. Computed speed and direction are derived from the pair."
-            data-src="/svgs/wind_uv_components_EN.svg"
-            data-vars="ECMWF IFS: 10u, 10v (original, m/s), wind_speed_10m and wind_dir_10m (computed); NOAA GFS: UGRD, VGRD (original, m/s), wind_speed_10m and wind_dir_10m (computed)">
-            <img src="/svgs/wind_uv_components_EN.svg" alt="Wind vector decomposed into U and V components">
-            <div class="guide-copy">
-              <h3>U/V Components</h3>
-              <p>Component variables are paired to compute 10 m wind speed and direction.</p>
-              <div class="variable-tags"><code>10u</code><code>10v</code><code>UGRD</code><code>VGRD</code></div>
-              <div class="model-vars"><span>Model variables</span><code>ECMWF IFS: 10u, 10v</code><code>NOAA GFS: UGRD, VGRD</code></div>
-            </div>
-          </button>
-        </div>
-      </section>
 
       <div class="table-toolbar">
         <input id="entrySearch" type="search" placeholder="Search file name, step, variable..." oninput="filterEntries()">
@@ -695,7 +656,103 @@
   </div>
 </main>
 
-<div id="guideModal" class="guide-modal" role="dialog" aria-modal="true" aria-labelledby="guideModalTitle" onclick="closeGuideModal(event)">
+<div id="guideLibraryModal" class="guide-modal guide-library-modal" role="dialog" aria-modal="true" aria-labelledby="guideLibraryTitle" onclick="closeGuideLibrary(event)">
+  <div class="guide-modal-panel guide-library-panel" onclick="event.stopPropagation()">
+    <div class="guide-modal-head">
+      <div>
+        <h2 id="guideLibraryTitle">Variable Guide</h2>
+        <p>Choose a guide card to enlarge the SVG and inspect model-specific variables.</p>
+      </div>
+      <button type="button" class="guide-modal-close" aria-label="Close variable guide list" onclick="closeGuideLibrary()">x</button>
+    </div>
+    <div class="guide-modal-body">
+      <div class="guide-grid">
+        <button
+          type="button"
+          class="guide-card"
+          onclick="openGuideModal(this)"
+          data-title="Significant Wave Height"
+          data-desc="Representative wave height based on wave energy. NOAA HTSGW is used as an alias of significant wave height."
+          data-src="/svgs/significant_wave_height_v6_EN.svg"
+          data-vars="ECMWF IFS: swh (original, m); NOAA GFS: HTSGW (original, m)">
+          <img src="/svgs/significant_wave_height_v6_EN.svg" alt="Significant wave height measured from trough to crest">
+          <div class="guide-copy">
+            <h3>Significant Wave Height</h3>
+            <p>Representative wave height, commonly used as the main wave-height variable.</p>
+            <div class="variable-tags"><code>swh</code><code>HTSGW</code></div>
+            <div class="model-vars">
+              <span class="model-vars-title">Model variables</span>
+              <div class="model-var-row"><span class="model-var-model">ECMWF</span><span class="model-var-codes"><code>swh</code></span></div>
+              <div class="model-var-row"><span class="model-var-model noaa">NOAA</span><span class="model-var-codes"><code>HTSGW</code></span></div>
+            </div>
+          </div>
+        </button>
+        <button
+          type="button"
+          class="guide-card"
+          onclick="openGuideModal(this)"
+          data-title="Wave Period"
+          data-desc="Time between wave crests. ECMWF mwp is mean wave period, while NOAA PERPW is peak wave period."
+          data-src="/svgs/wave_period_comparison_v2_EN.svg"
+          data-vars="ECMWF IFS: mwp (original, s); NOAA GFS: PERPW (original, s)">
+          <img src="/svgs/wave_period_comparison_v2_EN.svg" alt="Short and long wave period comparison">
+          <div class="guide-copy">
+            <h3>Wave Period</h3>
+            <p>Period variables describe how quickly wave crests pass a fixed point.</p>
+            <div class="variable-tags"><code>mwp</code><code>PERPW</code></div>
+            <div class="model-vars">
+              <span class="model-vars-title">Model variables</span>
+              <div class="model-var-row"><span class="model-var-model">ECMWF</span><span class="model-var-codes"><code>mwp</code></span></div>
+              <div class="model-var-row"><span class="model-var-model noaa">NOAA</span><span class="model-var-codes"><code>PERPW</code></span></div>
+            </div>
+          </div>
+        </button>
+        <button
+          type="button"
+          class="guide-card"
+          onclick="openGuideModal(this)"
+          data-title="Direction Convention"
+          data-desc="Direction values use the FROM-direction convention: the degree points to where wind or waves come from."
+          data-src="/svgs/from_direction_convention_EN.svg"
+          data-vars="ECMWF IFS: mwd (original, degree), wind_dir_10m (computed, degree); NOAA GFS: DIRPW, WDIR (original, degree), wind_dir_10m (computed, degree)">
+          <img src="/svgs/from_direction_convention_EN.svg" alt="From direction convention on a compass">
+          <div class="guide-copy">
+            <h3>Direction Convention</h3>
+            <p>Wave and wind direction values indicate the source direction, not the destination.</p>
+            <div class="variable-tags"><code>mwd</code><code>DIRPW</code><code>WDIR</code><code>wind_dir_10m</code></div>
+            <div class="model-vars">
+              <span class="model-vars-title">Model variables</span>
+              <div class="model-var-row"><span class="model-var-model">ECMWF</span><span class="model-var-codes"><code>mwd</code><code>wind_dir_10m</code></span></div>
+              <div class="model-var-row"><span class="model-var-model noaa">NOAA</span><span class="model-var-codes"><code>DIRPW</code><code>WDIR</code><code>wind_dir_10m</code></span></div>
+            </div>
+          </div>
+        </button>
+        <button
+          type="button"
+          class="guide-card"
+          onclick="openGuideModal(this)"
+          data-title="U/V Components"
+          data-desc="U is the eastward wind component and V is the northward wind component. Computed speed and direction are derived from the pair."
+          data-src="/svgs/wind_uv_components_EN.svg"
+          data-vars="ECMWF IFS: 10u, 10v (original, m/s), wind_speed_10m and wind_dir_10m (computed); NOAA GFS: UGRD, VGRD (original, m/s), wind_speed_10m and wind_dir_10m (computed)">
+          <img src="/svgs/wind_uv_components_EN.svg" alt="Wind vector decomposed into U and V components">
+          <div class="guide-copy">
+            <h3>U/V Components</h3>
+            <p>Component variables are paired to compute 10 m wind speed and direction.</p>
+            <div class="variable-tags"><code>10u</code><code>10v</code><code>UGRD</code><code>VGRD</code></div>
+            <div class="model-vars">
+              <span class="model-vars-title">Model variables</span>
+              <div class="model-var-row"><span class="model-var-model">ECMWF</span><span class="model-var-codes"><code>10u</code><code>10v</code></span></div>
+              <div class="model-var-row"><span class="model-var-model noaa">NOAA</span><span class="model-var-codes"><code>UGRD</code><code>VGRD</code></span></div>
+            </div>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="guideModal" class="guide-modal guide-detail-modal" role="dialog" aria-modal="true" aria-labelledby="guideModalTitle" onclick="closeGuideModal(event)">
   <div class="guide-modal-panel" onclick="event.stopPropagation()">
     <div class="guide-modal-head">
       <div>
@@ -732,6 +789,21 @@
     document.getElementById('quick-status').textContent = message;
   }
 
+  function openGuideLibrary() {
+    const modal = document.getElementById('guideLibraryModal');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    modal.querySelector('.guide-modal-close').focus();
+  }
+
+  function closeGuideLibrary(event) {
+    if (event && event.currentTarget !== event.target) return;
+    document.getElementById('guideLibraryModal').classList.remove('show');
+    if (!document.getElementById('guideModal').classList.contains('show')) {
+      document.body.style.overflow = '';
+    }
+  }
+
   function openGuideModal(card) {
     const modal = document.getElementById('guideModal');
     const image = document.getElementById('guideModalImage');
@@ -758,7 +830,9 @@
     if (event && event.currentTarget !== event.target) return;
     const modal = document.getElementById('guideModal');
     modal.classList.remove('show');
-    document.body.style.overflow = '';
+    if (!document.getElementById('guideLibraryModal').classList.contains('show')) {
+      document.body.style.overflow = '';
+    }
   }
 
   async function loadQuickSources() {
@@ -904,7 +978,12 @@
   }
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeGuideModal();
+    if (event.key !== 'Escape') return;
+    if (document.getElementById('guideModal').classList.contains('show')) {
+      closeGuideModal();
+    } else {
+      closeGuideLibrary();
+    }
   });
 
   loadQuickSources();
