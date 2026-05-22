@@ -6,18 +6,16 @@
     </a>
 
     <nav class="toolbar" aria-label="Primary navigation">
-      {% if show_lang_switch|default(false) %}
+      <!-- {% if show_lang_switch|default(false) %}
         <a class="btn btn-soft" href="{{ lang_switch_href|default('/ko') }}" aria-label="{{ lang_switch_aria|default('Switch language') }}">
           {{ lang_switch_label|default('KO') }}
         </a>
-      {% endif %}
+      {% endif %} -->
       <a class="btn{% if active_nav|default('') == 'manual' %} active{% endif %}" href="/">Manual</a>
       <a class="btn{% if active_nav|default('') == 'inventory' %} active{% endif %}" href="/inventory">Directory Browser</a>
       <a class="btn{% if active_nav|default('') == 's102' %} active{% endif %}" href="/s102-test">S-100 Explorer</a>
       <a class="btn" href="/docs">API Documentation</a>
-      {% if show_pdf_manual|default(false) %}
-        <a class="btn btn-green" href="/guide/bluemap_weather_service_manual_EN_v0_6.pdf" download>PDF Manual</a>
-      {% endif %}
+      <a class="btn btn-green" href="/guide/bluemap_weather_service_manual_EN_v0_6.pdf" download>PDF Manual</a>
     </nav>
   </div>
 </header>
