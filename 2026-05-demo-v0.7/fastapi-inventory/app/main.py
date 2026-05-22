@@ -344,8 +344,24 @@ async def inventory_index(
         "s111": ["h5 tiles"],
         "s413": ["h5 tiles"],
     }
+    original_sources = {"ecmwf", "noaa", "eot20"}
+    s100_sources = {"s102", "s111", "s413"}
+    source_order = {
+        "noaa": 0,
+        "ecmwf": 1,
+        "eot20": 2,
+        "s102": 10,
+        "s111": 11,
+        "s413": 12,
+    }
     source_nav = []
-    for d in sorted(top_level_docs, key=lambda item: item.get("_id", "")):
+    for d in sorted(
+        top_level_docs,
+        key=lambda item: (
+            source_order.get((item.get("name") or item.get("_id", "")).strip("/"), 100),
+            item.get("_id", ""),
+        ),
+    ):
         source_name = (d.get("name") or d.get("_id", "")).strip("/")
         if not source_name:
             continue
@@ -354,6 +370,7 @@ async def inventory_index(
             "label": source_label_map.get(source_name, source_name),
             "path": f"/{source_name}/",
             "badges": source_badge_map.get(source_name, ["data"]),
+            "group": "s100" if source_name in s100_sources else "original" if source_name in original_sources else "other",
         })
 
     # -----------------------------
