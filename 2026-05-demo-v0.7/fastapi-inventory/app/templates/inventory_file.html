@@ -1,79 +1,123 @@
-{# templates/inventory_file.html #}
 {% extends "base.html" %}
+{% block title %}File Metadata{% endblock %}
 {% block content %}
 
 <style>
-  body { background:#fff; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-  h1 { margin: 18px 0 8px; }
-  .muted { color:#666; }
-  table { border-collapse: collapse; width: 100%; max-width: 1100px; }
-  th, td { border: 1px solid #e6e6e6; padding: 10px; vertical-align: top; }
-  th { background: #fafafa; width: 240px; text-transform: none; }
-  pre { margin: 0; padding: 10px; background: #fcfcfc; border: 1px solid #eee; border-radius: 8px; overflow: auto; }
-  a { color: #00f; text-decoration: underline; }
-  .wrap { max-width: 1200px; }
-  .btn { display:inline-block; padding:6px 10px; border:1px solid #ddd; border-radius:8px; background:#fff; text-decoration:none; }
+  .file-head {
+    padding: 26px;
+    margin-bottom: 18px;
+  }
+  .file-head h1 {
+    margin: 0;
+    font-size: 1.62rem;
+    letter-spacing: -0.03em;
+  }
+  .file-key {
+    margin: 8px 0 0;
+    color: var(--muted);
+    word-break: break-all;
+  }
+  .file-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+  }
+  .metadata-panel {
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.96rem;
+  }
+  th, td {
+    padding: 15px 18px;
+    border-bottom: 1px solid #eef3f7;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    width: 280px;
+    background: #f8fbfd;
+    color: #39566c;
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  pre {
+    margin: 0;
+    padding: 14px;
+    overflow: auto;
+    border: 1px solid #cde0ec;
+    border-radius: var(--radius);
+    background: #102033;
+    color: #d7f1ff;
+    line-height: 1.55;
+  }
+  @media (max-width: 720px) {
+    th, td { display: block; width: 100%; }
+    th { border-bottom: 0; }
+  }
 </style>
 
-<div class="wrap">
-  <h1 class="mono">File metadata</h1>
-  <div class="muted mono" style="margin-bottom:12px;">
-    natural_key: {{ nk }}
-  </div>
+<main class="page-shell">
+  <section class="file-head panel">
+    <h1>File Metadata</h1>
+    <p class="file-key mono">natural_key: {{ nk }}</p>
+    {% if display_name %}
+      <p class="file-key mono">name: {{ display_name }}</p>
+    {% endif %}
+    {% if s3_key %}
+      <p class="file-key mono">s3.key: {{ s3_key }}</p>
+    {% endif %}
+    <div class="file-actions">
+      <a class="btn btn-primary" href="/inventory?path={{ ('/' ~ inventory_directory)|urlencode }}">Back to Directory</a>
+      {% if s3_key %}
+        <button class="btn btn-soft" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ s3_key }}')">Copy S3 Key</button>
+      {% endif %}
+    </div>
+  </section>
 
-  {% if display_name %}
-  <div class="mono" style="margin-bottom:12px;">
-    name: {{ display_name }}
-  </div>
-  {% endif %}
-
-  {% if s3_key %}
-  <div class="muted mono" style="margin-bottom:12px;">
-    s3.key: {{ s3_key }}
-  </div>
-  {% endif %}
-
-  <div style="margin-bottom:12px;">
-    <a class="btn mono" href="/inventory?path={{ ("/" ~ inventory_directory)|urlencode }}">← Back to directory</a>
-  </div>
-
-  <table class="mono">
-    <tbody>
-      {% for r in rows %}
-      <tr>
-        <th>{{ r.k }}</th>
-        <td>
-          {% if r.is_json %}
-            <pre>{{ r.v }}</pre>
-          {% else %}
-            {{ r.v }}
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  {% if other and other|length > 0 %}
-    <h2 class="mono" style="margin-top:18px;">Other fields</h2>
+  <section class="metadata-panel panel">
     <table class="mono">
       <tbody>
-        {% for r in other %}
-        <tr>
-          <th>{{ r.k }}</th>
-          <td>
-            {% if r.is_json %}
-              <pre>{{ r.v }}</pre>
-            {% else %}
-              {{ r.v }}
-            {% endif %}
-          </td>
-        </tr>
+        {% for r in rows %}
+          <tr>
+            <th>{{ r.k }}</th>
+            <td>
+              {% if r.is_json %}
+                <pre>{{ r.v }}</pre>
+              {% else %}
+                {{ r.v }}
+              {% endif %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
+  </section>
+
+  {% if other and other|length > 0 %}
+    <section class="metadata-panel panel" style="margin-top:18px;">
+      <table class="mono">
+        <tbody>
+          {% for r in other %}
+            <tr>
+              <th>{{ r.k }}</th>
+              <td>
+                {% if r.is_json %}
+                  <pre>{{ r.v }}</pre>
+                {% else %}
+                  {{ r.v }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
   {% endif %}
-</div>
+</main>
 
 {% endblock %}

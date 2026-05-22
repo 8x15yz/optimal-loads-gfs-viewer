@@ -1,27 +1,23 @@
-{# Shared top navigation. Pass active_nav plus optional language/pdf controls. #}
-<div class="topbar">
+<header class="topbar">
   <div class="topbar-inner">
     <a class="brandline" href="/" title="Optimal-LOADS Consortium Preview">
-      <span class="dot" aria-hidden="true"></span>
-      <div class="title">Optimal-LOADS Consortium Preview</div>
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="title">Optimal-LOADS Preview</span>
     </a>
 
     <nav class="toolbar" aria-label="Primary navigation">
       {% if show_lang_switch|default(false) %}
-        <a class="btn btn-outline" href="{{ lang_switch_href|default('/ko') }}" aria-label="{{ lang_switch_aria|default('Switch language') }}">
+        <a class="btn btn-soft" href="{{ lang_switch_href|default('/ko') }}" aria-label="{{ lang_switch_aria|default('Switch language') }}">
           {{ lang_switch_label|default('KO') }}
         </a>
       {% endif %}
-      <a class="btn btn-outline{% if active_nav|default('') == 'manual' %} active{% endif %}" href="/" aria-label="Go to Manual">Manual</a>
-      <a class="btn btn-outline{% if active_nav|default('') == 'inventory' %} active{% endif %}" href="/inventory" aria-label="Open Weather Data Browser">Weather Data Browser</a>
-      <a class="btn btn-outline{% if active_nav|default('') == 's102' %} active{% endif %}" href="/s102-test" aria-label="S-102 Tile Test">S-100 Tile Explorer</a>
-      <a class="btn btn-outline" href="/docs" aria-label="Open API Documentation">API Documentation</a>
+      <a class="btn{% if active_nav|default('') == 'manual' %} active{% endif %}" href="/">Manual</a>
+      <a class="btn{% if active_nav|default('') == 'inventory' %} active{% endif %}" href="/inventory">Directory Browser</a>
+      <a class="btn{% if active_nav|default('') == 's102' %} active{% endif %}" href="/s102-test">S-100 Explorer</a>
+      <a class="btn" href="/docs">API Documentation</a>
       {% if show_pdf_manual|default(false) %}
-        <a class="btn btn-pdf" href="/guide/bluemap_weather_service_manual_EN_v0_6.pdf" download aria-label="Download PDF Manual">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          PDF Manual
-        </a>
+        <a class="btn btn-green" href="/guide/bluemap_weather_service_manual_EN_v0_6.pdf" download>PDF Manual</a>
       {% endif %}
     </nav>
   </div>
-</div>
+</header>

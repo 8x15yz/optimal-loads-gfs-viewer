@@ -1,564 +1,426 @@
-{# templates/inventory.html #}
 {% extends "base.html" %}
+{% block title %}Directory Browser{% endblock %}
 {% block content %}
 
 <style>
-  .container {
-    max-width: 1600px;
-    margin: 0 auto;
-    padding: 32px 24px;
+  .inventory-layout {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
   }
-  
-  .mono { 
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; 
-  }
-  
-  .header {
-    background: white;
-    border-radius: 12px;
-    padding: 24px 28px;
-    margin-bottom: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  }
-  
-  .page-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 12px 0;
-    letter-spacing: -0.01em;
-  }
-  
-  .breadcrumb { 
-    display: flex; 
-    align-items: center; 
-    gap: 6px;
-    font-size: 14px;
-    color: #666;
-    flex-wrap: wrap;
-  }
-  
-  .breadcrumb a {
-    color: #2563eb;
-    text-decoration: none;
-    transition: color 0.15s;
-  }
-  
-  .breadcrumb a:hover {
-    color: #1d4ed8;
-    text-decoration: underline;
-  }
-  
-  .breadcrumb-sep {
-    color: #d1d5db;
-    user-select: none;
-  }
-  
-  .description {
-    background: #f8fafc;
-    border-left: 3px solid #3b82f6;
-    padding: 12px 16px;
-    margin-bottom: 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    color: #475569;
-  }
-  
-  .table-container {
-    background: white;
-    border-radius: 12px;
+  .side {
+    position: sticky;
+    top: 88px;
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   }
-  
-  table { 
-    border-collapse: collapse; 
-    width: 100%;
+  .side-section {
+    padding: 18px;
+    border-bottom: 1px solid var(--line);
   }
-  
-  th, td { 
-    padding: 14px 20px; 
-    text-align: left;
+  .side-section:last-child { border-bottom: 0; }
+  .side h2 {
+    margin: 0;
+    font-size: 1rem;
+    letter-spacing: -0.02em;
   }
-  
-  thead {
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
+  .hint {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
   }
-  
-  thead th { 
-    font-size: 13px;
-    font-weight: 600;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+  .source-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 14px;
   }
-  
-  tbody tr {
-    border-bottom: 1px solid #f1f5f9;
-    transition: background-color 0.15s;
-  }
-  
-  tbody tr:last-child {
-    border-bottom: none;
-  }
-  
-  tbody tr:hover {
-    background: #f8fafc;
-  }
-  
-  tbody td {
-    font-size: 14px;
-    color: #334155;
-  }
-  
-  .dir-icon {
-    display: inline-block;
-    width: 18px;
-    height: 18px;
-    margin-right: 8px;
-    vertical-align: middle;
-  }
-  
-  .file-icon {
-    display: inline-block;
-    width: 18px;
-    height: 18px;
-    margin-right: 8px;
-    vertical-align: middle;
-  }
-  
-  .dir-link {
-    color: #2563eb;
-    text-decoration: none;
-    font-weight: 500;
-    display: inline-flex;
+  .source-item {
+    display: flex;
     align-items: center;
-    transition: color 0.15s;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fbfdff;
+    font-weight: 800;
   }
-  
-  .dir-link:hover {
-    color: #1d4ed8;
+  .source-item.active {
+    border-color: #8bc4e4;
+    background: var(--surface-2);
+    color: #075c90;
   }
-  
-  .parent-dir {
-    color: #64748b;
-    font-style: italic;
+  .filter-grid {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
   }
-  
-  .file-name {
-    color: #1e293b;
-    font-weight: 400;
+  .filter-grid label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
-  
-  .muted { 
-    color: #94a3b8;
-    font-size: 13px;
+  .filter-grid input,
+  .filter-grid select,
+  .table-toolbar input {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    padding: 0 12px;
+    background: #fff;
+    color: var(--text);
   }
-  
-  /* File row with hover actions */
-  .file-row {
-    position: relative;
+  .main-panel {
+    overflow: hidden;
   }
-  
-  .file-info {
+  .main-head {
+    padding: 22px 24px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #fff, #f8fbfd);
+  }
+  .main-title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+  }
+  .main-title h1 {
+    margin: 0;
+    font-size: 1.52rem;
+    letter-spacing: -0.02em;
+  }
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .breadcrumb a {
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: #075c90;
+    font-weight: 800;
+  }
+  .table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    background: #fff;
+  }
+  .table-toolbar input { max-width: 520px; }
+  .table-wrap {
+    overflow: auto;
+  }
+  table {
+    width: 100%;
+    min-width: 1120px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.96rem;
+  }
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-strong);
+    background: #f1f7fb;
+    color: #39566c;
+    text-align: left;
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  tbody td {
+    padding: 15px 18px;
+    border-bottom: 1px solid #e8f0f6;
+    vertical-align: middle;
+  }
+  tbody tr:hover { background: #f8fcff; }
+  .name-cell {
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 0;
   }
-  
+  .file-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius);
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    background: var(--surface-2);
+    color: var(--brand);
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+  .file-icon.file {
+    background: #f4f7fa;
+    color: #46677f;
+  }
+  .file-name {
+    font-weight: 800;
+    word-break: break-all;
+  }
+  .subline {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 0.84rem;
+  }
   .file-actions {
     display: flex;
-    gap: 6px;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
-  
-  .file-row:hover .file-actions {
-    opacity: 1;
-  }
-  
-  .icon-btn {
-    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 1px solid #e2e8f0;
-    background: white;
-    border-radius: 6px;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .api-select,
+  .mini-btn {
+    min-height: 36px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: #fff;
+    color: #21445d;
+    font-weight: 800;
+  }
+  .api-select { max-width: 150px; padding: 0 8px; }
+  .mini-btn {
+    padding: 0 11px;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-  }
-  
-  .icon-btn:hover {
-    background: #f8fafc;
-    border-color: #0284c7;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(2,132,199,0.15);
-  }
-  
-  .icon-btn:active {
-    transform: translateY(0);
-  }
-  
-  .icon-btn svg {
-    width: 14px;
-    height: 14px;
-    stroke: #475569;
-  }
-  
-  .icon-btn:hover svg {
-    stroke: #0284c7;
-  }
-  
-  .icon-btn.copied {
-    background: #dcfce7;
-    border-color: #86efac;
-  }
-  
-  .icon-btn.copied svg {
-    stroke: #166534;
-  }
-  
-  /* Different colors for different button types */
-  .icon-btn.btn-center:hover {
-    border-color: #0ea5e9;
-  }
-  
-  .icon-btn.btn-center:hover svg {
-    stroke: #0ea5e9;
-  }
-  
-  .icon-btn.btn-corner:hover {
-    border-color: #8b5cf6;
-  }
-  
-  .icon-btn.btn-corner:hover svg {
-    stroke: #8b5cf6;
-  }
-  
-  /* Tooltip */
-  .tooltip {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 6px 10px;
-    background: #1e293b;
-    color: white;
-    font-size: 11px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    border-radius: 6px;
     white-space: nowrap;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    z-index: 10;
-    max-width: 400px;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
-  
-  .tooltip::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 4px solid transparent;
-    border-top-color: #1e293b;
+  .mini-btn:hover {
+    border-color: #8bc4e4;
+    background: var(--surface-2);
+    color: #075c90;
   }
-  
-  .icon-btn:hover .tooltip {
-    opacity: 1;
-  }
-  
-  /* Toast notification */
   .toast {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 14px 18px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 280px;
+    right: 22px;
+    bottom: 22px;
+    z-index: 100;
+    max-width: 540px;
+    padding: 16px 18px;
+    border-radius: var(--radius);
+    background: #0f2a44;
+    color: #fff;
+    box-shadow: 0 18px 44px rgba(15, 42, 68, 0.28);
     opacity: 0;
-    transform: translateY(20px);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateY(12px);
     pointer-events: none;
-    z-index: 1000;
+    transition: opacity 0.18s ease, transform 0.18s ease;
   }
-  
   .toast.show {
     opacity: 1;
     transform: translateY(0);
-    pointer-events: auto;
   }
-  
-  .toast-icon {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-  }
-  
-  .toast-icon.success {
-    color: #10b981;
-  }
-  
-  .toast-content {
-    flex: 1;
-  }
-  
-  .toast-title {
-    font-weight: 600;
-    font-size: 13px;
-    color: #0f172a;
-    margin: 0 0 2px 0;
-  }
-  
   .toast-message {
-    font-size: 12px;
-    color: #475569;
-    margin: 0;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    max-width: 250px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  
-  @media (max-width: 768px) {
-    .container {
-      padding: 16px;
-    }
-    
-    th, td {
-      padding: 10px 12px;
-    }
-    
-    .header {
-      padding: 16px 20px;
-    }
-    
-    .toast {
-      right: 16px;
-      bottom: 16px;
-      min-width: auto;
-      max-width: calc(100vw - 32px);
-    }
-    
-    .file-actions {
-      opacity: 1;
-    }
-  }
-  
-  .s100-badge {
-    display: inline-block;
-    font-size: 11px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    padding: 2px 7px;
-    border-radius: 10px;
-    background: #eff6ff;
-    color: #1d4ed8;
-    border: 1px solid #bfdbfe;
-    white-space: nowrap;
+    margin-top: 4px;
+    color: #cde7f8;
+    font-size: 0.84rem;
+    word-break: break-all;
   }
 
-  .s100-steps {
-    background: #f0fdf4;
-    color: #15803d;
-    border-color: #bbf7d0;
+  @media (max-width: 1020px) {
+    .inventory-layout { grid-template-columns: 1fr; }
+    .side { position: static; }
+    .source-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-
-  .s100-vars {
-    background: #faf5ff;
-    color: #7e22ce;
-    border-color: #e9d5ff;
-    max-width: 280px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .api-select {
-    font-size: 12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    padding: 4px 8px;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    background: white;
-    color: #475569;
-    cursor: pointer;
-    outline: none;
-    transition: border-color 0.15s;
-    max-width: 160px;
-  }
-
-  .api-select:hover,
-  .api-select:focus {
-    border-color: #0284c7;
-    color: #0f172a;
+  @media (max-width: 720px) {
+    .main-title,
+    .table-toolbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .source-list { grid-template-columns: 1fr; }
+    .toast { left: 14px; right: 14px; bottom: 14px; }
   }
 </style>
 
-<div class="container">
-  <div class="header">
-    <h1 class="page-title">Directory Browser</h1>
-    <div class="breadcrumb mono">
-      <a href="/inventory?path=/">🏠</a>
-      {%- set parts = current_path.strip('/').split('/') -%}
-      {%- for part in parts -%}
-        {%- if part -%}
-          <span class="breadcrumb-sep">/</span>
-          {%- set path_so_far = '/' + parts[:loop.index]|join('/') + '/' -%}
-          <a href="/inventory?path={{ path_so_far|urlencode }}">
-            {%- if '-' in part and part[0:4].isdigit() -%}
-              {{ part.split('-')[-1] }}
-            {%- else -%}
-              {{ part }}
-            {%- endif -%}
+<main class="page-shell">
+  <div class="inventory-layout">
+    <aside class="side panel">
+      <section class="side-section">
+        <h2>Data Sources</h2>
+        <p class="hint">Root folders and common products.</p>
+        <div class="source-list">
+          <a class="source-item{% if current_path.startswith('/noaa') %} active{% endif %}" href="/inventory?path={{ '/noaa/'|urlencode }}">
+            <span>noaa / gfs</span><span class="badge">weather</span>
           </a>
-        {%- endif -%}
-      {%- endfor -%}
-    </div>
-  </div>
+          <a class="source-item{% if current_path.startswith('/ecmwf') %} active{% endif %}" href="/inventory?path={{ '/ecmwf/'|urlencode }}">
+            <span>ecmwf / ifs</span><span class="badge">weather</span>
+          </a>
+          <a class="source-item{% if current_path.startswith('/s102') %} active{% endif %}" href="/inventory?path={{ '/s102/'|urlencode }}">
+            <span>s102</span><span class="badge">tiles</span>
+          </a>
+          <a class="source-item{% if current_path.startswith('/s111') %} active{% endif %}" href="/inventory?path={{ '/s111/'|urlencode }}">
+            <span>s111</span><span class="badge">tiles</span>
+          </a>
+          <a class="source-item{% if current_path.startswith('/s413') %} active{% endif %}" href="/inventory?path={{ '/s413/'|urlencode }}">
+            <span>s413</span><span class="badge">tiles</span>
+          </a>
+        </div>
+      </section>
+      <section class="side-section">
+        <h2>Quick Filter</h2>
+        <p class="hint">Client-side draft controls. API wiring can be added later.</p>
+        <div class="filter-grid">
+          <label>Variable
+            <select>
+              <option>All variables</option>
+              <option>HTSGW</option>
+              <option>swh</option>
+              <option>wind_speed_10m</option>
+            </select>
+          </label>
+          <label>Run date <input type="date"></label>
+          <label>Cycle
+            <select><option>All cycles</option><option>00Z</option><option>06Z</option><option>12Z</option><option>18Z</option></select>
+          </label>
+          <label>Step
+            <select><option>All steps</option><option>step024</option><option>step120</option><option>step384</option></select>
+          </label>
+        </div>
+      </section>
+    </aside>
 
-  {% if description %}
-    <div class="description mono">
-      {{ description }}
-    </div>
-  {% endif %}
+    <section class="main-panel panel">
+      <div class="main-head">
+        <div class="main-title">
+          <div>
+            <h1>Directory Browser</h1>
+            <p class="hint">Browse forecast files, copy API URLs, or open a presigned-file request.</p>
+          </div>
+          <span class="badge">{{ entries|length }} entries</span>
+        </div>
+        <nav class="breadcrumb mono" aria-label="Breadcrumb">
+          <a href="/inventory?path={{ '/'|urlencode }}">Home</a>
+          {%- set parts = current_path.strip('/').split('/') -%}
+          {%- for part in parts -%}
+            {%- if part -%}
+              <span>/</span>
+              {%- set path_so_far = '/' + parts[:loop.index]|join('/') + '/' -%}
+              <a href="/inventory?path={{ path_so_far|urlencode }}">{{ part }}</a>
+            {%- endif -%}
+          {%- endfor -%}
+        </nav>
+      </div>
 
-  <div class="table-container">
-    <table class="mono">
-      <thead>
-        <tr>
-          <th style="width:50%;">Name</th>
-          <th style="width:25%;">Last modified</th>
-          <th style="width:15%;">Size</th>
-        </tr>
-      </thead>
+      {% if description %}
+        <div style="padding:14px 18px; border-bottom:1px solid var(--line); background:#f8fbfd;" class="mono muted">
+          {{ description }}
+        </div>
+      {% endif %}
 
-      <tbody>
-        {# Parent Directory #}
-        {% if parent_path %}
-        <tr>
-          <td>
-            <a href="/inventory?path={{ parent_path|urlencode }}" class="dir-link parent-dir">
-              <svg class="dir-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-              </svg>
-              Parent Directory
-            </a>
-          </td>
-          <td class="muted">-</td>
-          <td class="muted">-</td>
-        </tr>
-        {% endif %}
+      <div class="table-toolbar">
+        <input id="entrySearch" type="search" placeholder="Search file name, step, variable..." oninput="filterEntries()">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <span class="badge">Path: {{ current_path }}</span>
+        </div>
+      </div>
 
-        {# Entries #}
-        {% for e in entries %}
-        <tr class="{% if not e.is_dir %}file-row{% endif %}">
-          <td>
-            {% if e.is_dir %}
-              <a href="/inventory?path={{ e.path|urlencode }}" class="dir-link">
-                <svg class="dir-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-                </svg>
-                {{ e.name }}
-              </a>
-            {% elif e.is_s100 %}
-              <div class="file-info">
-                <svg class="file-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                </svg>
-                <span class="file-name">{{ e.name }}</span>
-                {% if e.tile_idx is not none %}
-                  <span class="s100-badge">tile #{{ "%03d"|format(e.tile_idx) }}</span>
-                {% endif %}
-                {% if e.steps_count %}
-                  <span class="s100-badge s100-steps">{{ e.steps_count }} steps</span>
-                {% endif %}
-                {% if e.variables %}
-                  <span class="s100-badge s100-vars">{{ e.variables | join(", ") }}</span>
-                {% endif %}
-
-                <div class="file-actions">
-                  <button type="button" class="icon-btn" onclick="copyS100Url(this)" data-url="{{ e.api_url }}" aria-label="Copy Tiles URL">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                    </svg>
-                    <span class="tooltip">copy tiles URL</span>
-                  </button>
-                  <button type="button" class="icon-btn" onclick="window.open(this.dataset.url,'_blank','noopener')" data-url="{{ e.api_url }}" aria-label="Open in new tab">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                    </svg>
-                    <span class="tooltip">open in new tab</span>
-                  </button>
-                </div>
-              </div>
-            {% else %}
-              <div class="file-info">
-                <svg class="file-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                </svg>
-                <span class="file-name">{{ e.name }}</span>
-
-                <div class="file-actions">
-                  <select
-                    class="api-select"
-                    data-url-center="{{ e.api_url }}"
-                    data-url-corner="{{ e.api_url_corners }}"
-                    data-url-file="{{ e.api_url_file }}"
-                  >
-                    <option value="center">📍 Center+Buffer</option>
-                    <option value="corner">📐 NW/SE Corners</option>
-                    <option value="file">📦 File URL</option>
-                  </select>
-
-                  <button type="button" class="icon-btn" onclick="copySelected(this)" aria-label="Copy URL">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                    </svg>
-                    <span class="tooltip">copy</span>
-                  </button>
-
-                  <button type="button" class="icon-btn" onclick="openSelected(this)" aria-label="Open in new tab">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                    </svg>
-                    <span class="tooltip">open in the new tap</span>
-                  </button>
-                </div>
-              </div>
+      <div class="table-wrap">
+        <table class="mono" id="entryTable">
+          <thead>
+            <tr>
+              <th style="width:58%;">Name</th>
+              <th>Last Modified</th>
+              <th>Size</th>
+              <th style="width:285px; text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if parent_path %}
+              <tr>
+                <td>
+                  <a class="name-cell" href="/inventory?path={{ parent_path|urlencode }}">
+                    <span class="file-icon">UP</span>
+                    <span>
+                      <span class="file-name">Parent Directory</span>
+                      <span class="subline">{{ parent_path }}</span>
+                    </span>
+                  </a>
+                </td>
+                <td class="muted">-</td>
+                <td class="muted">-</td>
+                <td></td>
+              </tr>
             {% endif %}
-          </td>
-          <td class="muted">{{ e.last_modified or "-" }}</td>
-          <td class="muted">{{ e.size_human or "-" }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
 
-<!-- Toast notification -->
-<div id="toast" class="toast">
-  <svg class="toast-icon success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-  </svg>
-  <div class="toast-content">
-    <div class="toast-title" id="toast-title">API URL copied!</div>
-    <div class="toast-message" id="toast-url"></div>
+            {% for e in entries %}
+              <tr>
+                <td>
+                  {% if e.is_dir %}
+                    <a class="name-cell" href="/inventory?path={{ e.path|urlencode }}">
+                      <span class="file-icon">DIR</span>
+                      <span>
+                        <span class="file-name">{{ e.name }}</span>
+                        <span class="subline">Directory</span>
+                      </span>
+                    </a>
+                  {% else %}
+                    <div class="name-cell">
+                      <span class="file-icon file">{% if e.is_s100|default(false) %}S100{% else %}G2{% endif %}</span>
+                      <span>
+                        <span class="file-name">{{ e.name }}</span>
+                        <span class="subline">
+                          {% if e.is_s100|default(false) %}
+                            {{ e.product|default('S-100') }}
+                            {% if e.tile_idx is not none %} · tile #{{ "%03d"|format(e.tile_idx) }}{% endif %}
+                            {% if e.steps_count %} · {{ e.steps_count }} steps{% endif %}
+                            {% if e.variables %} · {{ e.variables|join(', ') }}{% endif %}
+                          {% else %}
+                            Grid data file · copy API examples from the actions column
+                          {% endif %}
+                        </span>
+                      </span>
+                    </div>
+                  {% endif %}
+                </td>
+                <td class="muted">{{ e.last_modified or "-" }}</td>
+                <td class="muted">{{ e.size_human or "-" }}</td>
+                <td>
+                  {% if not e.is_dir %}
+                    <div class="file-actions">
+                      {% if e.is_s100|default(false) %}
+                        <button type="button" class="mini-btn" onclick="copyS100Url(this)" data-url="{{ e.api_url }}">Copy</button>
+                        <button type="button" class="mini-btn" onclick="window.open(this.dataset.url,'_blank','noopener')" data-url="{{ e.api_url }}">Open</button>
+                      {% else %}
+                        <select class="api-select" data-url-center="{{ e.api_url }}" data-url-corner="{{ e.api_url_corners }}" data-url-file="{{ e.api_url_file }}">
+                          <option value="center">Center+Buffer</option>
+                          <option value="corner">NW/SE Corners</option>
+                          <option value="file">File URL</option>
+                        </select>
+                        <button type="button" class="mini-btn" onclick="copySelected(this)">Copy</button>
+                        <button type="button" class="mini-btn" onclick="openSelected(this)">Open</button>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
   </div>
+</main>
+
+<div id="toast" class="toast">
+  <strong id="toast-title">API URL copied</strong>
+  <div id="toast-url" class="toast-message"></div>
 </div>
 
 <script>
@@ -569,11 +431,12 @@
     const urlDisplay = document.getElementById('toast-url');
     const titleDisplay = document.getElementById('toast-title');
     const titles = {
-      center: '📍 Center+Buffer URL copied!',
-      corner: '🌊 S-100 Tiles URL copied!',
-      file:   '📦 File URL copied!',
+      center: 'Center+Buffer URL copied',
+      corner: 'NW/SE Corners URL copied',
+      file: 'File URL copied',
+      s100: 'S-100 Tiles URL copied'
     };
-    titleDisplay.textContent = titles[type] || 'API URL copied!';
+    titleDisplay.textContent = titles[type] || 'API URL copied';
     urlDisplay.textContent = url;
     toast.classList.add('show');
     clearTimeout(toastTimeout);
@@ -587,9 +450,9 @@
     const urlMap = {
       center: select.dataset.urlCenter,
       corner: select.dataset.urlCorner,
-      file:   select.dataset.urlFile,
+      file: select.dataset.urlFile
     };
-    return { url: urlMap[type] || "", type };
+    return { url: urlMap[type] || '', type };
   }
 
   async function copySelected(btn) {
@@ -597,11 +460,9 @@
     if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
-      btn.classList.add('copied');
-      setTimeout(() => btn.classList.remove('copied'), 1200);
       showToast(url, type);
     } catch (e) {
-      window.prompt("Copy this URL:", url);
+      window.prompt('Copy this URL:', url);
     }
   }
 
@@ -616,12 +477,17 @@
     if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
-      btn.classList.add('copied');
-      setTimeout(() => btn.classList.remove('copied'), 1200);
-      showToast(url, 'corner');
+      showToast(url, 's100');
     } catch (e) {
-      window.prompt("Copy this URL:", url);
+      window.prompt('Copy this URL:', url);
     }
+  }
+
+  function filterEntries() {
+    const q = document.getElementById('entrySearch').value.trim().toLowerCase();
+    document.querySelectorAll('#entryTable tbody tr').forEach((row) => {
+      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
   }
 </script>
 

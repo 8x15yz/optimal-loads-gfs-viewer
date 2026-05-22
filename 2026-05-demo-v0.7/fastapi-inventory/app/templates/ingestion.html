@@ -1,666 +1,364 @@
-{# app/templates/ingestion.html #}
 {% extends "base.html" %}
-
+{% block title %}Ingestion Monitor{% endblock %}
 {% block content %}
+
 <style>
-/* ── 탭 ──────────────────────────────────────── */
-.tabs-container { margin-bottom: 20px; }
-.tab-buttons {
-  display: flex; gap: 4px;
-  border-bottom: 2px solid #e6e6e6; margin-bottom: 16px;
-}
-.tab-btn {
-  padding: 10px 24px; border: none; background: transparent;
-  color: #666; font-size: 14px; font-weight: 600; cursor: pointer;
-  border-bottom: 3px solid transparent;
-  position: relative; bottom: -2px; transition: all 0.15s;
-}
-.tab-btn:hover { color: #333; background: #f9f9f9; }
-.tab-btn.active { color: #0066cc; border-bottom-color: #0066cc; }
-.tab-content { display: none; }
-.tab-content.active { display: block; }
+  .monitor-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 24px;
+    background: linear-gradient(120deg, #fff, #eff8fd);
+  }
+  .monitor-head h1 {
+    margin: 0;
+    font-size: 1.65rem;
+    letter-spacing: -0.03em;
+  }
+  .hint {
+    margin: 6px 0 0;
+    color: var(--muted);
+  }
+  .live-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid #b7dcef;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    color: #075c90;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+  .live-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: var(--green);
+    box-shadow: 0 0 0 5px rgba(17, 133, 90, 0.12);
+  }
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin: 18px 0;
+    overflow: auto;
+  }
+  .tabs a {
+    min-height: 44px;
+    padding: 10px 18px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fff;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+  .tabs a.active {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: #fff;
+  }
+  .source-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
+  }
+  .source-panel {
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+    background: #f8fbfd;
+  }
+  .panel-head h2 {
+    margin: 0;
+    font-size: 1.08rem;
+  }
+  .panel-body {
+    padding: 18px 20px;
+  }
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .metric {
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fbfdff;
+  }
+  .metric strong {
+    display: block;
+    font-size: 1.42rem;
+    letter-spacing: -0.03em;
+  }
+  .metric span {
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+  }
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fbfdff;
+  }
+  .control-row form {
+    margin: 0;
+  }
+  .filter-form {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .filter-form select,
+  .filter-form input {
+    width: 100%;
+    min-height: 40px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    padding: 0 10px;
+    background: #fff;
+  }
+  .run-list {
+    display: grid;
+    gap: 10px;
+  }
+  .run-card {
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fff;
+  }
+  .run-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: start;
+  }
+  .run-name {
+    font-weight: 900;
+    word-break: break-word;
+  }
+  .run-meta {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.84rem;
+  }
+  .bar {
+    height: 12px;
+    margin-top: 12px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e7eef4;
+  }
+  .bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--brand), var(--brand-2));
+  }
+  .run-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .empty {
+    padding: 24px;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+    color: var(--muted);
+    text-align: center;
+  }
+  details {
+    margin-top: 12px;
+  }
+  summary {
+    cursor: pointer;
+    color: #075c90;
+    font-weight: 900;
+  }
+  pre {
+    overflow: auto;
+    padding: 12px;
+    border-radius: var(--radius);
+    background: #102033;
+    color: #d7f1ff;
+    white-space: pre-wrap;
+  }
 
-/* ── 탭 버튼 내 status badge ────────────────── */
-.sb-pill {
-  display: inline-block; padding: 1px 7px; border-radius: 10px;
-  font-size: 10px; font-weight: 700; margin-left: 6px;
-}
-.sb-pill.running { background: #e8f0fe; color: #1a73e8; }
-.sb-pill.idle    { background: #f1f3f4; color: #5f6368; }
-.sb-pill.error   { background: #fce8e6; color: #c5221f; }
-.sb-pill.paused  { background: #fef7e0; color: #e37400; }
-
-/* ── 상태 헤더 바 ─────────────────────────────── */
-.status-bar {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 16px; border-radius: 8px; margin-bottom: 10px;
-  border-left: 4px solid #ccc; background: #f8f9fa;
-  gap: 12px; flex-wrap: wrap;
-}
-.status-bar.st-running { border-left-color: #1a73e8; background: #e8f0fe; }
-.status-bar.st-idle    { border-left-color: #9e9e9e; background: #f8f9fa; }
-.status-bar.st-error   { border-left-color: #ea4335; background: #fce8e6; }
-.status-bar.st-paused  { border-left-color: #e37400; background: #fef7e0; }
-
-.sb-left  { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.sb-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-
-.sb-dot {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: #9e9e9e; flex-shrink: 0;
-}
-.st-running .sb-dot { background: #1a73e8; animation: blink 1.4s ease-in-out infinite; }
-.st-error   .sb-dot { background: #ea4335; }
-.st-paused  .sb-dot { background: #e37400; }
-@keyframes blink {
-  0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
-}
-.sb-status { font-weight: 700; font-size: 13px; }
-.sb-phase {
-  font-size: 12px; color: #444;
-  font-family: ui-monospace, monospace;
-  max-width: 500px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.ctrl-btn {
-  padding: 4px 14px; border-radius: 4px;
-  border: 1px solid #bbb; background: #fff;
-  cursor: pointer; font-size: 12px; font-weight: 600;
-}
-.ctrl-btn:hover { background: #f5f5f5; }
-.ctrl-btn.resume { border-color: #1a73e8; color: #1a73e8; }
-
-/* ── 에러 배너 ──────────────────────────────── */
-.error-banner {
-  background: #fce8e6; border: 1px solid #f5c6c2;
-  border-radius: 4px; padding: 8px 12px;
-  font-size: 13px; color: #c5221f; margin-bottom: 10px;
-  font-family: ui-monospace, monospace; word-break: break-all;
-}
-
-/* ── Run 정보 바 ─────────────────────────────── */
-.run-info-bar {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px; margin-bottom: 14px;
-  padding: 6px 12px; background: #f8f9fa; border-radius: 4px; flex-wrap: wrap;
-}
-.ri-label { color: #888; }
-.ri-val { font-weight: 600; font-family: ui-monospace, monospace; }
-.ri-sep { color: #ddd; }
-.ri-success { color: #137333; font-weight: 700; }
-.ri-failed  { color: #c5221f; font-weight: 700; }
-.ri-partial { color: #e37400; font-weight: 700; }
-
-/* ── 모니터 2열 그리드 ───────────────────────── */
-.monitor-grid {
-  display: grid;
-  grid-template-columns: 1fr 260px;
-  gap: 14px; margin-bottom: 14px;
-}
-@media (max-width: 860px) { .monitor-grid { grid-template-columns: 1fr; } }
-
-.prog-panel, .conv-panel {
-  border: 1px solid #e0e0e0; border-radius: 8px;
-  padding: 14px 16px; background: #fff;
-}
-.panel-title {
-  font-weight: 700; font-size: 12px; color: #555;
-  text-transform: uppercase; letter-spacing: 0.5px;
-  margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #eee;
-}
-
-/* ── 변수별 행 ───────────────────────────────── */
-.var-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 0; border-bottom: 1px solid #f2f2f2;
-}
-.var-row:last-child { border-bottom: none; }
-
-.vr-info { display: flex; align-items: center; gap: 6px; width: 148px; flex-shrink: 0; }
-.vr-name {
-  font-family: ui-monospace, monospace; font-weight: 700; font-size: 13px;
-  min-width: 48px;
-}
-
-/* status badge */
-.badge {
-  display: inline-block; padding: 1px 6px; border-radius: 10px;
-  font-size: 10px; font-weight: 700;
-}
-.badge-success { background: #e6f4ea; color: #137333; }
-.badge-running { background: #e8f0fe; color: #1a73e8; }
-.badge-failed  { background: #fce8e6; color: #c5221f; }
-.badge-partial { background: #fef7e0; color: #e37400; }
-
-/* progress bar */
-.vr-bar { flex: 1; }
-.bar-bg {
-  position: relative; height: 8px; background: #e8eaed;
-  border-radius: 4px; overflow: hidden;
-}
-.bar-ok {
-  position: absolute; left: 0; top: 0; height: 100%;
-  background: #34a853; border-radius: 4px;
-}
-.bar-err {
-  position: absolute; top: 0; height: 100%;
-  background: #ea4335;
-}
-
-/* counters */
-.vr-stats { width: 190px; flex-shrink: 0; font-size: 11px; color: #666; line-height: 1.5; }
-.vr-count { font-weight: 700; font-family: ui-monospace, monospace; font-size: 12px; }
-.vr-detail { color: #999; font-family: ui-monospace, monospace; }
-
-.empty-msg { color: #aaa; font-size: 13px; padding: 24px 0; text-align: center; }
-
-/* ── Conversion 패널 ─────────────────────────── */
-.conv-card {
-  padding: 12px; border: 1px solid #e8e8e8;
-  border-radius: 6px; margin-bottom: 10px;
-}
-.conv-card:last-child { margin-bottom: 0; }
-.conv-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
-.conv-name { font-weight: 700; font-size: 15px; }
-.conv-desc { font-size: 11px; color: #888; }
-.conv-tiles {
-  font-size: 26px; font-weight: 700; color: #bbb;
-  margin: 4px 0 8px; font-family: ui-monospace, monospace; letter-spacing: -1px;
-}
-.conv-tiles.ok   { color: #34a853; }
-.conv-tiles.zero { color: #aaa; }
-.conv-deps {
-  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
-  font-size: 11px; color: #999;
-}
-.dep-tag {
-  display: inline-block; padding: 1px 5px; border-radius: 3px;
-  font-size: 10px; font-weight: 700; font-family: ui-monospace, monospace;
-}
-
-/* ── 자동 새로고침 바 ────────────────────────── */
-.refresh-bar {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px; color: #888;
-  padding: 5px 12px; background: #f8f9fa;
-  border-radius: 4px; margin-bottom: 14px;
-}
-.refresh-bar button {
-  padding: 2px 8px; font-size: 11px; border: 1px solid #ccc;
-  border-radius: 3px; background: #fff; cursor: pointer;
-}
-#rc-num { font-weight: 700; color: #555; }
-
-/* heartbeat 색상 */
-.hb-ok     { color: #34a853; font-weight: 700; }
-.hb-warn   { color: #e37400; font-weight: 700; }
-.hb-danger { color: #ea4335; font-weight: 700; }
-
-/* ── details / history ───────────────────────── */
-details { margin-bottom: 0; }
-details summary {
-  cursor: pointer; padding: 8px 14px;
-  background: #f5f5f5; border: 1px solid #e0e0e0;
-  border-radius: 6px; font-size: 13px; font-weight: 600; color: #333;
-  user-select: none; list-style: none;
-}
-details summary::-webkit-details-marker { display: none; }
-details summary::before { content: "▶ "; font-size: 10px; }
-details[open] summary::before { content: "▼ "; }
-details[open] summary { border-radius: 6px 6px 0 0; }
-.details-body {
-  border: 1px solid #e0e0e0; border-top: none;
-  border-radius: 0 0 6px 6px; padding: 14px;
-}
-
-/* ── 필터 폼 ─────────────────────────────────── */
-.filter-form {
-  display: flex; gap: 8px; align-items: center;
-  flex-wrap: wrap; margin-bottom: 12px; font-size: 13px;
-}
-.filter-form select, .filter-form input {
-  padding: 3px 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;
-}
-.filter-form button {
-  padding: 3px 12px; border: 1px solid #ccc; border-radius: 4px;
-  background: #fff; cursor: pointer; font-size: 12px;
-}
-
-/* ── 기존 toggle-btn (history table) ────────── */
-.toggle-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 8px; border: 1px solid #e2e2e2; border-radius: 999px;
-  background: #fff; color: #222; font-size: 11px; cursor: pointer; user-select: none;
-}
-.toggle-btn:hover { background: #f6f6f6; }
-.toggle-btn .chev { transition: transform 0.15s; }
-.toggle-btn[aria-expanded="true"] .chev { transform: rotate(90deg); }
-.toggle-btn.danger { border-color: #f0d6d6; }
-.toggle-btn.danger:hover { background: #fff5f5; }
-
-/* ── 타임존 보드 (ECMWF 탭용) ───────────────── */
-.tz-board { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-.tz-card {
-  border: 1px solid #e6e6e6; border-radius: 8px;
-  padding: 8px 12px; background: #fafafa; min-width: 110px;
-}
-.tz-name { font-size: 11px; color: #888; }
-.tz-time { font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700; margin-top: 2px; }
+  @media (max-width: 1280px) {
+    .source-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 860px) {
+    .monitor-head,
+    .control-row {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .metric-grid,
+    .filter-form {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 560px) {
+    .metric-grid,
+    .filter-form {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
 
-<h2 style="margin-bottom: 14px;">Ingestion Monitor</h2>
+{% macro status_badge(status) -%}
+  {% set s = status|default('unknown') %}
+  <span class="badge {% if s == 'success' or s == 'idle' %}ok{% elif s == 'failed' or s == 'error' %}err{% elif s == 'partial' or s == 'paused' %}warn{% endif %}">{{ s }}</span>
+{%- endmacro %}
 
-<div class="tabs-container">
-  <div class="tab-buttons">
-    {# NOAA를 기본 활성 탭으로 #}
-    <button class="tab-btn active" data-tab="noaa">
-      NOAA GFS
-      <span class="sb-pill {{ control_noaa.status if control_noaa else 'idle' }}">
-        {{ control_noaa.status if control_noaa else 'N/A' }}
-      </span>
-    </button>
-    <button class="tab-btn" data-tab="ecmwf">
-      ECMWF IFS
-      <span class="sb-pill {{ control_ecmwf.status if control_ecmwf else 'idle' }}">
-        {{ control_ecmwf.status if control_ecmwf else 'N/A' }}
-      </span>
-    </button>
-  </div>
-
-  {# ==================== NOAA 탭 ==================== #}
-  <div class="tab-content active" id="tab-noaa">
-
-    {# 상태 헤더 바 #}
-    <div class="status-bar st-{{ control_noaa.status if control_noaa else 'idle' }}">
-      <div class="sb-left">
-        <span class="sb-dot"></span>
-        <span class="sb-status">{{ (control_noaa.status or 'N/A') | upper }}</span>
-        {% if control_noaa and control_noaa.heartbeat_note %}
-          <span class="sb-phase">{{ control_noaa.heartbeat_note }}</span>
-        {% endif %}
-      </div>
-      <div class="sb-right">
-        {% if control_noaa and control_noaa.last_heartbeat_at_iso %}
-          <span style="font-size:12px;">
-            Heartbeat: <b id="hb-noaa" data-ts="{{ control_noaa.last_heartbeat_at_iso }}">…</b>
-          </span>
-        {% endif %}
-        {% if control_noaa %}
-          {% if control_noaa.enabled %}
-            <form method="post" action="/ingestion/noaa/pause" style="display:inline;">
-              <button class="ctrl-btn">Pause</button>
-            </form>
-          {% else %}
-            <form method="post" action="/ingestion/noaa/resume" style="display:inline;">
-              <button class="ctrl-btn resume">Resume</button>
-            </form>
-          {% endif %}
-        {% endif %}
-      </div>
+{% macro source_panel(source, label, control, runs, filters, vars, streams, statuses) %}
+  <section class="source-panel panel" id="{{ source }}">
+    <div class="panel-head">
+      <h2>{{ label }}</h2>
+      {{ status_badge(control.status|default('unknown')) }}
     </div>
-
-    {% if control_noaa and control_noaa.error %}
-      <div class="error-banner">{{ control_noaa.error }}</div>
-    {% endif %}
-
-    {# Run 정보 바 #}
-    {% if current_run_noaa %}
-      {% set lr = current_run_noaa[0] %}
-      <div class="run-info-bar">
-        <span class="ri-label">Latest run</span>
-        <span class="ri-val">{{ lr.run_time_utc }}</span>
-        {% if control_noaa and control_noaa.last_started_at %}
-          <span class="ri-sep">|</span>
-          <span class="ri-label">Started</span>
-          <span class="ri-val">{{ control_noaa.last_started_at }}</span>
-        {% endif %}
-        {% if control_noaa and control_noaa.last_finished_at %}
-          <span class="ri-sep">|</span>
-          <span class="ri-label">Finished</span>
-          <span class="ri-val">{{ control_noaa.last_finished_at }}</span>
-        {% endif %}
-        {% if control_noaa and control_noaa.last_run_summary %}
-          {% set s = control_noaa.last_run_summary %}
-          <span class="ri-sep">|</span>
-          <span class="ri-label">Result</span>
-          <span class="ri-{{ s.overall }}">{{ s.overall }} ({{ s.vars_success }}/{{ s.vars_total }})</span>
-        {% endif %}
+    <div class="panel-body">
+      <div class="control-row">
+        <div>
+          <strong>{{ label }} Control</strong>
+          <div class="run-meta mono">
+            heartbeat: {{ control.last_heartbeat_at|default('-') }} · started: {{ control.last_started_at|default('-') }}
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <form method="post" action="/ingestion/{{ source }}/pause"><button class="btn btn-soft" type="submit">Pause</button></form>
+          <form method="post" action="/ingestion/{{ source }}/resume"><button class="btn btn-primary" type="submit">Resume</button></form>
+        </div>
       </div>
-    {% endif %}
 
-    {# 모니터 그리드: 진행률 | 변환 상태 #}
-    <div class="monitor-grid">
+      <div class="metric-grid">
+        <div class="metric"><strong>{{ runs|length }}</strong><span>runs loaded</span></div>
+        <div class="metric"><strong>{{ vars|length }}</strong><span>variables</span></div>
+        <div class="metric"><strong>{{ streams|length }}</strong><span>streams</span></div>
+        <div class="metric"><strong>{{ filters.limit }}</strong><span>limit</span></div>
+      </div>
 
-      {# ── 왼쪽: 변수별 다운로드 진행률 ── #}
-      <div class="prog-panel">
-        <div class="panel-title">Variable Downloads</div>
-        {% if current_run_noaa %}
-          {% for r in current_run_noaa %}
-            {% set steps_cnt = r.schedule.steps_cnt | default(0) %}
-            {% set cl = r.counters_last if r.counters_last else {} %}
-            {% set downloaded = cl.downloaded | default(0) %}
-            {% set existed    = cl.existed    | default(0) %}
-            {% set uploaded   = cl.uploaded   | default(0) %}
-            {% set failed     = cl.failed     | default(0) %}
-            {% set done = downloaded + existed %}
-            {# 진행률 % (steps_cnt=0이면 status로 fallback) #}
-            {% if steps_cnt > 0 %}
-              {% set pct_ok   = ((done   / steps_cnt) * 100) | round | int %}
-              {% set pct_fail = ((failed / steps_cnt) * 100) | round | int %}
-            {% elif r.status == 'success' %}
-              {% set pct_ok = 100 %}
-              {% set pct_fail = 0 %}
-            {% else %}
-              {% set pct_ok = 0 %}
-              {% set pct_fail = 0 %}
-            {% endif %}
+      <form class="filter-form" method="get" action="/ingestion">
+        <select name="status_{{ source }}" aria-label="{{ label }} status">
+          <option value="">All statuses</option>
+          {% for st in statuses %}
+            <option value="{{ st }}" {% if filters.status == st %}selected{% endif %}>{{ st }}</option>
+          {% endfor %}
+        </select>
+        <select name="variable_{{ source }}" aria-label="{{ label }} variable">
+          <option value="">All variables</option>
+          {% for v in vars %}
+            <option value="{{ v }}" {% if filters.variable == v %}selected{% endif %}>{{ v }}</option>
+          {% endfor %}
+        </select>
+        <select name="stream_{{ source }}" aria-label="{{ label }} stream">
+          <option value="">All streams</option>
+          {% for stream in streams %}
+            <option value="{{ stream }}" {% if filters.stream == stream %}selected{% endif %}>{{ stream }}</option>
+          {% endfor %}
+        </select>
+        <input type="number" name="limit_{{ source }}" value="{{ filters.limit }}" min="1" max="500" aria-label="{{ label }} limit">
+        <button class="btn btn-primary" type="submit">Apply</button>
+      </form>
 
-            <div class="var-row">
-              <div class="vr-info">
-                <span class="vr-name">{{ r.variable }}</span>
-                <span class="badge badge-{{ r.status }}">{{ r.status }}</span>
-              </div>
-              <div class="vr-bar">
-                <div class="bar-bg">
-                  <div class="bar-ok"  style="width:{{ pct_ok }}%"></div>
-                  <div class="bar-err" style="left:{{ pct_ok }}%; width:{{ pct_fail }}%"></div>
+      <div class="run-list">
+        {% if runs %}
+          {% for r in runs %}
+            {% set c = r.counters|default({}) %}
+            {% set downloaded = c.downloaded|default(0)|int %}
+            {% set existed = c.existed|default(0)|int %}
+            {% set uploaded = c.uploaded|default(0)|int %}
+            {% set written = c.mongo_written|default(0)|int %}
+            {% set failed = c.failed|default(0)|int %}
+            {% set total = downloaded + existed + uploaded + written + failed %}
+            {% set done = downloaded + existed + uploaded + written %}
+            {% set pct = ((done / total * 100)|round(0, 'floor')) if total > 0 else 0 %}
+            <article class="run-card">
+              <div class="run-top">
+                <div>
+                  <div class="run-name mono">{{ r.variable|default('-') }} · {{ r.run_time_utc|default('-') }}</div>
+                  <div class="run-meta">
+                    stream: <span class="mono">{{ r.stream|default('-') }}</span>
+                    · updated: <span class="mono">{{ r.updated_at|default('-') }}</span>
+                    · attempts: <span class="mono">{{ r.attempts_cnt|default(0) }}</span>
+                  </div>
                 </div>
+                {{ status_badge(r.status|default('unknown')) }}
               </div>
-              <div class="vr-stats">
-                <div class="vr-count">{{ done }}/{{ steps_cnt if steps_cnt else '?' }} steps</div>
-                <div class="vr-detail">↓{{ downloaded }} cached{{ existed }} ↑{{ uploaded }}{% if failed %} ✗{{ failed }}{% endif %}</div>
+              <div class="bar" aria-label="progress"><span style="width: {{ pct }}%;"></span></div>
+              <div class="run-stats">
+                <span class="badge">done {{ done }}</span>
+                <span class="badge">failed {{ failed }}</span>
+                <span class="badge">{{ pct }}%</span>
+                {% if r.errors_cnt|default(0)|int > 0 %}<span class="badge err">errors {{ r.errors_cnt }}</span>{% endif %}
               </div>
-            </div>
+              {% if r.errors %}
+                <details>
+                  <summary>Error details</summary>
+                  <pre class="mono">{{ r.errors }}</pre>
+                </details>
+              {% endif %}
+            </article>
           {% endfor %}
         {% else %}
-          <div class="empty-msg">No run data for NOAA</div>
-        {% endif %}
-      </div>
-
-      {# ── 오른쪽: S-100 변환 상태 ── #}
-      <div class="conv-panel">
-        <div class="panel-title">S-100 Conversion</div>
-
-        {# S-111 #}
-        <div class="conv-card">
-          <div class="conv-header">
-            <span class="conv-name">S-111</span>
-            <span class="conv-desc">Surface Currents</span>
-          </div>
-          {% if s100_stats.s111 is not none %}
-            <div class="conv-tiles {% if s100_stats.s111 > 0 %}ok{% else %}zero{% endif %}">
-              {{ s100_stats.s111 }} tiles
-            </div>
-          {% else %}
-            <div class="conv-tiles zero">—</div>
-          {% endif %}
-          <div class="conv-deps">
-            <span style="color:#bbb;">needs:</span>
-            {% for r in current_run_noaa %}
-              {% if r.variable in ['UGRD', 'VGRD'] %}
-                <span class="dep-tag badge-{{ r.status }}">{{ r.variable }}</span>
-              {% endif %}
-            {% endfor %}
-            {% if not current_run_noaa %}<span style="color:#ccc;">—</span>{% endif %}
-          </div>
-        </div>
-
-        {# S-413 #}
-        <div class="conv-card">
-          <div class="conv-header">
-            <span class="conv-name">S-413</span>
-            <span class="conv-desc">Wave & Wind</span>
-          </div>
-          {% if s100_stats.s413 is not none %}
-            <div class="conv-tiles {% if s100_stats.s413 > 0 %}ok{% else %}zero{% endif %}">
-              {{ s100_stats.s413 }} tiles
-            </div>
-          {% else %}
-            <div class="conv-tiles zero">—</div>
-          {% endif %}
-          <div class="conv-deps">
-            <span style="color:#bbb;">needs:</span>
-            {% for r in current_run_noaa %}
-              {% if r.variable in ['HTSGW', 'DIRPW', 'WDIR', 'WIND'] %}
-                <span class="dep-tag badge-{{ r.status }}">{{ r.variable }}</span>
-              {% endif %}
-            {% endfor %}
-            {% if not current_run_noaa %}<span style="color:#ccc;">—</span>{% endif %}
-          </div>
-        </div>
-      </div>
-    </div>{# /monitor-grid #}
-
-    {# 자동 새로고침 바 #}
-    <div class="refresh-bar">
-      <span>Auto-refresh <b id="rc-num">30</b>s</span>
-      <button onclick="toggleRefresh()" id="rc-btn">Pause</button>
-      <span style="margin-left:auto; font-size:11px;">
-        Last heartbeat: {{ control_noaa.last_heartbeat_at if control_noaa else '—' }}
-      </span>
-    </div>
-
-    {# 히스토리 (접힘) #}
-    <details>
-      <summary>Run History &nbsp;({{ runs_noaa | length }} rows, latest first)</summary>
-      <div class="details-body">
-        <form class="filter-form" method="get" action="/ingestion">
-          <label>Status</label>
-          <select name="status_noaa">
-            <option value="">(all)</option>
-            {% for s in statuses_noaa %}
-              <option value="{{ s }}" {% if filters_noaa.status==s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-          <label>Variable</label>
-          <select name="variable_noaa">
-            <option value="">(all)</option>
-            {% for v in vars_noaa %}
-              <option value="{{ v }}" {% if filters_noaa.variable==v %}selected{% endif %}>{{ v }}</option>
-            {% endfor %}
-          </select>
-          <label>Limit</label>
-          <input name="limit_noaa" value="{{ filters_noaa.limit }}" style="width:55px;">
-          {# ECMWF 필터 보존 #}
-          <input type="hidden" name="status_ecmwf"   value="{{ filters_ecmwf.status }}">
-          <input type="hidden" name="variable_ecmwf" value="{{ filters_ecmwf.variable }}">
-          <input type="hidden" name="stream_ecmwf"   value="{{ filters_ecmwf.stream }}">
-          <input type="hidden" name="limit_ecmwf"    value="{{ filters_ecmwf.limit }}">
-          <button type="submit">Apply</button>
-        </form>
-        {% set runs = runs_noaa %}
-        {% set table_id = 'noaa' %}
-        {% include 'ingestion_runs_table.html' %}
-      </div>
-    </details>
-  </div>{# /tab-noaa #}
-
-  {# ==================== ECMWF 탭 ==================== #}
-  <div class="tab-content" id="tab-ecmwf">
-
-    <div class="status-bar st-{{ control_ecmwf.status if control_ecmwf else 'idle' }}">
-      <div class="sb-left">
-        <span class="sb-dot"></span>
-        <span class="sb-status">{{ (control_ecmwf.status or 'N/A') | upper }}</span>
-        {% if control_ecmwf and control_ecmwf.heartbeat_note %}
-          <span class="sb-phase">{{ control_ecmwf.heartbeat_note }}</span>
-        {% endif %}
-      </div>
-      <div class="sb-right">
-        {% if control_ecmwf and control_ecmwf.last_heartbeat_at_iso %}
-          <span style="font-size:12px;">
-            Heartbeat: <b id="hb-ecmwf" data-ts="{{ control_ecmwf.last_heartbeat_at_iso }}">…</b>
-          </span>
-        {% endif %}
-        {% if control_ecmwf %}
-          {% if control_ecmwf.enabled %}
-            <form method="post" action="/ingestion/ecmwf/pause" style="display:inline;">
-              <button class="ctrl-btn">Pause</button>
-            </form>
-          {% else %}
-            <form method="post" action="/ingestion/ecmwf/resume" style="display:inline;">
-              <button class="ctrl-btn resume">Resume</button>
-            </form>
-          {% endif %}
+          <div class="empty">No run records match the current filter.</div>
         {% endif %}
       </div>
     </div>
+  </section>
+{% endmacro %}
 
-    {% if control_ecmwf and control_ecmwf.error %}
-      <div class="error-banner">{{ control_ecmwf.error }}</div>
-    {% endif %}
+<main class="page-shell">
+  <section class="monitor-head panel">
+    <div>
+      <h1>Ingestion Monitor</h1>
+      <p class="hint">Track ECMWF and NOAA ingestion state, run history, variable progress, and recent failures.</p>
+    </div>
+    <div class="live-status"><span class="live-dot"></span>Dashboard ready</div>
+  </section>
 
-    {# Run 정보 바 #}
-    {% if runs_ecmwf %}
-      <div class="run-info-bar">
-        <span class="ri-label">Latest run</span>
-        <span class="ri-val">{{ runs_ecmwf[0].run_time_utc }}</span>
-        {% if control_ecmwf and control_ecmwf.last_started_at %}
-          <span class="ri-sep">|</span>
-          <span class="ri-label">Started</span>
-          <span class="ri-val">{{ control_ecmwf.last_started_at }}</span>
-        {% endif %}
-        {% if control_ecmwf and control_ecmwf.last_run_summary %}
-          {% set s = control_ecmwf.last_run_summary %}
-          <span class="ri-sep">|</span>
-          <span class="ri-label">Result</span>
-          <span class="ri-{{ s.overall }}">{{ s.overall }} ({{ s.vars_success }}/{{ s.vars_total }})</span>
-        {% endif %}
+  <nav class="tabs" aria-label="Ingestion sections">
+    <a class="active" href="#ecmwf">ECMWF</a>
+    <a class="active" href="#noaa">NOAA</a>
+    <a href="/api/ingestion/runs">Runs API</a>
+    <a href="/api/ingestion/control/ecmwf">ECMWF Control API</a>
+    <a href="/api/ingestion/control/noaa">NOAA Control API</a>
+  </nav>
+
+  {% if current_run_noaa is defined or s100_stats is defined %}
+    <section class="panel" style="padding:18px 20px; margin-bottom:18px;">
+      <div class="metric-grid" style="margin-bottom:0;">
+        <div class="metric"><strong>{{ current_run_noaa|default([])|length }}</strong><span>NOAA latest-run records</span></div>
+        <div class="metric"><strong>{{ s100_stats.s111|default('-') }}</strong><span>S-111 tiles</span></div>
+        <div class="metric"><strong>{{ s100_stats.s413|default('-') }}</strong><span>S-413 tiles</span></div>
+        <div class="metric"><strong>{{ (runs_noaa|length) + (runs_ecmwf|length) }}</strong><span>total visible runs</span></div>
       </div>
-    {% endif %}
+    </section>
+  {% endif %}
 
-    <div class="tz-board" id="tz-board-ecmwf"></div>
-
-    <details open>
-      <summary>Run History &nbsp;({{ runs_ecmwf | length }} rows, latest first)</summary>
-      <div class="details-body">
-        <form class="filter-form" method="get" action="/ingestion">
-          <label>Status</label>
-          <select name="status_ecmwf">
-            <option value="">(all)</option>
-            {% for s in statuses_ecmwf %}
-              <option value="{{ s }}" {% if filters_ecmwf.status==s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-          <label>Variable</label>
-          <select name="variable_ecmwf">
-            <option value="">(all)</option>
-            {% for v in vars_ecmwf %}
-              <option value="{{ v }}" {% if filters_ecmwf.variable==v %}selected{% endif %}>{{ v }}</option>
-            {% endfor %}
-          </select>
-          <label>Stream</label>
-          <select name="stream_ecmwf">
-            <option value="">(all)</option>
-            {% for s in streams_ecmwf %}
-              <option value="{{ s }}" {% if filters_ecmwf.stream==s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-          <label>Limit</label>
-          <input name="limit_ecmwf" value="{{ filters_ecmwf.limit }}" style="width:55px;">
-          {# NOAA 필터 보존 #}
-          <input type="hidden" name="status_noaa"   value="{{ filters_noaa.status }}">
-          <input type="hidden" name="variable_noaa" value="{{ filters_noaa.variable }}">
-          <input type="hidden" name="stream_noaa"   value="{{ filters_noaa.stream }}">
-          <input type="hidden" name="limit_noaa"    value="{{ filters_noaa.limit }}">
-          <button type="submit">Apply</button>
-        </form>
-        {% set runs = runs_ecmwf %}
-        {% set table_id = 'ecmwf' %}
-        {% include 'ingestion_runs_table.html' %}
-      </div>
-    </details>
-  </div>{# /tab-ecmwf #}
-</div>{# /tabs-container #}
-
-<script>
-// ── 탭 전환 ──────────────────────────────────────────
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const tab = btn.dataset.tab;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + tab).classList.add('active');
-  });
-});
-
-// ── toggle-btn (history table expand) ────────────────
-document.querySelectorAll('.js-toggle').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const row = document.getElementById(btn.dataset.target);
-    if (!row) return;
-    const open = row.hidden;
-    row.hidden = !open;
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  });
-});
-
-// ── Heartbeat 경과 시간 ──────────────────────────────
-function startHeartbeatAge(elId) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  const ts = new Date(el.dataset.ts);
-  if (isNaN(ts)) return;
-  function tick() {
-    const sec = Math.floor((Date.now() - ts) / 1000);
-    let text, cls;
-    if (sec < 60)        { text = sec + 's ago';                              cls = 'hb-ok'; }
-    else if (sec < 600)  { text = Math.floor(sec/60) + 'm ' + (sec%60) + 's ago'; cls = 'hb-ok'; }
-    else if (sec < 1800) { text = Math.floor(sec/60) + 'm ago';               cls = 'hb-warn'; }
-    else                 { text = Math.floor(sec/60) + 'm ago ⚠';             cls = 'hb-danger'; }
-    el.textContent = text;
-    el.className   = cls;
-  }
-  tick();
-  setInterval(tick, 1000);
-}
-startHeartbeatAge('hb-noaa');
-startHeartbeatAge('hb-ecmwf');
-
-// ── 자동 새로고침 (30s) ──────────────────────────────
-let refreshing = true;
-let countdown  = 30;
-const rcNum = document.getElementById('rc-num');
-const rcBtn = document.getElementById('rc-btn');
-setInterval(() => {
-  if (!refreshing) return;
-  countdown--;
-  if (rcNum) rcNum.textContent = countdown;
-  if (countdown <= 0) window.location.reload();
-}, 1000);
-function toggleRefresh() {
-  refreshing = !refreshing;
-  if (rcBtn) rcBtn.textContent = refreshing ? 'Pause' : 'Resume';
-  if (!refreshing && rcNum) rcNum.textContent = '—';
-}
-
-// ── 타임존 보드 (ECMWF 탭) ──────────────────────────
-const TZS = [
-  { label: "UTC",     tz: "UTC" },
-  { label: "서울",    tz: "Asia/Seoul" },
-  { label: "싱가포르", tz: "Asia/Singapore" },
-  { label: "독일",    tz: "Europe/Berlin" },
-  { label: "포르투갈", tz: "Europe/Lisbon" },
-  { label: "노르웨이", tz: "Europe/Oslo" },
-];
-function renderTZ(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.innerHTML = TZS.map(z =>
-    `<div class="tz-card"><div class="tz-name">${z.label}</div><div class="tz-time" data-tz="${z.tz}"></div></div>`
-  ).join('');
-}
-function tickTZ() {
-  document.querySelectorAll('.tz-time[data-tz]').forEach(node => {
-    node.textContent = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: node.dataset.tz,
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-    }).format(new Date());
-  });
-}
-renderTZ('tz-board-ecmwf');
-tickTZ();
-setInterval(tickTZ, 1000);
-</script>
+  <div class="source-grid">
+    {{ source_panel('ecmwf', 'ECMWF IFS', control_ecmwf, runs_ecmwf, filters_ecmwf, vars_ecmwf, streams_ecmwf, statuses_ecmwf) }}
+    {{ source_panel('noaa', 'NOAA GFS', control_noaa, runs_noaa, filters_noaa, vars_noaa, streams_noaa, statuses_noaa) }}
+  </div>
+</main>
 
 {% endblock %}
