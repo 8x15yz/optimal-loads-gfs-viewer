@@ -328,6 +328,33 @@ async def inventory_index(
     # 루트면 prefix_dir == ""
 
     entries: List[Dict[str, Any]] = []
+    top_level_docs = await dirs.find(
+        {"_id": {"$regex": "^[^/]+/$"}},
+        {"_id": 1, "name": 1}
+    ).to_list(length=1000)
+    source_label_map = {
+        "ecmwf": "ecmwf / ifs",
+        "noaa": "noaa / gfs",
+    }
+    source_badge_map = {
+        "ecmwf": ["JSON", "grib"],
+        "noaa": ["JSON", "grib"],
+        "eot20": ["JSON", "nc"],
+        "s102": ["h5 tiles"],
+        "s111": ["h5 tiles"],
+        "s413": ["h5 tiles"],
+    }
+    source_nav = []
+    for d in sorted(top_level_docs, key=lambda item: item.get("_id", "")):
+        source_name = (d.get("name") or d.get("_id", "")).strip("/")
+        if not source_name:
+            continue
+        source_nav.append({
+            "name": source_name,
+            "label": source_label_map.get(source_name, source_name),
+            "path": f"/{source_name}/",
+            "badges": source_badge_map.get(source_name, ["data"]),
+        })
 
     # -----------------------------
     # 1) ✅ 하위 폴더 목록: directories에서 즉시 조회
@@ -338,11 +365,6 @@ async def inventory_index(
     else:
         # ✅ 루트(/)에서: 최상위 디렉토리들 모두 표시
         # directories 컬렉션에서 depth=1인 디렉토리들 찾기
-        top_level_docs = await dirs.find(
-            {"_id": {"$regex": "^[^/]+/$"}},  # "ecmwf/", "noaa/", "gebco/" 등
-            {"_id": 1}
-        ).to_list(length=1000)
-        
         children = sorted([d["_id"] for d in top_level_docs])
 
     for child in sorted(children):
@@ -456,6 +478,7 @@ async def inventory_index(
             "current_path": current_path,
             "parent_path": parent_path,
             "entries": entries,
+            "source_nav": source_nav,
             "description": None,
         },
     )

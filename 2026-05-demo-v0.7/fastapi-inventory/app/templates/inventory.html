@@ -66,6 +66,12 @@
     background: #fbfdff;
     font-weight: 800;
   }
+  .source-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 5px;
+  }
   .source-item.active {
     border-color: #8bc4e4;
     background: var(--surface-2);
@@ -520,24 +526,16 @@
         <p class="hint">Root folders and common products.</p>
         <button type="button" class="guide-launch" id="guideNavButton" onclick="showGuideSection()">Variable Guide</button>
         <div class="source-list">
-          <a class="source-item{% if current_path.startswith('/noaa') %} active{% endif %}" href="/inventory?path={{ '/noaa/'|urlencode }}">
-            <span>noaa / gfs</span><span class="badge">weather</span>
-          </a>
-          <a class="source-item{% if current_path.startswith('/ecmwf') %} active{% endif %}" href="/inventory?path={{ '/ecmwf/'|urlencode }}">
-            <span>ecmwf / ifs</span><span class="badge">weather</span>
-          </a>
-          <a class="source-item{% if current_path.startswith('/eot20') %} active{% endif %}" href="/inventory?path={{ '/eot20/'|urlencode }}">
-            <span>eot20</span><span class="badge">tiles</span>
-          </a>
-          <a class="source-item{% if current_path.startswith('/s102') %} active{% endif %}" href="/inventory?path={{ '/s102/'|urlencode }}">
-            <span>s102</span><span class="badge">tiles</span>
-          </a>
-          <a class="source-item{% if current_path.startswith('/s111') %} active{% endif %}" href="/inventory?path={{ '/s111/'|urlencode }}">
-            <span>s111</span><span class="badge">tiles</span>
-          </a>
-          <a class="source-item{% if current_path.startswith('/s413') %} active{% endif %}" href="/inventory?path={{ '/s413/'|urlencode }}">
-            <span>s413</span><span class="badge">tiles</span>
-          </a>
+          {% for source in source_nav %}
+            <a class="source-item{% if current_path.startswith(source.path) %} active{% endif %}" href="/inventory?path={{ source.path|urlencode }}">
+              <span>{{ source.label }}</span>
+              <span class="source-badges">
+                {% for badge in source.badges %}
+                  <span class="badge">{{ badge }}</span>
+                {% endfor %}
+              </span>
+            </a>
+          {% endfor %}
         </div>
       </section>
       <section class="side-section">
