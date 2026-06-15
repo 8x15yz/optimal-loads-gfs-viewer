@@ -18,6 +18,7 @@ from app.ingestion import router as ingestion_router
 
 from app.db import get_assets_collection, get_directories_collection, get_s100_assets_collection
 from app.api import router as api_router, meta_router, s100_router
+from app.latest import latest_router
 
 from urllib.parse import quote
 
@@ -84,6 +85,7 @@ app.include_router(api_router)
 app.include_router(ingestion_router)
 app.include_router(meta_router)
 app.include_router(s100_router)
+app.include_router(latest_router)
 
 # ---- CORS ----
 app.add_middleware(
