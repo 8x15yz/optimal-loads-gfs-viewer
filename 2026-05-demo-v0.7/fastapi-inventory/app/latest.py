@@ -3,10 +3,22 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 
 import boto3
 from fastapi import APIRouter, HTTPException
+
+DAILY_LIMIT = 50
+_rate: tuple[date, int] = (date.min, 0)
+
+def _check_rate_limit():
+    global _rate
+    today = datetime.now(timezone.utc).date()
+    last_date, count = _rate
+    count = count + 1 if last_date == today else 1
+    _rate = (today, count)
+    if count > DAILY_LIMIT:
+        raise HTTPException(status_code=429, detail=f"Daily limit ({DAILY_LIMIT}) exceeded.")
 
 from app.db import get_assets_collection, get_ingestion_runs_collection, get_s100_assets_collection
 
@@ -14,67 +26,98 @@ AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 S3_BUCKET  = os.getenv("S3_BUCKET", "optimal-loads")
 _s3 = boto3.client("s3", region_name=AWS_REGION)
 
-EXPIRES_IN = 3600  # presigned URL 및 매니페스트 유효 기간 (초)
+EXPIRES_IN = 3600  # presigned URL and manifest validity period (seconds)
 
 latest_router = APIRouter(prefix="/api", tags=["latest"])
 
-# ---- 변수 메타데이터 (정적) ----
+# ---- Variable metadata (static) ----
 _VARIABLES_META = {
     "WDIR":  {
         "name_en": "Wind Direction",
         "unit": "degree",
         "direction": "from",
         "source": "noaa/gfs",
-        "description": "Ex) 225 → 남서풍 (바람이 불어오는 방향)",
+        "description": (
+            "Direction the wind blows from, in degrees clockwise from north "
+            "(0=N, 90=E, 180=S, 270=W). "
+            "Ex) 225 means wind coming from the southwest (a southwesterly wind)."
+        ),
     },
     "WIND":  {
         "name_en": "Wind Speed",
         "unit": "m/s",
         "direction": None,
         "source": "noaa/gfs",
-        "description": "바람 세기",
+        "description": "Wind strength only; magnitude with no direction information.",
     },
     "HTSGW": {
         "name_en": "Significant Wave Height",
         "unit": "m",
         "direction": None,
         "source": "noaa/gfs",
-        "description": "유의파고 (상위 30% 평균)",
+        "description": (
+            "Average height of the highest one-third of waves. "
+            "Wave height is measured from the trough (lowest point) to the crest (highest point)."
+        ),
     },
     "DIRPW": {
         "name_en": "Peak Wave Direction",
         "unit": "degree",
-        "direction": "to",
+        "direction": "from",
         "source": "noaa/gfs",
-        "description": "Ex) 225 → 너울이 225도 방향으로 흘러감",
+        "description": (
+            "When many waves overlap, the direction from which the wave carrying the most "
+            "energy comes - i.e. the direction of the dominant swell at that moment. "
+            "Same angle convention as wind direction."
+        ),
     },
     "PERPW": {
         "name_en": "Peak Wave Period",
         "unit": "s",
         "direction": None,
         "source": "noaa/gfs",
-        "description": "파주기 (짧을수록 너울 간격 좁음)",
+        "description": (
+            "Period of the wave carrying the most energy. A long period (roughly 12-20 s) "
+            "indicates a swell that traveled from far away; a short period (roughly 4-6 s) "
+            "indicates a wind-driven wave formed nearby. "
+            "Shorter period = narrower spacing between waves."
+        ),
     },
     "UGRD":  {
         "name_en": "Eastward Current",
         "unit": "m/s",
         "direction": "from",
         "source": "noaa/gfs",
-        "description": "동쪽 방향 해류 성분",
+        "description": (
+            "East-west component of the current. Positive = eastward component, "
+            "negative = westward. Combine with VGRD to get the actual current direction and speed."
+        ),
     },
     "VGRD":  {
         "name_en": "Northward Current",
         "unit": "m/s",
         "direction": "from",
         "source": "noaa/gfs",
-        "description": "북쪽 방향 해류 성분",
+        "description": (
+            "North-south component of the current. "
+            "Positive = northward component, negative = southward."
+        ),
     },
     "tidal_elevation": {
         "name_en": "Astronomical Tide Height",
         "unit": "m",
         "direction": None,
         "source": "eot20/tide",
-        "description": "천문 조위 (3시간 간격, 당일 전체)",
+        "description": (
+            "Sea-surface height driven only by the gravitational pull of celestial bodies "
+            "such as the Moon and Sun, which makes the water rise and fall on a regular cycle. "
+            "Weather effects such as wind, pressure, and storms are not included. "
+            "Excludes: storm surge, weather-driven sea-level changes, wave height, wind setup, "
+            "river discharge, observed sea level, and real-time data assimilation. "
+            "Spatial grid: 0.25 x 0.25 deg lat/lon. "
+            "Time structure: tides have no forecast run concept, so run_time_utc = valid_time_utc "
+            "and step_hours = 0; generated at 3-hour intervals (00Z/03Z/.../21Z)."
+        ),
     },
 }
 
@@ -110,13 +153,14 @@ async def _make_presigned(s3_key: str) -> str:
     "/latest",
     summary="Latest marine weather data manifest",
     description=(
-        "요청 시점 기준 최신 기상 데이터의 presigned 다운로드 URL을 모두 반환합니다. "
-        "파라미터 없이 호출하면 NOAA GFS Wave(7변수 × 89 step)와 "
-        "EOT20 천문조위(당일 8 step)의 전체 파일 목록을 한 번에 받을 수 있습니다. "
-        "매니페스트 자체가 1회성 스냅샷이며, expires_at 이후에는 포함된 모든 URL이 만료됩니다."
+        "Returns all presigned download URLs for the latest weather data as of the request time. "
+        "Called without parameters, it returns the full file list for NOAA GFS Wave "
+        "(7 variables x 89 steps) and EOT20 astronomical tide (8 steps for the day) in a single response. "
+        "The manifest is a one-time snapshot; after expires_at, all included URLs expire."
     ),
 )
 async def get_latest():
+    _check_rate_limit()
     now = _now_utc()
     generated_at = _to_z(now)
     expires_at   = _to_z(now + timedelta(seconds=EXPIRES_IN))
@@ -125,8 +169,8 @@ async def get_latest():
     runs_coll  = await get_ingestion_runs_collection()
     s100_coll  = await get_s100_assets_collection()
 
-    # ── 1. 완료된 최신 GFS run_time_utc 조회 ───────────────────────
-    # 최근 run_time 후보 2개 (아직 처리 중인 런은 건너뜀)
+    # -- 1. Look up the latest completed GFS run_time_utc ----------
+    # Two most recent run_time candidates (skip runs still processing)
     run_candidates = await coll.aggregate([
         {"$match": {"source": "noaa", "model": "gfs", "dataset_code": "original"}},
         {"$group": {"_id": "$run_time_utc"}},
@@ -138,7 +182,7 @@ async def get_latest():
         raise HTTPException(status_code=503, detail="No NOAA GFS data available.")
 
     async def _is_run_ready(run_time) -> bool:
-        # GFS 다운로드 또는 변환 중인 작업이 있으면 미완료
+        # If a GFS download or conversion job is still running, the run is incomplete
         running = await runs_coll.count_documents({
             "source": "noaa",
             "run_time_utc": run_time,
@@ -146,7 +190,7 @@ async def get_latest():
         })
         if running > 0:
             return False
-        # s111 / s413 타일이 없으면 변환 미완료
+        # If s111 / s413 tiles are missing, conversion is incomplete
         s111 = await s100_coll.count_documents({"product": "s111", "run_time_utc": run_time})
         s413 = await s100_coll.count_documents({"product": "s413", "run_time_utc": run_time})
         return s111 > 0 and s413 > 0
@@ -160,12 +204,12 @@ async def get_latest():
             latest_run = run_time
             break
 
-    # 후보 모두 미완료면 가장 최근 것으로 fallback
+    # If all candidates are incomplete, fall back to the most recent one
     if latest_run is None:
         raw = run_candidates[0]["_id"]
         latest_run = _to_z(raw) if isinstance(raw, datetime) else raw
 
-    # ── 2. 해당 run의 GFS 전체 문서 조회 ───────────────────────────
+    # -- 2. Query all GFS documents for this run -------------------
     gfs_docs = await coll.find(
         {
             "source": "noaa",
@@ -178,15 +222,15 @@ async def get_latest():
          "size_bytes": 1, "format": 1, "s3": 1, "_id": 0},
     ).sort([("variable", 1), ("step_hours", 1)]).to_list(length=10000)
 
-    # ── 3. 천문조위 - GFS run 기준 0~384h 범위 ─────────────────────
-    # latest_run → datetime 변환
+    # -- 3. Astronomical tide - 0~384h range relative to the GFS run
+    # Convert latest_run to datetime
     if isinstance(latest_run, datetime):
         latest_run_dt = latest_run if latest_run.tzinfo else latest_run.replace(tzinfo=timezone.utc)
     else:
         latest_run_dt = datetime.fromisoformat(latest_run.replace("Z", "+00:00"))
 
-    tide_cutoff_3h_dt  = latest_run_dt + timedelta(hours=144)  # 144h 이후 → 6h 간격
-    tide_cutoff_end_dt = latest_run_dt + timedelta(hours=384)  # 예측 끝
+    tide_cutoff_3h_dt  = latest_run_dt + timedelta(hours=144)  # after 144h -> 6h interval
+    tide_cutoff_end_dt = latest_run_dt + timedelta(hours=384)  # end of forecast
 
     tide_range_start = _to_z(latest_run_dt)
     tide_range_end   = _to_z(tide_cutoff_end_dt)
@@ -209,13 +253,13 @@ async def get_latest():
             return v.replace(tzinfo=timezone.utc) if v.tzinfo is None else v
         return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
 
-    # 0~144h: 3시간 간격 전부 / 144~384h: 6시간 간격(00,06,12,18Z)만
+    # 0~144h: all 3-hour steps / 144~384h: 6-hour steps only (00, 06, 12, 18Z)
     tide_docs = [
         doc for doc in tide_docs_raw
         if _doc_run_dt(doc) <= tide_cutoff_3h_dt or _doc_run_dt(doc).hour % 6 == 0
     ]
 
-    # ── 4. presigned URL 병렬 생성 ─────────────────────────────────
+    # -- 4. Generate presigned URLs in parallel --------------------
     all_docs = gfs_docs + tide_docs
     s3_keys  = [
         doc["s3"]["key"]
@@ -225,10 +269,10 @@ async def get_latest():
     urls = await asyncio.gather(*[_make_presigned(k) for k in s3_keys])
     key_to_url: dict[str, str] = dict(zip(s3_keys, urls))
 
-    # ── 5. assets 구성 ─────────────────────────────────────────────
+    # -- 5. Build assets -------------------------------------------
     assets: dict = {}
 
-    # GFS — 변수별 그룹핑
+    # GFS - group by variable
     gfs_by_var: dict[str, list] = {v: [] for v in _GFS_VARS}
     for doc in gfs_docs:
         var = doc.get("variable", "")
@@ -259,7 +303,7 @@ async def get_latest():
             "steps":        steps,
         }
 
-    # EOT20 천문조위
+    # EOT20 astronomical tide
     if tide_docs:
         tide_steps = []
         for doc in tide_docs:
@@ -283,7 +327,7 @@ async def get_latest():
             "steps":            tide_steps,
         }
 
-    # ── 6. 최종 매니페스트 반환 ────────────────────────────────────
+    # -- 6. Return the final manifest ------------------------------
     total_files        = sum(a["file_count"] for a in assets.values())
     variables_included = list(assets.keys())
 
@@ -294,9 +338,9 @@ async def get_latest():
             "expires_at":       expires_at,
             "expires_in_seconds": EXPIRES_IN,
             "note": (
-                "이 매니페스트는 발급 시점 기준 1회성 스냅샷입니다. "
-                "expires_at 이후에는 포함된 모든 presigned URL이 만료됩니다. "
-                "최신 데이터가 필요하면 /api/latest를 재호출하세요."
+                "This manifest is a one-time snapshot as of its issue time. "
+                "After expires_at, all included presigned URLs expire. "
+                "If you need the latest data, call /api/latest again."
             ),
         },
         "summary": {
