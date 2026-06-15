@@ -176,7 +176,7 @@
     </div>
     <div style="margin-top:22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <a href="#quickstart" class="qs-dl-btn">↓ Quick Start</a>
-      <a href="/guide/download_latest.py" download class="qs-dl-btn" style="background:#1a6e45;">↓ download_latest.py</a>
+      <a href="/guide/Batch_Script.zip" download class="qs-dl-btn" style="background:#1a6e45;">↓ Downloader Script (ZIP)</a>
       <a class="btn btn-green" href="/guide/bluemap_weather_service_manual_EN_v0_6.pdf" download>PDF Manual</a>
     </div>
   </section>
@@ -287,7 +287,7 @@ wind_dir_from = (270.0 - np.degrees(np.arctan2(v, u))) % 360.0</pre>
 
       <section id="quickstart" class="doc-section panel">
         <h2>9. Quick Start</h2>
-        <p>Call <code>GET /api/latest</code> — no parameters required — to receive a single JSON manifest covering all current NOAA GFS Wave variables (7 variables × up to 89 steps) and today's EOT20 tidal elevation (8 steps), each with a presigned S3 download URL.</p>
+        <p>Call <code>GET /api/latest</code> — no parameters required — to receive a single JSON manifest covering all current NOAA GFS Wave variables (7 variables × up to 89 steps) and EOT20 tidal elevation (89 steps), each with a presigned S3 download URL.</p>
         <div class="note">
           <strong>One-time snapshot:</strong> All presigned URLs in the manifest expire at <code>issued.expires_at</code> (1 hour from the request time). Re-call <code>/api/latest</code> to get a fresh manifest.
         </div>
@@ -314,7 +314,7 @@ python download_latest.py --workers 16 --out-dir ./data</pre>
           <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('qs-usage-en').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
         </div>
 
-        <a href="/guide/download_latest.py" download class="qs-dl-btn">↓ download_latest.py</a>
+        <a href="/guide/Batch_Script.zip" download class="qs-dl-btn" style="background:#1a6e45;">↓ Downloader Script (ZIP)</a>
       </section>
     </article>
   </div>
