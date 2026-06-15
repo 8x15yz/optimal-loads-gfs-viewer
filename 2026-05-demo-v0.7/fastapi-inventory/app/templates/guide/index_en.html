@@ -121,6 +121,37 @@
     line-height: 1.55;
     font-size: 0.9rem;
   }
+  .code-wrap { position: relative; }
+  .copy-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 4px 10px;
+    background: rgba(255,255,255,0.12);
+    color: #d7f1ff;
+    border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .copy-btn:hover { background: rgba(255,255,255,0.22); }
+  .qs-dl-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+    padding: 10px 20px;
+    background: var(--brand);
+    color: #fff;
+    border-radius: var(--radius);
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .qs-dl-btn:hover { opacity: 0.85; }
   @media (max-width: 980px) {
     .doc-layout { grid-template-columns: 1fr; }
     .toc { position: static; }
@@ -143,6 +174,10 @@
       <span class="badge">ECMWF Open Data</span>
       <span class="badge">NOAA GFS</span>
     </div>
+    <div style="margin-top:22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <a href="#quickstart" class="qs-dl-btn">↓ Quick Start</a>
+      <a href="/guide/download_latest.py" download class="qs-dl-btn" style="background:#1a6e45;">↓ download_latest.py</a>
+    </div>
   </section>
 
   <div class="doc-layout">
@@ -156,6 +191,7 @@
       <a href="#api">6. API Usage</a>
       <a href="#array">7. Result Array</a>
       <a href="#wind">8. Wind Formula</a>
+      <a href="#quickstart">9. Quick Start</a>
     </aside>
 
     <article class="content">
@@ -246,6 +282,38 @@ y: south to north</pre>
         <pre>wind_speed = np.hypot(u, v)
 wind_dir_from = (270.0 - np.degrees(np.arctan2(v, u))) % 360.0</pre>
         <p>Wind direction uses the meteorological FROM-direction convention: 0° is North and direction increases clockwise.</p>
+      </section>
+
+      <section id="quickstart" class="doc-section panel">
+        <h2>9. Quick Start</h2>
+        <p>Call <code>GET /api/latest</code> — no parameters required — to receive a single JSON manifest covering all current NOAA GFS Wave variables (7 variables × up to 89 steps) and today's EOT20 tidal elevation (8 steps), each with a presigned S3 download URL.</p>
+        <div class="note">
+          <strong>One-time snapshot:</strong> All presigned URLs in the manifest expire at <code>issued.expires_at</code> (1 hour from the request time). Re-call <code>/api/latest</code> to get a fresh manifest.
+        </div>
+
+        <h3>Endpoint</h3>
+        <pre>GET http://weather-api.bmap.kr/api/latest</pre>
+
+        <h3>Download script usage</h3>
+        <div class="code-wrap">
+          <pre id="qs-usage-en"># Download everything (calls /api/latest automatically)
+python download_latest.py
+
+# Save manifest first, then download
+python download_latest.py --save-json latest.json
+
+# Re-download from a saved manifest (no API call, valid within 1 h)
+python download_latest.py --from-json latest.json
+
+# Specific variables only
+python download_latest.py --vars HTSGW WIND tidal_elevation
+
+# Adjust parallel workers and output directory
+python download_latest.py --workers 16 --out-dir ./data</pre>
+          <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('qs-usage-en').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
+        </div>
+
+        <a href="/guide/download_latest.py" download class="qs-dl-btn">↓ download_latest.py</a>
       </section>
     </article>
   </div>

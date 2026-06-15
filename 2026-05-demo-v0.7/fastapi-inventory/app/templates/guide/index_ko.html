@@ -25,6 +25,11 @@
   th { background: #f1f7fb; color: #39566c; font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; }
   code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   pre { overflow: auto; padding: 16px; border: 1px solid #cde0ec; border-radius: var(--radius); background: #0f2a44; color: #d7f1ff; line-height: 1.55; font-size: 0.9rem; }
+  .code-wrap { position: relative; }
+  .copy-btn { position: absolute; top: 10px; right: 10px; padding: 4px 10px; background: rgba(255,255,255,0.12); color: #d7f1ff; border: 1px solid rgba(255,255,255,0.22); border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+  .copy-btn:hover { background: rgba(255,255,255,0.22); }
+  .qs-dl-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; padding: 10px 20px; background: var(--brand); color: #fff; border-radius: var(--radius); font-weight: 700; font-size: 0.9rem; text-decoration: none; transition: opacity 0.15s; }
+  .qs-dl-btn:hover { opacity: 0.85; }
   @media (max-width: 980px) { .doc-layout { grid-template-columns: 1fr; } .toc { position: static; } .grid-2 { grid-template-columns: 1fr; } }
   @media (max-width: 720px) { .manual-hero, .doc-section { padding: 22px; } }
 </style>
@@ -40,6 +45,10 @@
       <span class="badge">ECMWF Open Data</span>
       <span class="badge">NOAA GFS</span>
     </div>
+    <div style="margin-top:22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <a href="#quickstart" class="qs-dl-btn">↓ 빠른 시작</a>
+      <a href="/guide/download_latest.py" download class="qs-dl-btn" style="background:#1a6e45;">↓ download_latest.py</a>
+    </div>
   </section>
 
   <div class="doc-layout">
@@ -53,6 +62,7 @@
       <a href="#api">6. API 사용법</a>
       <a href="#array">7. 결과 배열 읽기</a>
       <a href="#wind">8. 풍속/풍향 공식</a>
+      <a href="#quickstart">9. 빠른 시작</a>
     </aside>
 
     <article class="content">
@@ -134,6 +144,38 @@ y: south to north</pre>
         <pre>wind_speed = np.hypot(u, v)
 wind_dir_from = (270.0 - np.degrees(np.arctan2(v, u))) % 360.0</pre>
         <p>풍향은 기상학적 FROM-direction 규칙을 사용합니다. 0°는 북쪽이며 시계방향으로 증가합니다.</p>
+      </section>
+
+      <section id="quickstart" class="doc-section panel">
+        <h2>9. 빠른 시작</h2>
+        <p><code>GET /api/latest</code> 한 번만 호출하면 — 파라미터 없이 — 현재 시점 기준 NOAA GFS Wave 7개 변수(최대 89 step)와 당일 EOT20 천문조위(8 step) 전체의 presigned 다운로드 URL을 담은 매니페스트 JSON을 받을 수 있습니다.</p>
+        <div class="note">
+          <strong>1회성 스냅샷:</strong> 매니페스트에 포함된 모든 presigned URL은 <code>issued.expires_at</code>(요청 시점으로부터 1시간 후)에 만료됩니다. 새 데이터가 필요하면 <code>/api/latest</code>를 다시 호출하세요.
+        </div>
+
+        <h3>엔드포인트</h3>
+        <pre>GET http://weather-api.bmap.kr/api/latest</pre>
+
+        <h3>다운로드 스크립트 사용법</h3>
+        <div class="code-wrap">
+          <pre id="qs-usage-ko"># 전체 다운로드 (/api/latest 자동 호출)
+python download_latest.py
+
+# 매니페스트 저장 후 다운로드
+python download_latest.py --save-json latest.json
+
+# 저장된 매니페스트로 다운 (API 재호출 없이, 1시간 이내)
+python download_latest.py --from-json latest.json
+
+# 특정 변수만 선택
+python download_latest.py --vars HTSGW WIND tidal_elevation
+
+# 동시 다운로드 수 및 저장 경로 지정
+python download_latest.py --workers 16 --out-dir ./data</pre>
+          <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('qs-usage-ko').textContent).then(()=>{this.textContent='복사됨!';setTimeout(()=>this.textContent='복사',1500)})">복사</button>
+        </div>
+
+        <a href="/guide/download_latest.py" download class="qs-dl-btn">↓ download_latest.py</a>
       </section>
     </article>
   </div>

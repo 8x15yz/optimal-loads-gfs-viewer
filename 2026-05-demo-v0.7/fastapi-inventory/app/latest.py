@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 import boto3
 from fastapi import APIRouter, HTTPException
 
-from app.db import get_assets_collection
+from app.db import get_assets_collection, get_ingestion_runs_collection, get_s100_assets_collection
 
 AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 S3_BUCKET  = os.getenv("S3_BUCKET", "optimal-loads")
@@ -121,19 +121,49 @@ async def get_latest():
     generated_at = _to_z(now)
     expires_at   = _to_z(now + timedelta(seconds=EXPIRES_IN))
 
-    coll = await get_assets_collection()
+    coll       = await get_assets_collection()
+    runs_coll  = await get_ingestion_runs_collection()
+    s100_coll  = await get_s100_assets_collection()
 
-    # ── 1. 최신 GFS run_time_utc 조회 ──────────────────────────────
-    latest_gfs_doc = await coll.find_one(
-        {"source": "noaa", "model": "gfs", "dataset_code": "original"},
-        sort=[("run_time_utc", -1)],
-    )
-    if not latest_gfs_doc:
+    # ── 1. 완료된 최신 GFS run_time_utc 조회 ───────────────────────
+    # 최근 run_time 후보 2개 (아직 처리 중인 런은 건너뜀)
+    run_candidates = await coll.aggregate([
+        {"$match": {"source": "noaa", "model": "gfs", "dataset_code": "original"}},
+        {"$group": {"_id": "$run_time_utc"}},
+        {"$sort": {"_id": -1}},
+        {"$limit": 2},
+    ]).to_list(2)
+
+    if not run_candidates:
         raise HTTPException(status_code=503, detail="No NOAA GFS data available.")
 
-    latest_run = latest_gfs_doc["run_time_utc"]  # "2026-06-14T18:00:00Z"
-    if isinstance(latest_run, datetime):
-        latest_run = _to_z(latest_run)
+    async def _is_run_ready(run_time) -> bool:
+        # GFS 다운로드 또는 변환 중인 작업이 있으면 미완료
+        running = await runs_coll.count_documents({
+            "source": "noaa",
+            "run_time_utc": run_time,
+            "status": "running",
+        })
+        if running > 0:
+            return False
+        # s111 / s413 타일이 없으면 변환 미완료
+        s111 = await s100_coll.count_documents({"product": "s111", "run_time_utc": run_time})
+        s413 = await s100_coll.count_documents({"product": "s413", "run_time_utc": run_time})
+        return s111 > 0 and s413 > 0
+
+    latest_run = None
+    for candidate in run_candidates:
+        run_time = candidate["_id"]
+        if isinstance(run_time, datetime):
+            run_time = _to_z(run_time)
+        if await _is_run_ready(run_time):
+            latest_run = run_time
+            break
+
+    # 후보 모두 미완료면 가장 최근 것으로 fallback
+    if latest_run is None:
+        raw = run_candidates[0]["_id"]
+        latest_run = _to_z(raw) if isinstance(raw, datetime) else raw
 
     # ── 2. 해당 run의 GFS 전체 문서 조회 ───────────────────────────
     gfs_docs = await coll.find(
@@ -148,19 +178,42 @@ async def get_latest():
          "size_bytes": 1, "format": 1, "s3": 1, "_id": 0},
     ).sort([("variable", 1), ("step_hours", 1)]).to_list(length=10000)
 
-    # ── 3. 오늘 날짜 천문조위 문서 조회 ────────────────────────────
-    today_run = now.strftime("%Y-%m-%dT00:00:00Z")  # "2026-06-15T00:00:00Z"
-    tide_docs = await coll.find(
+    # ── 3. 천문조위 - GFS run 기준 0~384h 범위 ─────────────────────
+    # latest_run → datetime 변환
+    if isinstance(latest_run, datetime):
+        latest_run_dt = latest_run if latest_run.tzinfo else latest_run.replace(tzinfo=timezone.utc)
+    else:
+        latest_run_dt = datetime.fromisoformat(latest_run.replace("Z", "+00:00"))
+
+    tide_cutoff_3h_dt  = latest_run_dt + timedelta(hours=144)  # 144h 이후 → 6h 간격
+    tide_cutoff_end_dt = latest_run_dt + timedelta(hours=384)  # 예측 끝
+
+    tide_range_start = _to_z(latest_run_dt)
+    tide_range_end   = _to_z(tide_cutoff_end_dt)
+
+    tide_docs_raw = await coll.find(
         {
             "source": "eot20",
             "model": "tide",
             "dataset_code": "computed",
             "variable": "tidal_elevation",
-            "run_time_utc": today_run,
+            "run_time_utc": {"$gte": tide_range_start, "$lte": tide_range_end},
         },
-        {"variable": 1, "step_hours": 1, "valid_time_utc": 1,
-         "size_bytes": 1, "format": 1, "s3": 1, "_id": 0},
-    ).sort([("step_hours", 1)]).to_list(length=100)
+        {"variable": 1, "valid_time_utc": 1,
+         "size_bytes": 1, "format": 1, "s3": 1, "run_time_utc": 1, "_id": 0},
+    ).sort([("run_time_utc", 1)]).to_list(length=500)
+
+    def _doc_run_dt(doc) -> datetime:
+        v = doc.get("run_time_utc")
+        if isinstance(v, datetime):
+            return v.replace(tzinfo=timezone.utc) if v.tzinfo is None else v
+        return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+
+    # 0~144h: 3시간 간격 전부 / 144~384h: 6시간 간격(00,06,12,18Z)만
+    tide_docs = [
+        doc for doc in tide_docs_raw
+        if _doc_run_dt(doc) <= tide_cutoff_3h_dt or _doc_run_dt(doc).hour % 6 == 0
+    ]
 
     # ── 4. presigned URL 병렬 생성 ─────────────────────────────────
     all_docs = gfs_docs + tide_docs
@@ -208,24 +261,26 @@ async def get_latest():
 
     # EOT20 천문조위
     if tide_docs:
-        tide_steps = [
-            {
-                "step_hours":    doc.get("step_hours"),
-                "valid_time_utc": _safe_valid_time(doc.get("valid_time_utc")),
-                "href":          key_to_url.get((doc.get("s3") or {}).get("key", ""), ""),
-                "size_bytes":    doc.get("size_bytes"),
-                "s3_key":        (doc.get("s3") or {}).get("key", ""),
-            }
-            for doc in tide_docs
-        ]
+        tide_steps = []
+        for doc in tide_docs:
+            dt = _doc_run_dt(doc)
+            step_h = int((dt - latest_run_dt).total_seconds() / 3600)
+            tide_steps.append({
+                "step_hours":     step_h,
+                "valid_time_utc": _safe_valid_time(dt),
+                "href":           key_to_url.get((doc.get("s3") or {}).get("key", ""), ""),
+                "size_bytes":     doc.get("size_bytes"),
+                "s3_key":         (doc.get("s3") or {}).get("key", ""),
+            })
         assets["tidal_elevation"] = {
-            "source":       "eot20",
-            "model":        "tide",
-            "dataset_code": "computed",
-            "date":         now.strftime("%Y-%m-%d"),  # run_time_utc 대신 date 사용
-            "format":       tide_docs[0].get("format"),
-            "file_count":   len(tide_steps),
-            "steps":        tide_steps,
+            "source":           "eot20",
+            "model":            "tide",
+            "dataset_code":     "computed",
+            "gfs_run_time_utc": latest_run if isinstance(latest_run, str) else _to_z(latest_run_dt),
+            "tide_range":       {"from": tide_range_start, "to": tide_range_end},
+            "format":           tide_docs[0].get("format"),
+            "file_count":       len(tide_steps),
+            "steps":            tide_steps,
         }
 
     # ── 6. 최종 매니페스트 반환 ────────────────────────────────────
