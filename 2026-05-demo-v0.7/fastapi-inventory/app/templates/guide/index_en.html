@@ -298,19 +298,11 @@ wind_dir_from = (270.0 - np.degrees(np.arctan2(v, u))) % 360.0</pre>
         <h3>Download script usage</h3>
         <div class="code-wrap">
           <pre id="qs-usage-en"># Download everything (calls /api/latest automatically)
-python download_latest.py
-
-# Save manifest first, then download
-python download_latest.py --save-json latest.json
-
-# Re-download from a saved manifest (no API call, valid within 1 h)
-python download_latest.py --from-json latest.json
+# download all
+python download_latest.py 
 
 # Specific variables only
 python download_latest.py --vars HTSGW WIND tidal_elevation
-
-# Adjust parallel workers and output directory
-python download_latest.py --workers 16 --out-dir ./data</pre>
           <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('qs-usage-en').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
         </div>
 
