@@ -24,26 +24,35 @@ from urllib.parse import quote
 
 load_dotenv()
 
-APP_TITLE = os.getenv("APP_TITLE", "Marine Weather API")
+APP_TITLE = "BlueMap Weather Service API"
+APP_VERSION = "1.0.0"
 templates = Jinja2Templates(directory="app/templates")
 
 
 templates.env.filters["urlencode"] = lambda v: quote(v or "")
 
-# (선택) /inventory 루트에서 보여줄 시작 경로
-ROOT_DIR = os.getenv("INVENTORY_ROOT_DIR", "/")  # ✅ 루트를 "/"로 변경
+# (optional) start path shown at the /inventory root
+ROOT_DIR = os.getenv("INVENTORY_ROOT_DIR", "/")
+
+APP_DESCRIPTION = """
+Provides NOAA GFS Wave gridded marine weather data (wave, wind, current) as JSON.
+
+**Endpoint**: `GET /api/griddata`
+
+- Source / dataset / model are fixed: `noaa` / `original` / `gfs`
+- Select exactly one variable (`DIRPW`, `HTSGW`, `PERPW`, `UGRD`, `VGRD`, `WDIR`, `WIND`)
+- Valid run times: 00:00, 06:00, 12:00, 18:00 UTC
+- Area: center point (`lat`, `lon`) + `buffer_km`
+- Data indexing: row-major, bottom-up (south → north)
+"""
 
 app = FastAPI(
     title=APP_TITLE,
-    version="0.1.0",
-    description="""
-It reads ocean gridded data (e.g., gfs wave data) from S3 and provides it as JSON.
-
-- Indexing: row-major, bottom-up (south → north)
-""",
+    version=APP_VERSION,
+    description=APP_DESCRIPTION,
     contact={"name": "BlueMap", "email": "hjk@bluemap.dev"},
     license_info={"name": "MIT"},
-    openapi_tags=[{"name": "grid", "description": "grid data API"}],
+    openapi_tags=[{"name": "weather service", "description": "Gridded marine weather data (NOAA GFS Wave)"}],
 )
 
 app.mount("/guide", StaticFiles(directory="app/templates/static/guide"), name="guide")
@@ -81,11 +90,14 @@ async def root_en(request: Request):
     )
 
 
+# Public API (documented in /docs)
 app.include_router(api_router)
-app.include_router(ingestion_router)
-app.include_router(meta_router)
-app.include_router(s100_router)
-app.include_router(latest_router)
+
+# Internal / legacy routers: still served, but hidden from /docs (not part of the service specification)
+app.include_router(ingestion_router, include_in_schema=False)
+app.include_router(meta_router, include_in_schema=False)
+app.include_router(s100_router, include_in_schema=False)
+app.include_router(latest_router, include_in_schema=False)
 
 # ---- CORS ----
 app.add_middleware(

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Query, HTTPException
-from typing import Optional, List
+from typing import Literal, Optional, List
 from datetime import datetime, timezone, timedelta
 
 from app.models import GridDataResponse
@@ -141,7 +141,7 @@ async def get_s100_tiles(
     lon: Optional[float] = Query(default=None, example=129.0),
     buffer_km: Optional[float] = Query(default=None, ge=0.0, le=5000.0, example=500.0),
 
-    expires_in: int = Query(default=3600, ge=60, le=86400, description="Presigned URL 유효 시간(초)"),
+    expires_in: int = Query(default=3600, ge=60, le=86400, description="Presigned URL validity (seconds)"),
 ):
     if product.lower() != "s102":
         raise HTTPException(
@@ -252,9 +252,9 @@ async def get_s100_tiles(
 )
 async def get_forecast_tiles(
     product: str = Query(..., example="s413",
-                         description="s111 또는 s413"),
+                         description="s111 or s413"),
     run_time_utc: str = Query(..., example="2026-03-03T12:00:00Z",
-                              description="런타임 (UTC ISO-8601)"),
+                              description="Run time (UTC ISO-8601)"),
 
     # ---- 공간 방식 1: NW/SE 코너 ----
     nw_lon: Optional[float] = Query(default=None, example=118.0),
@@ -269,7 +269,7 @@ async def get_forecast_tiles(
                                        example=500.0),
 
     expires_in: int = Query(default=3600, ge=60, le=86400,
-                            description="Presigned URL 유효 시간(초)"),
+                            description="Presigned URL validity (seconds)"),
 ):
     product_lower = product.strip().lower()
     if product_lower not in _S1X1_TILE_DEG:
@@ -458,38 +458,133 @@ ASSUMED_DLAT = 0.083
 # Router
 # =============================================================================
 # router (griddata용)
-router = APIRouter(prefix="/api", tags=["grid"])
+router = APIRouter(prefix="/api", tags=["weather service"])
 
 # meta_router (sources, variables용)
 meta_router = APIRouter(prefix="/api", tags=["meta"])
 
+# =============================================================================
+# Service specification (public API) — fixed values & allowed variables
+# =============================================================================
+SPEC_SOURCE = "noaa"
+SPEC_DATASET_CODE = "original"
+SPEC_MODEL = "gfs"
+SPEC_VARIABLES = {
+    "DIRPW": "Peak Wave Direction (degree)",
+    "HTSGW": "Significant Wave Height (m)",
+    "PERPW": "Peak Wave Period (s)",
+    "UGRD": "Eastward Current (m/s)",
+    "VGRD": "Northward Current (m/s)",
+    "WDIR": "Wind Direction (degree)",
+    "WIND": "Wind Speed (m/s)",
+}
+SPEC_RUN_HOURS = (0, 6, 12, 18)
+
+GRIDDATA_EXAMPLE_URL = (
+    "https://weather-api.bmap.kr/api/griddata"
+    "?source=noaa&dataset_code=original&model=gfs&variable=DIRPW"
+    "&run_time_utc=2026-03-03T06:00:00Z&step_hours=0&lat=35.0&lon=129.0&buffer_km=40"
+)
+
+GRIDDATA_DESCRIPTION = """
+Returns gridded values of one NOAA GFS Wave variable for the area around a center point.
+
+**Fixed parameters**: `source=noaa`, `dataset_code=original`, `model=gfs`
+
+**Variables** (choose exactly one):
+
+| code | description |
+|---|---|
+""" + "\n".join(f"| `{k}` | {v} |" for k, v in SPEC_VARIABLES.items()) + """
+
+**run_time_utc**: `yyyy-mm-dd` + `T` + run time + `Z`. Only `00:00:00`, `06:00:00`, `12:00:00`, `18:00:00` are valid
+(e.g. `2026-03-03T06:00:00Z`).
+
+**Area**: center point (`lat`, `lon`, WGS84) + `buffer_km` (radius in km).
+
+**Response**: `timestamp` = `run_time_utc` + `step_hours`; `data` is a flat array in `indexOrder` (`row-major-bottom-up`).
+
+**Example**
+
+`""" + GRIDDATA_EXAMPLE_URL + "`"
+
+
+def _validate_spec_run_time(run_time_utc: str) -> datetime:
+    """Parse run_time_utc and enforce the run-time rule of the service specification."""
+    try:
+        run_dt = _parse_utc(run_time_utc)
+    except Exception:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Invalid run_time_utc format.",
+                "expected": "yyyy-mm-ddTHH:MM:SSZ (ISO 8601, UTC), e.g. 2026-03-03T06:00:00Z",
+            },
+        )
+    if run_dt.hour not in SPEC_RUN_HOURS or run_dt.minute != 0 or run_dt.second != 0:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Invalid run time.",
+                "valid_run_times": ["00:00:00", "06:00:00", "12:00:00", "18:00:00"],
+                "received": run_time_utc,
+            },
+        )
+    return run_dt
+
+
 @router.get(
     "/griddata",
     response_model=GridDataResponse,
-    summary="Get gridded variable data",
-    description="Reads a GRIB2/NetCDF from S3 (by forecast run+step) and returns encoded grid values."
+    summary="Get gridded marine weather data",
+    description=GRIDDATA_DESCRIPTION,
 )
 async def get_griddata(
-    # ---- forecast identity (필수) ----
-    source: str = Query(..., example="ecmwf"),
-    dataset_code: str = Query(..., example="original"),
-    model: str = Query(..., example="ifs"),
-    variable: str = Query(..., example="swh"),
-    run_time_utc: str = Query(..., example="2025-07-16T00:00:00Z"),
-    step_hours: int = Query(..., ge=0, le=360, example=24),
+    # ---- fixed identity (service specification) ----
+    source: Literal["noaa"] = Query(
+        "noaa", description="Data source. Fixed: `noaa`"),
+    dataset_code: Literal["original"] = Query(
+        "original", description="Dataset code. Fixed: `original`"),
+    model: Literal["gfs"] = Query(
+        "gfs", description="Model. Fixed: `gfs`"),
 
-    # ---- spatial (방식 1: 중심점 + 버퍼) ----
-    lat: Optional[float] = Query(default=None, example=35.0, description="Center point latitude"),
-    lon: Optional[float] = Query(default=None, example=129.0, description="Center point longitude"),
-    buffer_km: Optional[float] = Query(default=None, ge=0.0, le=500.0, example=50.0, description="Buffer radius (km)"),
+    # ---- variable (exactly one) ----
+    variable: Literal["DIRPW", "HTSGW", "PERPW", "UGRD", "VGRD", "WDIR", "WIND"] = Query(
+        ..., example="DIRPW",
+        description=(
+            "Variable code (exactly one). "
+            "DIRPW = Peak Wave Direction (degree), HTSGW = Significant Wave Height (m), "
+            "PERPW = Peak Wave Period (s), UGRD = Eastward Current (m/s), "
+            "VGRD = Northward Current (m/s), WDIR = Wind Direction (degree), WIND = Wind Speed (m/s)"
+        ),
+    ),
 
-    # ---- spatial (method 2: NW-SE corners) ----
-    nw_lon: Optional[float] = Query(default=None, example=128.0, description="Northwest (top-left) longitude"),
-    nw_lat: Optional[float] = Query(default=None, example=36.0, description="Northwest (top-left) latitude"),
-    se_lon: Optional[float] = Query(default=None, example=130.0, description="Southeast (bottom-right) longitude"),
-    se_lat: Optional[float] = Query(default=None, example=34.0, description="Southeast (bottom-right) latitude"),
-    ) -> GridDataResponse:
-    
+    # ---- forecast time ----
+    run_time_utc: str = Query(
+        ..., example="2026-03-03T06:00:00Z",
+        description=(
+            "Model run time (ISO 8601, UTC): `yyyy-mm-dd` + `T` + run time + `Z`. "
+            "Only 00:00:00, 06:00:00, 12:00:00 and 18:00:00 are valid."
+        ),
+    ),
+    step_hours: int = Query(
+        ..., ge=0, le=360, example=0,
+        description="Forecast lead time in hours from run_time_utc"),
+
+    # ---- area: center point + buffer ----
+    lat: float = Query(..., ge=-90.0, le=90.0, example=35.0,
+                       description="Latitude of the center point (WGS84, e.g. 35.0)"),
+    lon: float = Query(..., ge=-180.0, le=180.0, example=129.0,
+                       description="Longitude of the center point (WGS84, e.g. 129.0)"),
+    buffer_km: float = Query(..., ge=0.0, le=500.0, example=40,
+                             description="Buffer radius from the center point (km)"),
+) -> GridDataResponse:
+
+    requested_variable = variable
+    nw_lon = nw_lat = se_lon = se_lat = None  # bbox-corner mode is not part of the public specification
+
+    run_dt = _validate_spec_run_time(run_time_utc)
+
     type_ = "forecast"
     
     # ---- bbox 생성 로직 ----
@@ -540,8 +635,7 @@ async def get_griddata(
     # ---- 변수 정규화 (소스별) ----
     norm_var = _norm_var(variable, source)
     
-    # ---- valid_time 계산 (응답용) ----
-    run_dt = _parse_utc(run_time_utc)
+    # ---- valid_time (for the response) ----
     valid_dt = run_dt + timedelta(hours=int(step_hours))
     valid_time_utc = _to_z(valid_dt)
     
@@ -675,7 +769,7 @@ async def get_griddata(
                 "step_hours": int(step_hours),
                 "valid_time_utc": valid_time_utc,
 
-                "variable": norm_var,
+                "variable": requested_variable,
                 "unit": unit_meta,
                 "name_en": name_en_meta,
                 "standard_name": std_name_meta,
@@ -786,7 +880,7 @@ async def get_griddata(
             "step_hours": int(step_hours),
             "valid_time_utc": valid_time_utc,
 
-            "variable": norm_var,
+            "variable": requested_variable,
             "unit": unit_meta,
             "name_en": name_en_meta,
             "standard_name": std_name_meta,
@@ -914,6 +1008,7 @@ async def get_variables(source: str):
 
 @router.get(
     "/gridfile",
+    include_in_schema=False,
     summary="Get presigned S3 URL for a grid file",
     description="Returns metadata and a temporary presigned URL for direct file download."
 )
