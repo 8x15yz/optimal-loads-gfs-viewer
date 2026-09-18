@@ -25,6 +25,9 @@ class ValueEncoding(BaseModel):
 
 class GridDataResponse(BaseModel):
     timestamp: str = Field(..., description="Valid time of the data (ISO 8601, UTC) = run_time_utc + step_hours")
+    run_time_utc: Optional[str] = Field(None, description="Model run time echoed back (ISO 8601, UTC)")
+    step_hours: Optional[int] = Field(None, description="Forecast lead time in hours echoed back")
+    valid_time_utc: Optional[str] = Field(None, description="Same as timestamp; kept for backward compatibility")
     variable: str = Field(..., description="Requested variable code")
     unit: Optional[str] = Field(None, description="Unit of the variable (e.g. m, degree, s, m/s)")
     name_en: Optional[str] = Field(None, description="Full English name of the variable")

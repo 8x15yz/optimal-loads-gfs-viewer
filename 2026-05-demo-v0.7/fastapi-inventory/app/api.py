@@ -415,6 +415,8 @@ ALIASES_ECMWF = {
     "10u": ["10u", "u10"],
     "10v": ["10v", "v10"],
     "swh": ["swh"],
+    "mwd": ["mwd"],
+    "mwp": ["mwp"],
 }
 
 # NOAA 변수명 매핑
@@ -473,8 +475,8 @@ SPEC_VARIABLES = {
     "DIRPW": "Peak Wave Direction (degree)",
     "HTSGW": "Significant Wave Height (m)",
     "PERPW": "Peak Wave Period (s)",
-    "UGRD": "Eastward Current (m/s)",
-    "VGRD": "Northward Current (m/s)",
+    "UGRD": "Eastward 10 m Wind Component (m/s)",
+    "VGRD": "Northward 10 m Wind Component (m/s)",
     "WDIR": "Wind Direction (degree)",
     "WIND": "Wind Speed (m/s)",
 }
@@ -509,6 +511,139 @@ Returns gridded values of one NOAA GFS Wave variable for the area around a cente
 `""" + GRIDDATA_EXAMPLE_URL + "`"
 
 
+# =============================================================================
+# Compatibility layer — public specification + legacy contract
+# =============================================================================
+# public : source=noaa, dataset_code=original, model=gfs, 중심점(lat/lon)+buffer_km
+# legacy : source=noaa|ecmwf, dataset_code=original|computed|original-all-steps,
+#          model=gfs|ifs, nw/se 모서리 bbox, computed wind 변수
+# 동일 엔드포인트에서 두 계약을 모두 수용함.
+
+MIN_BUFFER_DEG = 0.125
+DEFAULT_BUFFER_KM = 50.0
+
+COMPUTED_VARIABLES = {"wind_speed_10m", "wind_dir_10m"}
+
+LEGACY_MODELS = {
+    "noaa":  {"gfs"},
+    "ecmwf": {"ifs"},
+}
+
+LEGACY_VARIABLES = {
+    "noaa":  set(SPEC_VARIABLES) | COMPUTED_VARIABLES,
+    "ecmwf": {"swh", "mwd", "mwp", "10u", "10v"} | COMPUTED_VARIABLES,
+}
+
+LEGACY_DATASET_CODES = {"original", "computed", DATASET_CODE_ALL_STEPS}
+
+ACCEPTED_CONTRACTS = {
+    "public": {
+        "source": SPEC_SOURCE,
+        "dataset_code": SPEC_DATASET_CODE,
+        "model": SPEC_MODEL,
+        "variable": sorted(SPEC_VARIABLES),
+        "area": "lat + lon + buffer_km",
+        "run_time_utc": ["00:00:00", "06:00:00", "12:00:00", "18:00:00"],
+    },
+    "legacy": {
+        "source": sorted(LEGACY_MODELS),
+        "dataset_code": sorted(LEGACY_DATASET_CODES),
+        "model": {"noaa": "gfs", "ecmwf": "ifs"},
+        "variable": {k: sorted(v) for k, v in LEGACY_VARIABLES.items()},
+        "area": "nw_lon + nw_lat + se_lon + se_lat  (or lat + lon + buffer_km)",
+    },
+}
+
+
+def _reject(error: str, **extra):
+    """422 를 일관된 형태로 발생시킴. accepted 에 두 계약을 모두 실어 보냄."""
+    detail = {"error": error, "accepted": ACCEPTED_CONTRACTS}
+    detail.update(extra)
+    raise HTTPException(status_code=422, detail=detail)
+
+
+def _resolve_identity(source: str, dataset_code: str, model: str, variable: str):
+    """source / dataset_code / model / variable 검증 및 정규화.
+
+    반환: (source, dataset_code, model, variable, is_public)
+    is_public=True 이면 공개 스펙에 정확히 부합하는 요청임.
+    """
+    src = (source or SPEC_SOURCE).strip().lower()
+    dsc = (dataset_code or SPEC_DATASET_CODE).strip().lower()
+    mdl = (model or SPEC_MODEL).strip().lower()
+    var = (variable or "").strip()
+
+    if src not in LEGACY_MODELS:
+        _reject("Unsupported source.", received={"source": source})
+    if mdl not in LEGACY_MODELS[src]:
+        _reject("Model does not belong to this source.",
+                received={"source": src, "model": model})
+    if dsc not in LEGACY_DATASET_CODES:
+        _reject("Unsupported dataset_code.", received={"dataset_code": dataset_code})
+
+    norm = _norm_var(var, src)
+    if norm not in LEGACY_VARIABLES[src]:
+        _reject("Unsupported variable for this source.",
+                received={"source": src, "variable": variable, "normalized": norm})
+
+    # dataset_code=computed 는 파생 변수 전용 표식임.
+    # 파생이 아닌 변수와 함께 오면 원본 조회로 되돌림.
+    if dsc == "computed" and norm not in COMPUTED_VARIABLES:
+        dsc = "original"
+
+    is_public = (
+        src == SPEC_SOURCE
+        and mdl == SPEC_MODEL
+        and dsc == SPEC_DATASET_CODE
+        and var in SPEC_VARIABLES
+    )
+    return src, dsc, mdl, var, is_public
+
+
+def _resolve_run_time(run_time_utc: str, strict: bool) -> datetime:
+    """공개 스펙 요청이면 run hour 규칙까지 강제하고, 레거시면 파싱만 수행함."""
+    if strict:
+        return _validate_spec_run_time(run_time_utc)
+    try:
+        return _parse_utc(run_time_utc)
+    except Exception:
+        _reject("Invalid run_time_utc format.",
+                expected="yyyy-mm-ddTHH:MM:SSZ (ISO 8601, UTC), e.g. 2026-03-03T06:00:00Z",
+                received=run_time_utc)
+
+
+def _resolve_area(lat, lon, buffer_km, nw_lon, nw_lat, se_lon, se_lat):
+    """모서리 bbox 또는 중심점+버퍼로부터 [minLon, minLat, maxLon, maxLat] 생성."""
+    corner = [nw_lon, nw_lat, se_lon, se_lat]
+    has_corner = any(p is not None for p in corner)
+    has_center = any(p is not None for p in (lat, lon))
+
+    if has_corner and has_center:
+        _reject("Cannot use both corner (nw/se) and center (lat/lon) parameters.",
+                hint="Use either (nw_lon, nw_lat, se_lon, se_lat) or (lat, lon, buffer_km).")
+
+    if has_corner:
+        if any(p is None for p in corner):
+            _reject("Corner bbox requires all of nw_lon, nw_lat, se_lon, se_lat.",
+                    received={"nw_lon": nw_lon, "nw_lat": nw_lat,
+                              "se_lon": se_lon, "se_lat": se_lat})
+        min_lon, max_lon = sorted((float(nw_lon), float(se_lon)))
+        min_lat, max_lat = sorted((float(nw_lat), float(se_lat)))
+        return [min_lon, min_lat, max_lon, max_lat]
+
+    if lat is None or lon is None:
+        _reject("Area is required.",
+                hint="Provide (lat, lon, buffer_km) or (nw_lon, nw_lat, se_lon, se_lat).")
+
+    buffer = DEFAULT_BUFFER_KM if buffer_km is None else float(buffer_km)
+    if buffer == 0:
+        d_lat = d_lon = 0.001
+    else:
+        cos_lat = np.cos(np.radians(lat))
+        d_lat = max(buffer / 111.0, MIN_BUFFER_DEG)
+        d_lon = max(buffer / (111.0 * cos_lat), MIN_BUFFER_DEG / cos_lat)
+
+    return [lon - d_lon, lat - d_lat, lon + d_lon, lat + d_lat]
 def _validate_spec_run_time(run_time_utc: str) -> datetime:
     """Parse run_time_utc and enforce the run-time rule of the service specification."""
     try:
@@ -540,22 +675,28 @@ def _validate_spec_run_time(run_time_utc: str) -> datetime:
     description=GRIDDATA_DESCRIPTION,
 )
 async def get_griddata(
-    # ---- fixed identity (service specification) ----
-    source: Literal["noaa"] = Query(
-        "noaa", description="Data source. Fixed: `noaa`"),
-    dataset_code: Literal["original"] = Query(
-        "original", description="Dataset code. Fixed: `original`"),
-    model: Literal["gfs"] = Query(
-        "gfs", description="Model. Fixed: `gfs`"),
+    # ---- identity ----
+    # 공개 스펙 값만 enum 으로 문서화하되, 런타임에서는 레거시 값도 수용함.
+    source: str = Query(
+        SPEC_SOURCE, json_schema_extra={"enum": [SPEC_SOURCE]},
+        description="Data source. Public specification: `noaa`"),
+    dataset_code: str = Query(
+        SPEC_DATASET_CODE, json_schema_extra={"enum": [SPEC_DATASET_CODE]},
+        description="Dataset code. Public specification: `original`"),
+    model: str = Query(
+        SPEC_MODEL, json_schema_extra={"enum": [SPEC_MODEL]},
+        description="Model. Public specification: `gfs`"),
 
     # ---- variable (exactly one) ----
-    variable: Literal["DIRPW", "HTSGW", "PERPW", "UGRD", "VGRD", "WDIR", "WIND"] = Query(
+    variable: str = Query(
         ..., example="DIRPW",
+        json_schema_extra={"enum": sorted(SPEC_VARIABLES)},
         description=(
             "Variable code (exactly one). "
             "DIRPW = Peak Wave Direction (degree), HTSGW = Significant Wave Height (m), "
-            "PERPW = Peak Wave Period (s), UGRD = Eastward Current (m/s), "
-            "VGRD = Northward Current (m/s), WDIR = Wind Direction (degree), WIND = Wind Speed (m/s)"
+            "PERPW = Peak Wave Period (s), UGRD = Eastward 10 m Wind Component (m/s), "
+            "VGRD = Northward 10 m Wind Component (m/s), WDIR = Wind Direction (degree), "
+            "WIND = Wind Speed (m/s)"
         ),
     ),
 
@@ -571,64 +712,41 @@ async def get_griddata(
         ..., ge=0, le=360, example=0,
         description="Forecast lead time in hours from run_time_utc"),
 
-    # ---- area: center point + buffer ----
-    lat: float = Query(..., ge=-90.0, le=90.0, example=35.0,
-                       description="Latitude of the center point (WGS84, e.g. 35.0)"),
-    lon: float = Query(..., ge=-180.0, le=180.0, example=129.0,
-                       description="Longitude of the center point (WGS84, e.g. 129.0)"),
-    buffer_km: float = Query(..., ge=0.0, le=500.0, example=40,
-                             description="Buffer radius from the center point (km)"),
+    # ---- area: center point + buffer (public specification) ----
+    lat: Optional[float] = Query(
+        None, ge=-90.0, le=90.0, example=35.0,
+        description="Latitude of the center point (WGS84, e.g. 35.0)"),
+    lon: Optional[float] = Query(
+        None, ge=-180.0, le=180.0, example=129.0,
+        description="Longitude of the center point (WGS84, e.g. 129.0)"),
+    buffer_km: Optional[float] = Query(
+        None, ge=0.0, le=500.0, example=40,
+        description=(
+            "Buffer radius from the center point (km). "
+            f"Values below about {MIN_BUFFER_DEG * 111.0:.0f} km are widened to that minimum "
+            "so at least a few grid cells are returned; 0 returns the single nearest cell."
+        )),
+
+    # ---- area: corner bbox (legacy contract, not in the public specification) ----
+    nw_lon: Optional[float] = Query(None, ge=-180.0, le=180.0, include_in_schema=False),
+    nw_lat: Optional[float] = Query(None, ge=-90.0, le=90.0, include_in_schema=False),
+    se_lon: Optional[float] = Query(None, ge=-180.0, le=180.0, include_in_schema=False),
+    se_lat: Optional[float] = Query(None, ge=-90.0, le=90.0, include_in_schema=False),
 ) -> GridDataResponse:
 
     requested_variable = variable
-    nw_lon = nw_lat = se_lon = se_lat = None  # bbox-corner mode is not part of the public specification
 
-    run_dt = _validate_spec_run_time(run_time_utc)
+    # ---- 계약 판별 및 정규화 (public / legacy 공용) ----
+    source, dataset_code, model, variable, is_public = _resolve_identity(
+        source, dataset_code, model, variable
+    )
+
+    run_dt = _resolve_run_time(run_time_utc, strict=is_public)
 
     type_ = "forecast"
-    
-    # ---- bbox 생성 로직 ----
-    # 우선순위: 1) nw/se 모서리 → 2) 중심점+버퍼 → 3) 전체 영역
-    
-    nw_se_params = [nw_lon, nw_lat, se_lon, se_lat]
-    center_buffer_params = [lat, lon, buffer_km]
-    
-    if all(p is not None for p in nw_se_params):
-        if any(p is not None for p in center_buffer_params):
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error": "Cannot use both nw/se and lat/lon/buffer parameters simultaneously.",
-                    "hint": "Use either (nw_lon, nw_lat, se_lon, se_lat) OR (lat, lon, buffer_km)"
-                }
-            )
-        effective_bbox = [nw_lon, se_lat, se_lon, nw_lat]
-    
-    elif lat is not None and lon is not None:
-        buffer = buffer_km if buffer_km is not None else 50.0
-        
-        if buffer == 0:
-            buffer_deg_lat = 0.001
-            buffer_deg_lon = 0.001
-        else:
-            buffer_deg_lat = buffer / 111.0
-            buffer_deg_lon = buffer / (111.0 * np.cos(np.radians(lat)))
-            min_buffer_deg = 0.125
-            buffer_deg_lat = max(buffer_deg_lat, min_buffer_deg)
-            buffer_deg_lon = max(buffer_deg_lon, min_buffer_deg / np.cos(np.radians(lat)))
-        
-        effective_bbox = [
-            lon - buffer_deg_lon,
-            lat - buffer_deg_lat,
-            lon + buffer_deg_lon,
-            lat + buffer_deg_lat,
-        ]
-    
-    else:
-        effective_bbox = [
-            BBOX_LIMITS["min_lon"], BBOX_LIMITS["min_lat"],
-            BBOX_LIMITS["max_lon"], BBOX_LIMITS["max_lat"],
-        ]
+
+    # ---- 영역 결정: 모서리 bbox 또는 중심점+버퍼 ----
+    effective_bbox = _resolve_area(lat, lon, buffer_km, nw_lon, nw_lat, se_lon, se_lat)
 
     _validate_bbox_limits_raw(effective_bbox)
     

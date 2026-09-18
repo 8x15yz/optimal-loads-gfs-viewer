@@ -84,23 +84,23 @@ _VARIABLES_META = {
         ),
     },
     "UGRD":  {
-        "name_en": "Eastward Current",
+        "name_en": "Eastward Wind Component (10 m)",
         "unit": "m/s",
-        "direction": "from",
+        "direction": None,
         "source": "noaa/gfs",
         "description": (
-            "East-west component of the current. Positive = eastward component, "
-            "negative = westward. Combine with VGRD to get the actual current direction and speed."
+            "East-west component of the 10 m wind. Positive = eastward, negative = westward. "
+            "Combine with VGRD to obtain wind speed and direction."
         ),
     },
     "VGRD":  {
-        "name_en": "Northward Current",
+        "name_en": "Northward Wind Component (10 m)",
         "unit": "m/s",
-        "direction": "from",
+        "direction": None,
         "source": "noaa/gfs",
         "description": (
-            "North-south component of the current. "
-            "Positive = northward component, negative = southward."
+            "North-south component of the 10 m wind. "
+            "Positive = northward, negative = southward."
         ),
     },
     "tidal_elevation": {
