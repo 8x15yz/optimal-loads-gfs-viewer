@@ -520,7 +520,7 @@ Returns gridded values of one NOAA GFS Wave variable for the area around a cente
 # 동일 엔드포인트에서 두 계약을 모두 수용함.
 
 MIN_BUFFER_DEG = 0.125
-DEFAULT_BUFFER_KM = 50.0
+DEFAULT_BUFFER_KM = 10.0
 
 COMPUTED_VARIABLES = {"wind_speed_10m", "wind_dir_10m"}
 
