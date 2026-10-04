@@ -27,7 +27,9 @@ import boto3
 import requests
 from pymongo import ASCENDING, MongoClient, ReturnDocument
 
-from depth_conversion_wrapper import rollback_s3, run_conversion
+from depth_conversion_wrapper import rollback_s3, run_conversion, CONVERTER_ENABLED
+from noaa_srp_store import PackageStore, valid_field
+from noaa_srp_package import MemoryMonitor
 
 UTC = timezone.utc
 
@@ -605,7 +607,12 @@ def is_already_success(run_dt: datetime, stream: str, var: str) -> bool:
         return False
     _id = run_doc_id(run_dt, stream, var)
     doc = runs_col.find_one({"_id": _id}, {"status": 1})
-    return bool(doc and doc.get("status") == "success")
+    if not doc or doc.get("status") != "success" or assets_col is None:
+        return False
+    available = assets_col.distinct("step_hours", {"source": SOURCE, "model": MODEL,
+        "dataset_code": DATASET_CODE, "variable": var, "stream": stream,
+        "run_time_utc": iso_z(run_dt), "s3.key": {"$exists": True}})
+    return set(build_gfs_steps(384)).issubset(available)
 
 
 def start_var_run_log(
@@ -856,8 +863,13 @@ def main() -> None:
     ap.add_argument("--no_mongo", action="store_true", help="Mongo 메타 저장 비활성화")
     ap.add_argument("--no_convert", action="store_true", help="변환툴 실행 스킵 (원본 수집만)")  # ✅ 추가
 
+    ap.add_argument("--skip_srp", action="store_true", help="Emergency: legacy NOMADS-only ingestion")
     args = ap.parse_args()
     run_dt = parse_utc(args.RUN_UTC)
+    if args.no_s3:
+        args.no_mongo = True  # Local tests must not publish production completion records.
+    if args.max_step != 384 and not args.no_convert:
+        ap.error("Partial --max_step requires --no_convert")
 
     if not MONGO_URI:
         print("⚠️ MONGO_URI 가 비어있습니다. Mongo 기능은 비활성화됩니다.")
@@ -890,7 +902,13 @@ def main() -> None:
     if not args.no_s3:
         s3 = boto3.client("s3", region_name=REGION)
 
+    run_set_dir = get_run_set_dir(run_dt)
+    package_col = (mongo[MONGO_DB][os.getenv("MONGO_PACKAGES_COL", "forecast_packages")]
+                   if mongo is not None and not args.no_mongo else None)
+    store = None
+    srp_ready = False
     try:
+        store = PackageStore(run_dt, run_set_dir, s3, package_col, BUCKET, REGION)
         steps = build_gfs_steps(max_step=args.max_step)
         
         print(f"▶ NOAA RUN : {iso_z(run_dt)}")
@@ -903,6 +921,20 @@ def main() -> None:
 
         run_set_dir = get_run_set_dir(run_dt)
 
+        conversion_done = {
+            product: store.converted(product, s100_col) for product in ("s111", "s413")
+        }
+        needs_conversion = not args.no_convert and CONVERTER_ENABLED and not all(conversion_done.values())
+        raw_done = all(is_already_success(run_dt, "wave", v) for v in PARAMS)
+        if not args.skip_srp:
+            try:
+                with MemoryMonitor(10):
+                    srp_ready = store.prepare(need_fields=not raw_done or needs_conversion)
+            except Exception as exc:
+                print(f"[SRP] package stage failed; continuing ingest: {exc}")
+                if store.document().get("status") != "ready":
+                    store.update(status="failed", error=str(exc)[:1000])
+
         # 변수별 실행
         for var, meta in PARAMS.items():
             unit = meta["unit"]
@@ -910,7 +942,10 @@ def main() -> None:
             stream = meta.get("stream", "wave")
             
             # ✅ 이미 성공한 변수-run이면 스킵
-            if is_already_success(run_dt, stream, var):
+            local_complete = all(valid_field(
+                get_out_path(run_set_dir, stream, var, f"original_{var}_{run_dt:%Y%m%d_%H}Z_step{step:03}.grib2"),
+                var, run_dt, step) for step in steps) if needs_conversion else True
+            if is_already_success(run_dt, stream, var) and local_complete:
                 print(f"⏭️ SKIP (already success): {var} ({stream}) run={iso_z(run_dt)}")
                 summary_vars_success += 1
                 if not args.no_mongo:
@@ -944,8 +979,9 @@ def main() -> None:
                 local_path = get_out_path(run_set_dir, stream, var, filename)
                 
                 # 1) 다운로드
-                if local_path.exists() and local_path.stat().st_size > 0:
+                if valid_field(local_path, var, run_dt, step):
                     counters["existed"] += 1
+                    field_origin = "local-validated"
                 else:
                     try:
                         download_var_step(
@@ -956,7 +992,11 @@ def main() -> None:
                             timeout_sec=args.timeout_sec,
                             polite_wait_sec=args.polite_wait_sec,
                         )
+                        if not valid_field(local_path, var, run_dt, step):
+                            local_path.unlink(missing_ok=True)
+                            raise ValueError("Downloaded GRIB variable/run/step mismatch")
                         counters["downloaded"] += 1
+                        field_origin = "nomads-http-filter"
                     except Exception as e:
                         counters["failed"] += 1
                         if len(errors) < MAX_ERRORS:
@@ -999,6 +1039,7 @@ def main() -> None:
                     s3_key=s3_key,
                 )
                 
+                doc["source_parameters"]["noaa"]["access"] = field_origin
                 if assets_col is not None:
                     try:
                         upsert_assets(doc)
@@ -1057,68 +1098,45 @@ def main() -> None:
         else:
             overall_status = "failed"
 
-        # ✅ conversion phase (원본 수집 성공/partial일 때만 시도)
-        wave_dir = run_set_dir / "wave"
-
-        # S-111 변환에 필요한 UGRD, VGRD 로컬 파일이 모두 있는지 확인
-        # (이전 런에서 "already success" 스킵된 변수는 로컬 파일이 없으므로 반드시 체크)
-        s111_source_ready = all(
-            (wave_dir / var).exists() and any((wave_dir / var).glob("*.grib2"))
-            for var in ("UGRD", "VGRD")
-        )
-
-        # s100assets_metadata 에 이 run 의 S-111 타일이 이미 등록돼 있으면 변환 스킵
-        already_converted = False
-        if s100_col is not None and not args.no_mongo:
-            already_converted = (
-                s100_col.count_documents(
-                    {"product": "s111", "run_time_utc": iso_z(run_dt)}
-                ) > 0
-            )
-
-        if already_converted:
-            print("⏭️ conversion 스킵: 이미 변환 완료된 run (s100assets_metadata 확인)")
-        elif not s111_source_ready:
-            print(
-                "⏭️ conversion 스킵: UGRD/VGRD 로컬 파일 없음 "
-                "(이전 런에서 정리됐거나 다운로드 실패)"
-            )
-
-        wave_files_exist = s111_source_ready and not already_converted
-
-        if not args.no_convert and overall_status in ("success", "partial") and wave_files_exist:
-            if not args.no_mongo:
-                heartbeat("conversion start")
-
-            all_uploaded_keys: list[str] = []
-
-            for conv_mode in (2, 3):   # 2=S-111, 3=S-413
-                product = "s111" if conv_mode == 2 else "s413"
-                print(f"\n▶ {product.upper()} 변환 시작")
-
-                ok, keys = run_conversion(
-                    mode=conv_mode,
-                    run_time_utc=run_dt,
-                    run_set_dir=run_set_dir,
-                    s3_client=s3,
-                    s100_col=s100_col if not args.no_mongo else None,
-                    dir_col=dir_col if not args.no_mongo else None,
-                )
-                all_uploaded_keys.extend(keys)
-
+        # Completion is recorded only after all generated tiles upload/register successfully.
+        if needs_conversion:
+            for conv_mode, product in ((2, "s111"), (3, "s413")):
+                if conversion_done[product]:
+                    continue
+                from depth_conversion_wrapper import PRODUCT_META
+                source_vars = PRODUCT_META[conv_mode]["variables"]["source"]
+                # The converter consumes a full forecast; a partial --max_step must not publish it.
+                conversion_steps = build_gfs_steps(384)
+                sources_ready = all(valid_field(
+                    get_out_path(run_set_dir, "wave", var,
+                        f"original_{var}_{run_dt:%Y%m%d_%H}Z_step{step:03}.grib2"), var, run_dt, step)
+                    for var in source_vars for step in conversion_steps)
+                if not sources_ready:
+                    conv_failed = True
+                    overall_status = "failed"
+                    print(f"[conversion] {product}: full input set missing; retaining local sources")
+                    break
+                # Remove obsolete output from an interrupted earlier attempt, not input GRIBs.
+                for suffix in (product, product + "_staging"):
+                    shutil.rmtree(run_set_dir / suffix, ignore_errors=True)
+                (run_set_dir / f"{product}_monitor.log").unlink(missing_ok=True)
+                heartbeat(f"conversion start {product}")
+                ok, keys = run_conversion(mode=conv_mode, run_time_utc=run_dt,
+                    run_set_dir=run_set_dir, s3_client=s3, s100_col=s100_col, dir_col=dir_col)
                 if not ok:
-                    print(f"❌ {product.upper()} 변환 실패 → 롤백 시작")
-                    rollback_s3(s3, all_uploaded_keys)
+                    rollback_s3(s3, keys)
+                    if s100_col is not None and keys:
+                        s100_col.delete_many({"product": product, "run_time_utc": iso_z(run_dt),
+                                              "s3.key": {"$in": keys}})
                     conv_failed = True
                     overall_status = "failed"
                     break
+                store.mark_conversion(product, keys)
+                heartbeat(f"conversion done {product}")
 
-                if not args.no_mongo:
-                    heartbeat(f"conversion done mode={conv_mode}")
-
-            if not conv_failed:
-                print("\n✅ S-111 / S-413 변환 완료")
-
+        if not args.skip_srp and s3 is not None and package_col is not None and not srp_ready:
+            if overall_status == "success":
+                overall_status = "partial"
         print("✅ done")
 
     except Exception as e:
@@ -1127,22 +1145,12 @@ def main() -> None:
         raise
 
     finally:
-        # ✅ 로컬 파일 일괄 삭제 (GRIB2 + H5)
-        # 변환 성공 시에만 wave까지 삭제, 실패 시엔 wave 보존 (재시도 가능하도록)
-        if not args.no_delete_local:
-            if conv_failed:
-                # wave는 남기고 s111/s413만 정리
-                for subdir in ("s111", "s413"):
-                    target = run_set_dir / subdir
-                    if target.exists():
-                        try:
-                            shutil.rmtree(target)
-                            print(f"🧹 삭제 완료: {target}")
-                        except Exception as e:
-                            print(f"⚠️ 삭제 실패: {target} — {e}")
-            else:
-                # 변환 성공(또는 no_convert)이면 wave 포함 전체 정리
+        # Never discard retry inputs on partial/error or a local-only test.
+        if not args.no_delete_local and s3 is not None and package_col is not None:
+            if overall_status == "success" and not conv_failed:
                 _cleanup_run_set_dir(run_set_dir)
+            if store is not None:
+                store.cleanup_zip()
 
         if not args.no_mongo:
             summary = {
@@ -1153,6 +1161,9 @@ def main() -> None:
                 "vars_failed": summary_vars_failed,
             }
             end_ingestion(overall=overall_status, err_msg=overall_err, summary=summary)
+
+    if overall_status != "success":
+        raise RuntimeError(f"NOAA ingestion ended with status={overall_status}; see stage logs")
 
 
 if __name__ == "__main__":

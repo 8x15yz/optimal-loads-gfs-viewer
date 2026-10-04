@@ -77,22 +77,9 @@ def build_filter_url(run_dt: datetime, step: int, var: str) -> str:
 
 
 def probe_run_available(run_dt: datetime, *, timeout_sec: int = 20) -> bool:
-    url = build_filter_url(run_dt, GATE_STEP, GATE_VAR)
-    try:
-        r = requests.get(url, headers=DEFAULT_HEADERS, stream=True, timeout=timeout_sec)
-        if r.status_code != 200:
-            return False
-        # 빈 응답 방지: 최소 몇 KB라도 내려오는지 확인
-        got = 0
-        for chunk in r.iter_content(chunk_size=8192):
-            if not chunk:
-                continue
-            got += len(chunk)
-            if got >= 16 * 1024:
-                break
-        return got > 0
-    except requests.RequestException:
-        return False
+    from noaa_srp_package import Client, STEPS
+    objects = Client(timeout=timeout_sec, retries=2, max_minutes=3).inventory(run_dt)
+    return all(step in objects and objects[step].get("idx") for step in STEPS)
 
 
 def main() -> None:
@@ -117,8 +104,12 @@ def main() -> None:
     chosen: Optional[datetime] = None
 
     for dt in candidates:
-        ok = probe_run_available(dt, timeout_sec=args.gate_timeout_sec)
-        print(f"[gate] probe run={iso_z(dt)} var={GATE_VAR} step={GATE_STEP:03d} -> {ok}")
+        try:
+            ok = probe_run_available(dt, timeout_sec=args.gate_timeout_sec)
+        except Exception as exc:
+            print(f"[gate] inventory error: {exc}")
+            ok = False
+        print(f"[gate] probe run={iso_z(dt)} 209 GRIB + 209 IDX -> {ok}")
         if ok:
             chosen = dt
             break

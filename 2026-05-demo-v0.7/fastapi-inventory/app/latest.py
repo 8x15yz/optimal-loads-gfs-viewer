@@ -350,3 +350,44 @@ async def get_latest():
         "variables": {k: _VARIABLES_META[k] for k in variables_included if k in _VARIABLES_META},
         "assets": assets,
     }
+
+
+@latest_router.get("/latest-forecast", summary="Latest ready NOAA SRP ZIP")
+async def get_noaa_latest():
+    from app.db import get_packages_collection
+    coll = await get_packages_collection()
+    doc = await coll.find_one(
+        {"package_type": "noaa_gfswave_srp", "status": "ready"},
+        sort=[("run_time_utc", -1)],
+    )
+    if not doc:
+        raise HTTPException(status_code=503, detail="No ready NOAA SRP ZIP available.")
+    expires = int(os.getenv("SRP_URL_EXPIRES_SECONDS", "3600"))
+    if not 1 <= expires <= 604800:
+        raise HTTPException(status_code=500, detail="Invalid SRP URL expiry configuration.")
+    location = doc.get("s3") or {}
+    if not location.get("bucket") or not location.get("key"):
+        raise HTTPException(status_code=503, detail="NOAA SRP ZIP location unavailable.")
+    now = _now_utc()
+    try:
+        # Signing does not download the ZIP. Optionally verify remote existence/size.
+        client = _s3 if location.get("region", AWS_REGION) == AWS_REGION else boto3.client(
+            "s3", region_name=location["region"])
+        if os.getenv("SRP_VERIFY_OBJECT", "false").lower() == "true":
+            head = await asyncio.to_thread(client.head_object,
+                Bucket=location["bucket"], Key=location["key"])
+            if head["ContentLength"] != doc["size_bytes"]:
+                raise ValueError("Object size mismatch")
+        url = await asyncio.to_thread(client.generate_presigned_url, "get_object",
+            Params={"Bucket": location["bucket"], "Key": location["key"]}, ExpiresIn=expires)
+    except Exception:
+        raise HTTPException(status_code=503, detail="NOAA SRP download temporarily unavailable.")
+    return {
+        "package_type": doc["package_type"], "run_time_utc": doc["run_time_utc"],
+        "filename": location["key"].rsplit("/", 1)[-1],
+        "grib_file_count": doc["grib_file_count"], "idx_file_count": doc["idx_file_count"],
+        "forecast_steps": doc["forecast_steps"], "variables": doc["variables"],
+        "size_bytes": doc["size_bytes"], "sha256": doc["sha256"],
+        "url": url, "generated_at": _to_z(now),
+        "expires_at": _to_z(now + timedelta(seconds=expires)), "expires_in": expires,
+    }

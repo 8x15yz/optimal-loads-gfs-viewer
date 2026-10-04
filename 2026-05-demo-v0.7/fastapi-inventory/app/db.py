@@ -32,3 +32,6 @@ async def get_ingestion_when_collection():
 
 async def get_s100_assets_collection():          # ✅ 추가
     return _db[_S100_COL]
+
+async def get_packages_collection():
+    return _db[os.getenv("MONGO_PACKAGES_COL", "forecast_packages")]

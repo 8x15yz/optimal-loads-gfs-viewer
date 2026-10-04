@@ -1,3 +1,0 @@
-ecmwf-opendata
-boto3
-pymongo

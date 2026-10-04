@@ -582,11 +582,12 @@ def run_conversion(
             size_bytes=size_bytes,
         )
 
+        doc["missing"] = False
         if s100_col is not None:
             try:
                 s100_col.update_one(
                     {"natural_key": doc["natural_key"]},
-                    {"$setOnInsert": doc},
+                    {"$set": doc},
                     upsert=True,
                 )
             except Exception as e:
@@ -630,11 +631,12 @@ def run_conversion(
             try:
                 s100_col.update_one(
                     {"natural_key": natural_key},
-                    {"$setOnInsert": missing_doc},
+                    {"$set": missing_doc},
                     upsert=True,
                 )
                 print(f"[wrapper] 🏝️  missing tile={tile_idx_str} 메타 등록 (내륙/무데이터)")
             except Exception as e:
+                cnt_fail += 1
                 print(f"[wrapper] ⚠️ missing 메타 등록 실패 tile={tile_idx_str}: {e}")
 
     print(
