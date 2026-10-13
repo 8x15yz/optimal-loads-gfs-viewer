@@ -35,3 +35,7 @@ async def get_s100_assets_collection():          # ✅ 추가
 
 async def get_packages_collection():
     return _db[os.getenv("MONGO_PACKAGES_COL", "forecast_packages")]
+
+
+async def get_request_logs_collection():
+    return _db[os.getenv("MONGO_REQUEST_LOGS_COL", "request_logs")]

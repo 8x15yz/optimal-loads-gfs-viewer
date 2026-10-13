@@ -19,6 +19,8 @@ from app.ingestion import router as ingestion_router
 from app.db import get_assets_collection, get_directories_collection, get_s100_assets_collection
 from app.api import router as api_router, meta_router, s100_router
 from app.latest import latest_router
+from app.monitoring import router as monitoring_router
+from app.request_logging import RequestLogMiddleware, request_logging_lifespan
 
 from urllib.parse import quote
 
@@ -47,6 +49,7 @@ Provides NOAA GFS Wave gridded marine weather data (wave, wind, current) as JSON
 """
 
 app = FastAPI(
+    lifespan=request_logging_lifespan,
     title=APP_TITLE,
     version=APP_VERSION,
     description=APP_DESCRIPTION,
@@ -98,6 +101,7 @@ app.include_router(ingestion_router, include_in_schema=False)
 app.include_router(meta_router, include_in_schema=False)
 app.include_router(s100_router, include_in_schema=False)
 app.include_router(latest_router, include_in_schema=False)
+app.include_router(monitoring_router, include_in_schema=False)
 
 # ---- CORS ----
 app.add_middleware(
@@ -107,6 +111,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestLogMiddleware)
 
 # =========================================================
 # NOAA Index 스타일 helper
