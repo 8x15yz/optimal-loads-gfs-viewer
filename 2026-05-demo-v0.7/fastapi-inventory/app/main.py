@@ -23,6 +23,7 @@ from app.monitoring import router as monitoring_router
 from app.request_logging import RequestLogMiddleware, request_logging_lifespan
 
 from urllib.parse import quote
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 load_dotenv()
 
@@ -606,4 +607,14 @@ async def inventory_file(request: Request, key: str = Query(..., description="S3
             "rows": rows,
             "other": other,
         },
+    )
+
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    return PlainTextResponse(
+        "User-agent: *\n"
+        "Disallow: /inventory\n"
+        "Disallow: /api/\n"
     )
