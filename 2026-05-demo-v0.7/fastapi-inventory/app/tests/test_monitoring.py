@@ -289,3 +289,35 @@ def test_failed_ttl_removal_is_reported_and_retried(setup, monkeypatch):
         client.portal.call(writer._indexes)
         assert writer.health()['indexes_ready']
         assert 'request_expiry' not in collection.raw.index_information()
+
+
+def test_relay_headers_become_request_id_and_account(setup):
+    """Blue-X가 보낸 X-Request-ID·X-BlueX-Account를 요청 ID·계정으로 기록하고 조회 필터로 찾을 수 있음."""
+    app, collection = setup
+    auth = ('operator', 'test-password')
+    rid = '3f2a9c1e-1234-4abc-9def-0123456789ab'
+    with TestClient(app, client=('34.50.13.182', 1234)) as client:
+        res = client.get('/api/griddata', headers={
+            'User-Agent': 'Blue-X/0.9.0', 'X-Request-ID': rid, 'X-BlueX-Account': 'acct-01'})
+        assert res.headers['x-request-id'] == rid
+        # 같은 요청 ID가 다시 와도 기록 충돌 없음 (_id는 서버가 별도 생성)
+        client.get('/api/griddata', headers={'X-Request-ID': rid})
+        # 형식이 맞지 않는 헤더는 무시하고 서버 ID 사용
+        bad = client.get('/api/griddata', headers={'X-Request-ID': 'bad id<script>', 'X-BlueX-Account': 'a b'})
+        client.get('/api/griddata')
+        drain(client, app)
+        docs = list(collection.raw.find())
+        assert len(docs) == 4 and len({d['_id'] for d in docs}) == 4
+        assert app.state.request_log_writer.health()['fallback_count'] == 0
+        first = collection.raw.find_one({'relay_account': 'acct-01'})
+        assert first['request_id'] == rid and first['request_id_source'] == 'header'
+        assert len(bad.headers['x-request-id']) == 32
+        bad_doc = collection.raw.find_one({'request_id': bad.headers['x-request-id']})
+        assert bad_doc['request_id_source'] == 'server' and bad_doc['relay_account'] is None
+        assert client.get('/api/monitoring/data?request_id=' + rid, auth=auth).json()['overview']['total'] == 2
+        data = client.get('/api/monitoring/data?account=acct-01', auth=auth).json()
+        assert data['overview']['total'] == 1 and data['requests'][0]['relay_account'] == 'acct-01'
+        everything = client.get('/api/monitoring/data', auth=auth).json()
+        assert everything['accounts'] == [{'_id': 'acct-01', 'count': 1, 'errors': 0}]
+        page = client.get('/monitoring', auth=auth)
+        assert 'name="request_id"' in page.text and 'name="account"' in page.text and 'id="accounts"' in page.text

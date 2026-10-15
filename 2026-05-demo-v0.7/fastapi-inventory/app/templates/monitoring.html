@@ -41,6 +41,9 @@
   .monitor-time {white-space:nowrap;font-size:.75rem}
   .monitor-link {border:0;padding:0;background:none;color:var(--brand);font:inherit;text-align:left;cursor:pointer;overflow-wrap:anywhere}
   .monitor-link:hover {text-decoration:underline}
+  .monitor-account {margin-top:4px;font-size:.72rem;color:var(--muted);white-space:nowrap}
+  .monitor-account .monitor-link {font-size:.72rem}
+  .monitor-subheading {margin-top:22px}
   .monitor-detail {max-width:310px;min-width:150px;font-size:.74rem}
   .monitor-detail summary {cursor:pointer;color:var(--brand)}
   .monitor-detail pre {white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;margin:8px 0}
@@ -67,6 +70,8 @@
     <label>응답 상태<select name="status"><option value="all">전체 상태</option><option value="2xx">2xx · 정상</option><option value="3xx">3xx · 리다이렉트</option><option value="4xx">4xx · 요청 오류</option><option value="5xx">5xx · 서버 오류</option></select></label>
     <label class="grow">요청 경로<input name="endpoint" placeholder="예: /api/latest" maxlength="256"></label>
     <label class="grow">클라이언트 IP<input name="client_ip" placeholder="IP 정확히 일치" maxlength="128"></label>
+    <label class="grow">요청 ID<input name="request_id" placeholder="Blue-X 활동 로그 ID" maxlength="128"></label>
+    <label class="grow">Blue-X 계정<input name="account" placeholder="계정 ID 정확히 일치" maxlength="128"></label>
     <button class="btn btn-primary" type="submit" id="refresh">조회</button>
     <label class="auto"><input type="checkbox" id="includeMonitoring" name="include_monitoring" value="true">모니터링 요청 포함</label>
     <label class="auto"><input type="checkbox" id="auto" checked>30초 자동 갱신</label>
@@ -91,6 +96,8 @@
     <section class="panel monitor-panel">
       <div class="monitor-heading"><h2>클라이언트 IP</h2><span>상위 10개 · IP를 누르면 필터 적용</span></div>
       <div class="monitor-table-wrap"><table class="monitor-table"><thead><tr><th>IP 주소</th><th class="number">요청</th></tr></thead><tbody id="clients"></tbody></table></div>
+      <div class="monitor-heading monitor-subheading"><h2>Blue-X 계정</h2><span>중계 요청 상위 10개 · 계정을 누르면 필터 적용</span></div>
+      <div class="monitor-table-wrap"><table class="monitor-table"><thead><tr><th>계정 ID</th><th class="number">요청</th><th class="number">오류</th></tr></thead><tbody id="accounts"></tbody></table></div>
     </section>
   </div>
   <section class="panel monitor-panel">
@@ -101,6 +108,7 @@
   <p class="monitor-note">모든 수치는 이 앱에 도착해 기록된 GET 요청 기준입니다. 모니터링 요청은 기록하되 기본 조회·통계에서 제외하며, ‘모니터링 요청 포함’을 켜거나 요청 종류에서 ‘모니터링’을 선택하면 표시됩니다.<br>
     다운로드 URL 발급은 파일 다운로드 완료를 뜻하지 않습니다. 처리 시간은 사용자의 다운로드 완료 시간이 아닙니다.<br>
     IP는 서버가 인식한 주소이며, 프록시 설정에 따라 프록시 주소가 표시될 수 있습니다. IP만으로 사용자·기관을 식별할 수는 없습니다.<br>
+    Blue-X를 거친 요청은 Blue-X가 보낸 요청 ID(활동 로그 ID와 동일)와 계정 ID가 함께 표시됩니다. 이 값은 요청 헤더로 전달된 것으로 인증 정보가 아니며, 요청 ID 검색은 선택한 조회 기간 안에서만 동작합니다.<br>
     기록은 수 초 늦게 반영될 수 있습니다. 보관 정책은 영구 보관(기간에 따른 자동 삭제 없음)이며, 저장 장애나 강제 종료 시 일부 기록이 통계에서 누락될 수 있습니다.</p>
 </main>
 <script>
@@ -115,7 +123,8 @@
   const date = value => new Date(value).toLocaleString('ko-KR', {timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
   function cell(row, value, cls) {const td = document.createElement('td');td.textContent = value;if(cls) td.className=cls;row.appendChild(td);return td;}
   function empty(body, cols) {body.replaceChildren();const tr=document.createElement('tr');const td=cell(tr,'해당 조건의 요청 기록이 없습니다.','monitor-empty');td.colSpan=cols;body.appendChild(tr);}
-  function filterLink(td, text, name) {td.textContent='';const b=document.createElement('button');b.type='button';b.className='monitor-link mono';b.textContent=text;b.onclick=()=>{if(busy)return;form.elements[name].value=name==='endpoint'?text.replace(/\{[^}]+\}/g,''):text;page=1;load();};td.appendChild(b);}
+  function linkButton(text, name) {const b=document.createElement('button');b.type='button';b.className='monitor-link mono';b.textContent=text;b.onclick=()=>{if(busy)return;form.elements[name].value=name==='endpoint'?text.replace(/\{[^}]+\}/g,''):text;page=1;load();};return b;}
+  function filterLink(td, text, name) {td.textContent='';td.appendChild(linkButton(text,name));}
   function render(data) {
     const o=data.overview;
     $('total').textContent=number(o.total);
@@ -140,13 +149,17 @@
     const clients=$('clients');clients.replaceChildren();
     if(!data.clients.length) empty(clients,2);
     for(const r of data.clients){const tr=document.createElement('tr');filterLink(cell(tr,r._id),r._id,'client_ip');cell(tr,number(r.count),'number');clients.appendChild(tr);}
+    const accounts=$('accounts');accounts.replaceChildren();const accountRows=data.accounts||[];
+    if(!accountRows.length) empty(accounts,3);
+    for(const r of accountRows){const tr=document.createElement('tr');filterLink(cell(tr,r._id),r._id,'account');cell(tr,number(r.count),'number');cell(tr,number(r.errors),'number');accounts.appendChild(tr);}
     const requests=$('requests');requests.replaceChildren();
     if(!data.requests.length) empty(requests,7);
     for(const r of data.requests){
-      const tr=document.createElement('tr');cell(tr,date(r.started_at),'monitor-time');filterLink(cell(tr,r.client_ip,'mono'),r.client_ip,'client_ip');
+      const tr=document.createElement('tr');cell(tr,date(r.started_at),'monitor-time');const ipCell=cell(tr,r.client_ip,'mono');filterLink(ipCell,r.client_ip,'client_ip');
+      if(r.relay_account){const acc=document.createElement('div');acc.className='monitor-account';acc.append('Blue-X · ',linkButton(r.relay_account,'account'));ipCell.appendChild(acc);}
       cell(tr,r.path,'monitor-path mono');const status=cell(tr,'');const badge=document.createElement('span');badge.className='badge '+(r.status_code>=500?'err':r.status_code>=400?'warn':'ok');badge.textContent=r.status_code;status.appendChild(badge);
       cell(tr,ms(r.duration_ms),'number');cell(tr,r.user_agent || '—','monitor-user-agent');const td=cell(tr,'','monitor-detail');const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent=labels[r.category]||r.category;
-      const pre=document.createElement('pre');pre.textContent=[...(r.query||[]).map(p=>p.name+' = '+p.value),r.query_truncated?'일부 파라미터가 길이 제한으로 생략됨':'',`User-Agent: ${r.user_agent || '—'}`,`요청 ID: ${r.request_id}`,`응답 전송 처리: ${r.response_complete?'완료':'미완료'}`,r.error_type?`예외: ${r.error_type}`:''].filter(Boolean).join('\n');
+      const pre=document.createElement('pre');pre.textContent=[...(r.query||[]).map(p=>p.name+' = '+p.value),r.query_truncated?'일부 파라미터가 길이 제한으로 생략됨':'',`User-Agent: ${r.user_agent || '—'}`,`요청 ID: ${r.request_id}${r.request_id_source==='header'?' (중계 서버 전달값)':''}`,r.relay_account?`Blue-X 계정: ${r.relay_account}`:'',`응답 전송 처리: ${r.response_complete?'완료':'미완료'}`,r.error_type?`예외: ${r.error_type}`:''].filter(Boolean).join('\n');
       details.append(summary,pre);td.appendChild(details);requests.appendChild(tr);
     }
     const pages=Math.min(1000,Math.max(1,Math.ceil(o.total/data.page_size)));

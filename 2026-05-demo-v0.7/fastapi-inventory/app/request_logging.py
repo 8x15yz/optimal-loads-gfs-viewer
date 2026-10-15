@@ -5,6 +5,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -28,6 +29,22 @@ DATA_PATHS = {
     "/api/griddata", "/api/gridfile", "/api/latest", "/api/latest-forecast",
     "/api/s100/tiles", "/api/s100/forecast-tiles", "/api/sources", "/api/variables",
 }
+
+
+# 중계 서버(Blue-X 등)가 보내는 추적 헤더. 형식이 맞는 값만 기록하고 나머지는 무시함.
+#  - X-Request-ID     : 중계 서버의 요청 ID (Blue-X 활동 로그 ID와 동일). 있으면 이 값을 요청 ID로 사용
+#  - X-BlueX-Account  : Blue-X 요청 계정 ID
+# 누구나 보낼 수 있는 헤더이므로 인증 정보가 아님. 출처 확인은 client_ip·user_agent와 함께 판단.
+REQUEST_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}")
+ACCOUNT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}")
+
+
+def header_value(headers, name, pattern):
+    raw = headers.get(name)
+    if not raw:
+        return None
+    value = raw.decode("latin-1").strip()
+    return value if pattern.fullmatch(value) else None
 
 
 def category_for(path, matched):
@@ -85,7 +102,7 @@ class RequestLogWriter:
                         if exc.code != 27:
                             raise
                 await self.collection.create_index([("started_at", -1), ("_id", -1)])
-                for key in ("category", "path", "client_ip"):
+                for key in ("category", "path", "client_ip", "request_id", "relay_account"):
                     await self.collection.create_index([(key, 1), ("started_at", -1)])
             await asyncio.wait_for(create(), timeout=5)
             self.indexes_ready = True
@@ -171,7 +188,12 @@ class RequestLogMiddleware:
         writer = scope["app"].state.request_log_writer
         started_at = datetime.now(timezone.utc)
         started = time.perf_counter()
-        request_id = uuid.uuid4().hex
+        # _id는 항상 서버가 생성(중복 방지). 표시·검색용 request_id는 중계 서버가 보낸 값을 우선 사용.
+        log_id = uuid.uuid4().hex
+        request_headers = dict(scope.get("headers", []))
+        relay_request_id = header_value(request_headers, b"x-request-id", REQUEST_ID_RE)
+        relay_account = header_value(request_headers, b"x-bluex-account", ACCOUNT_RE)
+        request_id = relay_request_id or log_id
         status = None
         completed = False
         ended = None
@@ -217,9 +239,11 @@ class RequestLogMiddleware:
                     else:
                         endpoint = "[unmatched]"
                 params, truncated = safe_query(scope.get("query_string", b""))
-                headers = dict(scope.get("headers", []))
+                headers = request_headers
                 writer.submit({
-                    "_id": request_id, "request_id": request_id, "started_at": started_at,
+                    "_id": log_id, "request_id": request_id, "started_at": started_at,
+                    "request_id_source": "header" if relay_request_id else "server",
+                    "relay_account": relay_account,
                     "method": "GET", "path": path,
                     "endpoint": endpoint,
                     "category": category,

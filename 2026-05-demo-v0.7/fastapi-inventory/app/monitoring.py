@@ -45,7 +45,8 @@ async def monitoring_page(request: Request):
     )
 
 
-def make_match(now, hours, category, status, endpoint, client_ip, include_monitoring=False):
+def make_match(now, hours, category, status, endpoint, client_ip, include_monitoring=False,
+               request_id="", account=""):
     match = {"started_at": {"$gte": now - timedelta(hours=hours), "$lt": now}}
     if category != "all":
         match["category"] = category
@@ -58,6 +59,10 @@ def make_match(now, hours, category, status, endpoint, client_ip, include_monito
         match["path"] = {"$regex": re.escape(endpoint)}
     if client_ip:
         match["client_ip"] = client_ip
+    if request_id:
+        match["request_id"] = request_id
+    if account:
+        match["relay_account"] = account
     return match
 
 
@@ -80,6 +85,13 @@ def make_pipeline(match, bucket_minutes, page, page_size):
         ],
         "clients": [
             {"$group": {"_id": "$client_ip", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1, "_id": 1}}, {"$limit": 10},
+        ],
+        # Blue-X 등 중계 서버가 X-BlueX-Account로 전달한 계정별 요청 수
+        "accounts": [
+            {"$match": {"relay_account": {"$type": "string"}}},
+            {"$group": {"_id": "$relay_account", "count": {"$sum": 1},
+                "errors": {"$sum": {"$cond": [{"$gte": ["$status_code", 400]}, 1, 0]}}}},
             {"$sort": {"count": -1, "_id": 1}}, {"$limit": 10},
         ],
         "timeline": [
@@ -108,13 +120,16 @@ async def monitoring_data(
     status: Literal["all", "2xx", "3xx", "4xx", "5xx"] = "all",
     endpoint: str = Query("", max_length=256),
     client_ip: str = Query("", max_length=128),
+    request_id: str = Query("", max_length=128),
+    account: str = Query("", max_length=128),
     page: int = Query(1, ge=1, le=1000),
 ):
     response.headers["Cache-Control"] = "no-store"
     now = datetime.now(timezone.utc)
     page_size = 50
     bucket_minutes = 5 if hours <= 6 else (60 if hours <= 48 else 360)
-    match = make_match(now, hours, category, status, endpoint.strip(), client_ip.strip(), include_monitoring)
+    match = make_match(now, hours, category, status, endpoint.strip(), client_ip.strip(), include_monitoring,
+                       request_id.strip(), account.strip())
     coll = await get_request_logs_collection()
 
     async def query():
