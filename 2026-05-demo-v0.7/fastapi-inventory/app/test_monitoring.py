@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 # The supplied ZIP is the contents of app/, also support testing it as a flat directory.
-root = Path(__file__).resolve().parents[1]
+root = Path(__file__).resolve().parent
 if 'app' not in sys.modules:
     spec = importlib.util.spec_from_file_location('app', root / '__init__.py', submodule_search_locations=[str(root)])
     package = importlib.util.module_from_spec(spec)
@@ -40,6 +40,12 @@ class Collection:
 
     async def create_index(self, *args, **kwargs):
         return self.raw.create_index(*args, **kwargs)
+
+    async def index_information(self):
+        return self.raw.index_information()
+
+    async def drop_index(self, name):
+        return self.raw.drop_index(name)
 
     async def insert_many(self, documents, **kwargs):
         if self.fail_writes:
@@ -121,13 +127,13 @@ def test_statuses_ip_redaction_streaming_and_get_only(setup):
         ]
         assert 'not-stored' not in str(docs) and 'other-secret' not in str(docs)
         assert first['category'] == 'data_api'
-        assert first['expires_at'] - first['started_at'] == timedelta(days=30)
+        assert 'expires_at' not in first
         assert all(x['duration_ms'] >= 0 for x in docs)
         stream = collection.raw.find_one({'path': '/stream'})
         assert stream['response_bytes'] == 7 and stream['response_complete']
         crash = collection.raw.find_one({'path': '/crash'})
         assert crash['error_type'] == 'RuntimeError' and not crash['response_complete']
-        assert collection.raw.index_information()['request_expiry']['expireAfterSeconds'] == 0
+        assert 'request_expiry' not in collection.raw.index_information()
 
 
 def test_client_ip_behind_trusted_docker_gateway_proxy(setup):

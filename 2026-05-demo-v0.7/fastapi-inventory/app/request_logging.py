@@ -5,12 +5,13 @@ import asyncio
 import contextlib
 import json
 import logging
-import os
 import time
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib.parse import parse_qsl
+
+from pymongo.errors import OperationFailure
 
 from app.db import get_request_logs_collection
 
@@ -19,7 +20,7 @@ SAFE_QUERY_KEYS = {
     "source", "dataset_code", "model", "variable", "run_time_utc", "step_hours",
     "lat", "lon", "buffer_km", "nw_lon", "nw_lat", "se_lon", "se_lat",
     "expires_in", "product", "path", "key", "limit", "page", "hours",
-    "category", "status", "client_ip", "endpoint", "stream", "type",
+    "category", "status", "client_ip", "endpoint", "stream", "type", "include_monitoring",
     "status_ecmwf", "variable_ecmwf", "stream_ecmwf", "limit_ecmwf",
     "status_noaa", "variable_noaa", "stream_noaa", "limit_noaa",
 }
@@ -57,7 +58,6 @@ class RequestLogWriter:
         self.queue = asyncio.Queue(maxsize=2000)
         self.task = None
         self.collection = None
-        self.retention_days = max(1, min(365, int(os.getenv("REQUEST_LOG_RETENTION_DAYS", "30"))))
         self.fallback_count = 0
         self.last_write_ok = None
         self.indexes_ready = False
@@ -65,6 +65,8 @@ class RequestLogWriter:
 
     async def start(self):
         self.collection = await get_request_logs_collection()
+        # Remove the legacy expiry rule before accepting requests where possible.
+        await self._indexes()
         self.task = asyncio.create_task(self._run())
 
     async def _indexes(self):
@@ -73,7 +75,15 @@ class RequestLogWriter:
         self.next_index_attempt = time.monotonic() + 60
         try:
             async def create():
-                await self.collection.create_index("expires_at", expireAfterSeconds=0, name="request_expiry")
+                indexes = await self.collection.index_information()
+                expiry = indexes.get("request_expiry", {})
+                if "expireAfterSeconds" in expiry:
+                    try:
+                        await self.collection.drop_index("request_expiry")
+                    except OperationFailure as exc:
+                        # Another worker may already have removed the same index.
+                        if exc.code != 27:
+                            raise
                 await self.collection.create_index([("started_at", -1), ("_id", -1)])
                 for key in ("category", "path", "client_ip"):
                     await self.collection.create_index([(key, 1), ("started_at", -1)])
@@ -87,7 +97,8 @@ class RequestLogWriter:
         logger.error("REQUEST_LOG_FALLBACK %s", json.dumps(document, default=str, ensure_ascii=True))
 
     def submit(self, document):
-        document["expires_at"] = document["started_at"] + timedelta(days=self.retention_days)
+        # Permanent retention, including when the old environment variable remains set.
+        document.pop("expires_at", None)
         try:
             self.queue.put_nowait(document)
         except asyncio.QueueFull:
@@ -134,7 +145,8 @@ class RequestLogWriter:
         return {
             "scope": "current_worker", "pending": self.queue.qsize(),
             "fallback_count": self.fallback_count, "last_write_ok": self.last_write_ok,
-            "indexes_ready": self.indexes_ready, "retention_days": self.retention_days,
+            "indexes_ready": self.indexes_ready, "retention_days": None,
+            "retention_policy": "permanent",
         }
 
 

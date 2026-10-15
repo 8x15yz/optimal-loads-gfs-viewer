@@ -41,6 +41,12 @@ class Collection:
     async def create_index(self, *args, **kwargs):
         return self.raw.create_index(*args, **kwargs)
 
+    async def index_information(self):
+        return self.raw.index_information()
+
+    async def drop_index(self, name):
+        return self.raw.drop_index(name)
+
     async def insert_many(self, documents, **kwargs):
         if self.fail_writes:
             raise RuntimeError('simulated database outage')
@@ -121,13 +127,13 @@ def test_statuses_ip_redaction_streaming_and_get_only(setup):
         ]
         assert 'not-stored' not in str(docs) and 'other-secret' not in str(docs)
         assert first['category'] == 'data_api'
-        assert first['expires_at'] - first['started_at'] == timedelta(days=30)
+        assert 'expires_at' not in first
         assert all(x['duration_ms'] >= 0 for x in docs)
         stream = collection.raw.find_one({'path': '/stream'})
         assert stream['response_bytes'] == 7 and stream['response_complete']
         crash = collection.raw.find_one({'path': '/crash'})
         assert crash['error_type'] == 'RuntimeError' and not crash['response_complete']
-        assert collection.raw.index_information()['request_expiry']['expireAfterSeconds'] == 0
+        assert 'request_expiry' not in collection.raw.index_information()
 
 
 def test_authentication_and_empty_state(setup, monkeypatch):
@@ -213,3 +219,73 @@ def test_queue_bound_and_parameter_limit(caplog):
     assert 'REQUEST_LOG_FALLBACK' in caplog.text
     params, truncated = request_logging.safe_query(b'variable=' + b'a'*400 + b'&password=secret')
     assert truncated and len(params[0]['value'])==256 and params[1]['value']=='[REDACTED]'
+
+
+def test_monitoring_hidden_by_default_across_all_statistics(setup):
+    app, collection = setup
+    auth = ('operator', 'test-password')
+    with TestClient(app) as client:
+        client.get('/api/griddata', headers={'User-Agent': 'Weather-client/1.0'})
+        client.get('/monitoring', auth=auth)
+        client.get('/api/monitoring/data', auth=auth)
+        drain(client, app)
+        data = client.get('/api/monitoring/data', auth=auth).json()
+        assert data['overview']['total'] == 1
+        assert sum(x['count'] for x in data['timeline']) == 1
+        assert sum(x['count'] for x in data['clients']) == 1
+        assert [x['_id'] for x in data['endpoints']] == ['/api/griddata']
+        assert [x['path'] for x in data['requests']] == ['/api/griddata']
+        assert data['requests'][0]['user_agent'] == 'Weather-client/1.0'
+        assert data['overview']['p95_ms'] == data['requests'][0]['duration_ms']
+        drain(client, app)
+        included = client.get('/api/monitoring/data?include_monitoring=true', auth=auth).json()
+        assert included['overview']['total'] == collection.raw.count_documents({})
+        assert {'/monitoring', '/api/monitoring/data'} <= {x['path'] for x in included['requests']}
+        selected = client.get('/api/monitoring/data?category=monitoring', auth=auth).json()
+        assert selected['requests']
+        assert all(x['category'] == 'monitoring' for x in selected['requests'])
+
+
+def test_legacy_ttl_removed_and_existing_records_preserved(setup, monkeypatch):
+    app, collection = setup
+    monkeypatch.setenv('REQUEST_LOG_RETENTION_DAYS', '30')
+    now = datetime.now(timezone.utc)
+    collection.raw.create_index('expires_at', expireAfterSeconds=0, name='request_expiry')
+    collection.raw.insert_one({'_id': 'legacy', 'started_at': now - timedelta(days=29),
+                               'expires_at': now + timedelta(days=1)})
+    with TestClient(app) as client:
+        assert 'request_expiry' not in collection.raw.index_information()
+        # The old expiry field no longer causes deletion after migration.
+        collection.raw.update_one({'_id': 'legacy'}, {'$set': {'expires_at': now - timedelta(days=1)}})
+        assert collection.raw.find_one({'_id': 'legacy'}) is not None
+        client.get('/api/griddata')
+        drain(client, app)
+        assert 'expires_at' not in collection.raw.find_one({'path': '/api/griddata'})
+        health = app.state.request_log_writer.health()
+        assert health['retention_days'] is None and health['retention_policy'] == 'permanent'
+        assert health['indexes_ready']
+    # Restart is idempotent and leaves the legacy document intact.
+    with TestClient(app):
+        assert app.state.request_log_writer.indexes_ready
+        assert collection.raw.find_one({'_id': 'legacy'}) is not None
+
+
+def test_failed_ttl_removal_is_reported_and_retried(setup, monkeypatch):
+    app, collection = setup
+    collection.raw.create_index('expires_at', expireAfterSeconds=0, name='request_expiry')
+    original = collection.drop_index
+
+    async def denied(name):
+        raise RuntimeError('dropIndex denied')
+
+    monkeypatch.setattr(collection, 'drop_index', denied)
+    with TestClient(app) as client:
+        writer = app.state.request_log_writer
+        assert not writer.health()['indexes_ready']
+        assert 'request_expiry' in collection.raw.index_information()
+        assert client.get('/api/griddata').status_code == 200
+        monkeypatch.setattr(collection, 'drop_index', original)
+        writer.next_index_attempt = 0
+        client.portal.call(writer._indexes)
+        assert writer.health()['indexes_ready']
+        assert 'request_expiry' not in collection.raw.index_information()

@@ -45,10 +45,12 @@ async def monitoring_page(request: Request):
     )
 
 
-def make_match(now, hours, category, status, endpoint, client_ip):
+def make_match(now, hours, category, status, endpoint, client_ip, include_monitoring=False):
     match = {"started_at": {"$gte": now - timedelta(hours=hours), "$lt": now}}
     if category != "all":
         match["category"] = category
+    elif not include_monitoring:
+        match["category"] = {"$ne": "monitoring"}
     if status != "all":
         low = int(status[0]) * 100
         match["status_code"] = {"$gte": low, "$lt": low + 100}
@@ -102,6 +104,7 @@ async def monitoring_data(
     request: Request, response: Response,
     hours: int = Query(24, ge=1, le=168),
     category: Literal["all", "data_api", "admin_api", "page", "static", "monitoring", "unknown"] = "all",
+    include_monitoring: bool = Query(False),
     status: Literal["all", "2xx", "3xx", "4xx", "5xx"] = "all",
     endpoint: str = Query("", max_length=256),
     client_ip: str = Query("", max_length=128),
@@ -111,7 +114,7 @@ async def monitoring_data(
     now = datetime.now(timezone.utc)
     page_size = 50
     bucket_minutes = 5 if hours <= 6 else (60 if hours <= 48 else 360)
-    match = make_match(now, hours, category, status, endpoint.strip(), client_ip.strip())
+    match = make_match(now, hours, category, status, endpoint.strip(), client_ip.strip(), include_monitoring)
     coll = await get_request_logs_collection()
 
     async def query():
