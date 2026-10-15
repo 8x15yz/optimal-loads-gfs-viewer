@@ -43,5 +43,6 @@ jobs:
               --name demo-v0-7-api \
               --restart=always \
               --env-file "$ENV_FILE" \
-              -p 8080:8000 \
+              -e FORWARDED_ALLOW_IPS=172.17.0.1 \
+              -p 127.0.0.1:8080:8000 \
               demo-v0-7-api:latest
