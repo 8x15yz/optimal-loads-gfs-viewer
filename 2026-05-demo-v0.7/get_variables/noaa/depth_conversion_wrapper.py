@@ -6,6 +6,7 @@
 # [2026-05-19] compute_tile_bbox tiles_per_row: // → math.ceil (DepthConversion 내부 로직 일치)
 # [2026-05-21] S-111 rename: 루프 내 순차 rename → 루프 전 역순 일괄 rename (cascade overwrite 방지)
 # [2026-05-21] H5 파일 목록 정렬: 문자열 정렬 → 타일 번호 숫자 정렬 (100~104 재이동/덮어쓰기 방지)
+# [2026-10-21] 변환기 HDF5-DIAG 오류 스택 필터링 (크론 로그 12G 증가로 디스크 100% 장애 → 재발 방지)
 """
 DepthConversion CLI wrapper — S-111 / S-413 변환 + S3 업로드 + MongoDB 메타 등록
 
@@ -30,6 +31,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -74,6 +76,11 @@ REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 CONVERTER_PATH    = os.getenv("DEPTH_CONVERTER_PATH", "")
 CONVERTER_ENABLED = os.getenv("DEPTH_CONVERTER_ENABLED", "true").strip().lower() == "true"
 
+# 변환기(.NET + HDF.PInvoke)가 성공 런에서도 HDF5 자동 오류 스택을 대량 출력함
+# (변환 1회당 수만 블록). 로그에는 요약만 남기고, 실패 시에만 앞부분 샘플을 남김.
+_HDF5_DIAG_RE = re.compile(r"^(HDF5-DIAG:|\s+#\d+:|\s+(major|minor):)")
+HDF5_DIAG_SAMPLE_LINES = int(os.getenv("HDF5_DIAG_SAMPLE_LINES", "40"))
+
 
 # ── 유틸 ──────────────────────────────────────────────────────────────────────
 
@@ -91,6 +98,28 @@ def build_gfs_steps(max_step: int = 384) -> list[int]:
     if max_step >= 150:
         steps += list(range(150, max_step + 1, 6))
     return sorted(set(steps))
+
+
+def _split_hdf5_diag(text: str) -> tuple[list[str], list[str]]:
+    """변환기 출력에서 HDF5-DIAG 블록 줄과 나머지 줄을 분리."""
+    kept: list[str] = []
+    diag: list[str] = []
+    for line in text.splitlines():
+        (diag if _HDF5_DIAG_RE.match(line) else kept).append(line)
+    return kept, diag
+
+
+def _emit_converter_output(text: str, stream, *, label: str) -> list[str]:
+    """HDF5-DIAG 제외 줄만 출력하고, 제거한 줄 수를 한 줄로 요약. 제거한 줄 목록 반환."""
+    if not text:
+        return []
+    kept, diag = _split_hdf5_diag(text)
+    if kept:
+        print("\n".join(kept), file=stream)
+    if diag:
+        blocks = sum(1 for l in diag if l.startswith("HDF5-DIAG:"))
+        print(f"[wrapper] ({label}) HDF5-DIAG {blocks} blocks / {len(diag)} lines suppressed", file=stream)
+    return diag
 
 
 # ── 타일 bbox 계산 ─────────────────────────────────────────────────────────────
@@ -426,11 +455,10 @@ def run_conversion(
             text=True,
             cwd=str(converter.parent),
         )
-        # 변환기 출력을 그대로 화면에도 표시
-        if result.stdout:
-            print(result.stdout, end="")
-        if result.stderr:
-            print(result.stderr, end="", file=__import__("sys").stderr)
+        # 변환기 출력 표시 (HDF5-DIAG 오류 스택은 요약만).
+        # 성공/스킵 판정 파싱은 아래에서 원본 result.stdout 을 그대로 사용함.
+        diag_lines = _emit_converter_output(result.stdout, sys.stdout, label="stdout")
+        diag_lines += _emit_converter_output(result.stderr, sys.stderr, label="stderr")
     except Exception as e:
         print(f"[wrapper] ❌ subprocess 실행 오류: {e}")
         return False, []
@@ -461,6 +489,9 @@ def run_conversion(
 
     if not success:
         print(f"[wrapper] ❌ {product.upper()} 변환 실패 — S3/MongoDB 업로드 스킵")
+        if diag_lines and HDF5_DIAG_SAMPLE_LINES > 0:
+            print(f"[wrapper] HDF5-DIAG 앞부분 {HDF5_DIAG_SAMPLE_LINES}줄 (진단용):", file=sys.stderr)
+            print("\n".join(diag_lines[:HDF5_DIAG_SAMPLE_LINES]), file=sys.stderr)
         return False, []
 
     # ── 3. H5 파일 목록 수집 (변환툴 staging→output 이동 완료 대기) ──────────
