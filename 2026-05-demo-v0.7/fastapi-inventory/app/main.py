@@ -54,8 +54,12 @@ app = FastAPI(
     title=APP_TITLE,
     version=APP_VERSION,
     description=APP_DESCRIPTION,
+    terms_of_service="https://weather-api.bmap.kr/guide/terms/usage-terms-v1.0.pdf",
     contact={"name": "BlueMap", "email": "hjk@bluemap.dev"},
-    license_info={"name": "MIT"},
+    license_info={
+        "name": "Usage Terms and Conditions",
+        "url": "https://weather-api.bmap.kr/guide/terms/usage-terms-v1.0.pdf",
+    },
     openapi_tags=[{"name": "weather service", "description": "Gridded marine weather data (NOAA GFS Wave)"}],
 )
 
